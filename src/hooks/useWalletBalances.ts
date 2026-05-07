@@ -14,6 +14,7 @@ export interface TokenBalance {
   balance: string;
   defuse_asset_id: string;
   chains: string[];
+  price?: number;
 }
 
 function formatTokenBalance(raw: string, decimals: number): string {
@@ -49,11 +50,10 @@ export function useWalletBalances(
     staleTime: 30_000,
   });
 
-  // Token catalog (requires API key — used for symbols/decimals)
+  // Token catalog from ChainDefuser (public, includes prices, no API key)
   const catalogQuery = useQuery({
-    queryKey: ["wallet-supported-tokens", apiKey],
-    queryFn: () => fetchSupportedTokens(baseUrl, apiKey!),
-    enabled: !!apiKey,
+    queryKey: ["wallet-supported-tokens"],
+    queryFn: () => fetchSupportedTokens(),
     staleTime: 5 * 60_000,
   });
 
@@ -69,7 +69,7 @@ export function useWalletBalances(
         const tokenIds = allTokens.map((t) => t.defuse_asset_id);
         const balances = await fetchIntentsBalancesBatch(accountId, tokenIds);
 
-        // Pair balances with catalog metadata, filter to non-zero
+        // Pair balances with catalog metadata (including price), filter to non-zero
         return allTokens
           .map((token, i) => ({
             symbol: token.symbol,
@@ -77,10 +77,10 @@ export function useWalletBalances(
             balance: balances[i] ?? "0",
             defuse_asset_id: token.defuse_asset_id,
             chains: token.chains,
+            price: token.price,
           }))
           .filter((t) => t.balance !== "0") as TokenBalance[];
       } catch (err) {
-        // Surface error message for display
         throw new Error(
           `Intents balance query failed: ${err instanceof Error ? err.message : String(err)}`,
         );
@@ -97,6 +97,7 @@ export function useWalletBalances(
   return {
     near: nearQuery.data ?? null,
     tokens: intentsQuery.data ?? [],
+    allTokens,
     loading,
     intentsLoading,
     error,

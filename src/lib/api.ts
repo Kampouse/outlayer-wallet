@@ -265,6 +265,8 @@ export interface SupportedToken {
   chains: string[];
   decimals: number;
   defuse_asset_id: string;
+  price?: number;
+  priceUpdatedAt?: string;
 }
 
 /** Fetch NEAR balance for a wallet (requires API key) */
@@ -279,17 +281,24 @@ export async function fetchWalletBalance(
   return resp.json();
 }
 
-/** Fetch supported token catalog (requires API key) */
-export async function fetchSupportedTokens(
-  baseUrl: string,
-  apiKey: string,
-): Promise<SupportedToken[]> {
-  const resp = await fetch(`${baseUrl}/wallet/v1/tokens`, {
-    headers: { Authorization: `Bearer ${apiKey}` },
-  });
+/**
+ * Fetch supported token catalog from ChainDefuser.
+ * Public — no API key needed. Includes prices.
+ * assetId maps to defuse_asset_id.
+ */
+export async function fetchSupportedTokens(): Promise<SupportedToken[]> {
+  const resp = await fetch("https://1click.chaindefuser.com/v0/tokens");
   if (!resp.ok) throw new Error(`Token list fetch failed: ${resp.status}`);
   const data = await resp.json();
-  return data.tokens ?? data;
+  return (Array.isArray(data) ? data : data.tokens ?? []).map((t: Record<string, unknown>) => ({
+    id: String(t.assetId ?? t.defuse_asset_id ?? ""),
+    symbol: String(t.symbol ?? ""),
+    chains: [String(t.blockchain ?? "")],
+    decimals: Number(t.decimals ?? 0),
+    defuse_asset_id: String(t.assetId ?? t.defuse_asset_id ?? ""),
+    price: t.price != null ? Number(t.price) : undefined,
+    priceUpdatedAt: t.priceUpdatedAt ? String(t.priceUpdatedAt) : undefined,
+  }));
 }
 
 /**
