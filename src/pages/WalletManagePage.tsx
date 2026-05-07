@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNearWallet } from "@/contexts/NearWalletContext";
 import WalletConnectionModal from "@/components/WalletConnectionModal";
 import WalletBalancesSection from "@/components/wallet/WalletBalancesSection";
+import CopyableAddress from "@/components/CopyableAddress";
 import { getCoordinatorApiUrl } from "@/lib/api";
 import { actionCreators } from "@near-js/transactions";
 import {
@@ -208,14 +209,11 @@ export default function WalletManagePage() {
                       </span>
                       <Badge variant="outline">No Policy</Badge>
                     </div>
-                    <a
+                    <CopyableAddress
+                      address={pubkey.replace(/^ed25519:/, "")}
                       href={`https://near.rocks/account/${pubkey.replace(/^ed25519:/, "")}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-1 text-xs text-zinc-500 font-mono break-all hover:text-zinc-700 hover:underline"
-                    >
-                      {pubkey.replace(/^ed25519:/, "")}
-                    </a>
+                      as="a"
+                    />
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <Link to={`/handoff?key=${savedKeys[pubkey]}`}>
@@ -230,7 +228,14 @@ export default function WalletManagePage() {
         ) : (
           <Card>
             <CardContent className="p-8 text-center">
-              <p className="text-zinc-500 mb-6">
+              <div className="w-14 h-14 rounded-2xl bg-zinc-100 flex items-center justify-center mx-auto mb-4">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-zinc-400">
+                  <rect x="2" y="5" width="20" height="14" rx="3" />
+                  <path d="M2 10h20" />
+                </svg>
+              </div>
+              <h2 className="text-sm font-semibold text-zinc-900 mb-1">No wallets yet</h2>
+              <p className="text-zinc-500 text-sm mb-6 max-w-xs mx-auto">
                 Connect your NEAR wallet to manage on-chain policies, or save an API key to view an intent wallet.
               </p>
               <div className="flex flex-col items-center gap-3">
@@ -292,16 +297,11 @@ export default function WalletManagePage() {
                     </span>
                     <Badge variant="outline">No Policy</Badge>
                   </div>
-                  <p className="mt-1 text-xs text-zinc-500 font-mono break-all">
-                    <a
-                      href={`https://near.rocks/account/${apiKeyWallet.address}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hover:text-zinc-700 hover:underline"
-                    >
-                      {apiKeyWallet.address}
-                    </a>
-                  </p>
+                  <CopyableAddress
+                    address={apiKeyWallet.address}
+                    href={`https://near.rocks/account/${apiKeyWallet.address}`}
+                    as="a"
+                  />
                   <p className="text-xs text-zinc-400 mt-1">
                     NEAR address: {apiKeyWallet.address}
                   </p>
@@ -337,14 +337,11 @@ export default function WalletManagePage() {
                     <Badge variant="outline">No Policy</Badge>
                   </div>
                   <div>
-                    <a
+                    <CopyableAddress
+                      address={pubkey.replace(/^ed25519:/, "")}
                       href={`https://near.rocks/account/${pubkey.replace(/^ed25519:/, "")}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-1 text-xs text-zinc-500 font-mono break-all hover:text-zinc-700 hover:underline"
-                    >
-                      {pubkey.replace(/^ed25519:/, "")}
-                    </a>
+                      as="a"
+                    />
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -363,8 +360,15 @@ export default function WalletManagePage() {
       {isSuccess && wallets.length === 0 && !apiKeyWallet && Object.keys(savedKeys).length === 0 ? (
         <Card>
           <CardContent className="p-8 text-center">
-            <p className="text-zinc-500">
-              No wallets found. Connect your NEAR wallet to see on-chain policies, or save an API key to view an intent wallet.
+            <div className="w-14 h-14 rounded-2xl bg-zinc-100 flex items-center justify-center mx-auto mb-4">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-zinc-400">
+                <rect x="2" y="5" width="20" height="14" rx="3" />
+                <path d="M2 10h20" />
+              </svg>
+            </div>
+            <h2 className="text-sm font-semibold text-zinc-900 mb-1">No wallets found</h2>
+            <p className="text-zinc-500 text-sm max-w-xs mx-auto">
+              No wallets found for this account. Save an API key to view an intent wallet.
             </p>
           </CardContent>
         </Card>
@@ -397,15 +401,14 @@ export default function WalletManagePage() {
                           <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 border-emerald-200">Active</Badge>
                         )}
                       </div>
-                      <a
+                      <CopyableAddress
+                        address={
+                          wallet.wallet_pubkey.split(":").slice(1).join(":") ||
+                          wallet.wallet_pubkey
+                        }
                         href={`https://near.rocks/account/${(wallet.wallet_pubkey.split(":").slice(1).join(":") || wallet.wallet_pubkey)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="mt-1 text-xs text-zinc-500 font-mono break-all hover:text-zinc-700 hover:underline"
-                      >
-                        {wallet.wallet_pubkey.split(":").slice(1).join(":") ||
-                          wallet.wallet_pubkey}
-                      </a>
+                        as="a"
+                      />
                       <p className="text-xs text-zinc-400 mt-1">
                         Updated: {formatTimestamp(wallet.updated_at)}
                       </p>

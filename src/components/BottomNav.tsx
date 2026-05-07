@@ -9,7 +9,7 @@ const tabs = [
 
 export default function BottomNav() {
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-zinc-200 z-50 pb-[env(safe-area-inset-bottom)]">
+    <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-zinc-200 z-50 pb-[env(safe-area-inset-bottom)]">
       <div className="flex justify-around items-center h-16 max-w-lg mx-auto">
         {tabs.map((tab) => {
           const Icon = tab.icon
@@ -19,18 +19,23 @@ export default function BottomNav() {
               to={tab.to}
               end={tab.to === '/'}
               className={({ isActive }) =>
-                `flex flex-col items-center justify-center gap-0.5 px-3 py-1 text-xs transition-all duration-200 ${
-                  isActive ? 'text-zinc-900 font-medium' : 'text-zinc-400'
+                `relative flex flex-col items-center justify-center gap-0.5 px-4 py-1.5 rounded-lg text-xs transition-all duration-200 ${
+                  isActive
+                    ? 'text-zinc-900 font-medium'
+                    : 'text-zinc-400 hover:text-zinc-600'
                 }`
               }
             >
               {({ isActive }) => (
                 <>
-                  <Icon size={isActive ? 20 : 18} strokeWidth={isActive ? 2 : 1.5} />
-                  <span>{tab.label}</span>
                   {isActive && (
-                    <span className="absolute bottom-1 w-1 h-1 rounded-full bg-zinc-900" />
+                    <span className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-5 h-0.5 rounded-full bg-emerald-500" />
                   )}
+                  <Icon
+                    size={isActive ? 20 : 18}
+                    strokeWidth={isActive ? 2 : 1.5}
+                  />
+                  <span>{tab.label}</span>
                 </>
               )}
             </NavLink>

@@ -3,18 +3,24 @@ globalThis.Buffer = Buffer
 
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient } from '@tanstack/react-query'
+import {
+  PersistQueryClientProvider,
+  persistQueryClientRestore,
+} from '@tanstack/react-query-persist-client'
+import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister'
 import { NearWalletProvider } from './contexts/NearWalletContext'
 import App from './App'
 import './index.css'
 
 const CACHE_KEY = 'outlayer:queryCache'
+const MAX_AGE = 30 * 60_000 // 30 min
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 10 * 60_000,     // 10 min before refetch
-      gcTime: 30 * 60_000,        // 30 min cache
+      gcTime: MAX_AGE,            // match persistence TTL
       retry: 1,
       refetchOnWindowFocus: true,
       placeholderData: (prev) => prev,
@@ -22,35 +28,27 @@ const queryClient = new QueryClient({
   },
 })
 
-// Restore query cache from localStorage (sync — runs before first paint)
-try {
-  const stored = localStorage.getItem(CACHE_KEY)
-  if (stored) {
-    const { clientState, timestamp } = JSON.parse(stored)
-    if (Date.now() - timestamp < 30 * 60_000) {
-      queryClient.getQueryCache().restore(clientState)
-    } else {
-      localStorage.removeItem(CACHE_KEY)
-    }
-  }
-} catch {}
+const persister = createAsyncStoragePersister({
+  storage: window.localStorage,
+  key: CACHE_KEY,
+})
 
-// Save query cache to localStorage on changes
-queryClient.getQueryCache().subscribe((event) => {
-  if (event?.type === 'updated' || event?.type === 'added') {
-    try {
-      const clientState = queryClient.getQueryCache().build()
-      localStorage.setItem(CACHE_KEY, JSON.stringify({ clientState, timestamp: Date.now() }))
-    } catch {}
-  }
+// Sync restore from localStorage before first paint (no flash)
+persistQueryClientRestore({
+  queryClient,
+  persister,
+  maxAge: MAX_AGE,
 })
 
 createRoot(document.getElementById('root')!).render(
   <BrowserRouter>
-    <QueryClientProvider client={queryClient}>
+    <PersistQueryClientProvider
+      client={queryClient}
+      persistOptions={{ persister, maxAge: MAX_AGE }}
+    >
       <NearWalletProvider>
         <App />
       </NearWalletProvider>
-    </QueryClientProvider>
+    </PersistQueryClientProvider>
   </BrowserRouter>,
 )

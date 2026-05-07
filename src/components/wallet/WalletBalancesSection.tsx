@@ -1,16 +1,37 @@
-import { Loader2, RefreshCw, Wallet } from "lucide-react";
+import { RefreshCw, Wallet, DollarSign } from "lucide-react";
 import { useWalletBalances, formatTokenBalance } from "@/hooks/useWalletBalances";
+import { useTokenPrices } from "@/hooks/useTokenPrices";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface WalletBalancesSectionProps {
   apiKey: string | null;
   accountId: string | null;
 }
 
+function BalanceSkeleton() {
+  return (
+    <div className="mt-3 pt-3 border-t border-zinc-100">
+      <div className="flex items-center justify-between mb-2">
+        <Skeleton className="h-3 w-14" />
+      </div>
+      <div className="space-y-2">
+        <div className="flex items-center justify-between py-0.5">
+          <Skeleton className="h-3 w-10" />
+          <Skeleton className="h-3 w-20" />
+        </div>
+        <div className="flex items-center justify-between py-0.5">
+          <Skeleton className="h-3 w-10" />
+          <Skeleton className="h-3 w-16" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function WalletBalancesSection({
   apiKey,
   accountId,
 }: WalletBalancesSectionProps) {
-  // Strip "ed25519:" prefix from pubkey if present — the contract expects raw hex
   const accountIdRaw = accountId?.replace(/^ed25519:/, "") ?? null;
 
   const {
@@ -22,6 +43,32 @@ export default function WalletBalancesSection({
     refetch,
   } = useWalletBalances(apiKey, accountIdRaw);
 
+  // Build price query from NEAR balance + non-zero token symbols
+  const priceSymbols: string[] = [];
+  if (near && BigInt(near.balance) > 0n) priceSymbols.push("NEAR");
+  for (const t of tokens) {
+    priceSymbols.push(t.symbol);
+  }
+
+  const { data: prices } = useTokenPrices(priceSymbols);
+
+  // Calculate total USD value
+  const totalUsd = (() => {
+    let total = 0;
+    if (near && prices?.NEAR) {
+      const nearVal = Number(BigInt(near.balance) / 10n ** 24n);
+      total += nearVal * prices.NEAR;
+    }
+    for (const t of tokens) {
+      const price = prices?.[t.symbol.toUpperCase()];
+      if (price) {
+        const val = BigInt(t.balance) / 10n ** BigInt(t.decimals);
+        total += Number(val) * price;
+      }
+    }
+    return total;
+  })();
+
   if (!apiKey) {
     return (
       <div className="mt-3 pt-3 border-t border-zinc-100">
@@ -30,6 +77,10 @@ export default function WalletBalancesSection({
         </p>
       </div>
     );
+  }
+
+  if (loading && !near && !tokens.length) {
+    return <BalanceSkeleton />;
   }
 
   const formatNear = (raw: string) => {
@@ -46,7 +97,7 @@ export default function WalletBalancesSection({
     return `${whole.toLocaleString()}.${fracStr} NEAR`;
   };
 
-  const isRefreshing = loading || intentsLoading;
+  const isRefreshing = intentsLoading;
 
   return (
     <div className="mt-3 pt-3 border-t border-zinc-100">
@@ -67,15 +118,21 @@ export default function WalletBalancesSection({
         </button>
       </div>
 
+      {/* Total USD value */}
+      {totalUsd > 0 && (
+        <div className="flex items-center gap-1.5 mb-2 pb-2 border-b border-zinc-100">
+          <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
+          <span className="text-sm font-semibold text-zinc-900">
+            ${totalUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </span>
+          <span className="text-[10px] text-zinc-400">USD</span>
+        </div>
+      )}
+
       {error && <p className="text-xs text-red-500 mb-1">{error}</p>}
 
       {/* NEAR on-chain balance */}
-      {loading && !near ? (
-        <div className="flex items-center gap-2 text-xs text-zinc-400">
-          <Loader2 className="w-3 h-3 animate-spin" />
-          NEAR...
-        </div>
-      ) : near ? (
+      {near ? (
         <div className="flex items-center justify-between py-1">
           <span className="text-xs text-zinc-500">NEAR</span>
           <span className="text-xs font-mono font-medium text-zinc-800">
@@ -91,13 +148,9 @@ export default function WalletBalancesSection({
             Intents
           </span>
           {intentsLoading && (
-            <Loader2 className="w-2.5 h-2.5 animate-spin text-zinc-400" />
+            <div className="w-3 h-3 border border-zinc-300 border-t-zinc-500 rounded-full animate-spin" />
           )}
         </div>
-
-        {intentsLoading && (
-          <p className="text-xs text-zinc-400">Querying on-chain...</p>
-        )}
 
         {tokens.length > 0 && (
           <div className="space-y-0.5">

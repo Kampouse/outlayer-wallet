@@ -6,7 +6,7 @@ import { actionCreators } from '@near-js/transactions';
 import { getTransactionUrl } from '@/lib/explorer';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2, Check, DollarSign } from 'lucide-react';
 
 interface TokenMeta {
@@ -426,9 +426,9 @@ function FundContent() {
                       : 'Funds go directly to recipient\u2019s token account'}
                   </p>
                 </div>
-                <Switch
+                <Checkbox
                   checked={depositToIntents}
-                  onCheckedChange={setDepositToIntents}
+                  onCheckedChange={(v) => setDepositToIntents(!!v)}
                 />
               </label>
             </div>

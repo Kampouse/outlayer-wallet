@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { useNearWallet } from '@/contexts/NearWalletContext'
 
 export default function MobileHeader() {
@@ -12,8 +13,8 @@ export default function MobileHeader() {
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-zinc-200/80">
       <div className="flex items-center justify-between px-4 h-12">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-6 h-6 rounded-md bg-zinc-900 flex items-center justify-center">
+        <Link to="/" className="flex items-center gap-2.5 min-w-0">
+          <div className="w-6 h-6 rounded-md bg-zinc-900 flex items-center justify-center shrink-0">
             <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
               <rect x="1" y="3" width="14" height="10" rx="2" stroke="white" strokeWidth="1.5"/>
               <circle cx="5.5" cy="8" r="1.5" fill="white"/>
@@ -25,7 +26,7 @@ export default function MobileHeader() {
           ) : (
             <span className="text-sm font-semibold text-zinc-900 tracking-tight">Outlayer</span>
           )}
-        </div>
+        </Link>
         <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${
           network === 'testnet'
             ? 'bg-amber-50 text-amber-600 border border-amber-200'

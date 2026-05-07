@@ -70,7 +70,7 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
         return stored;
       }
     }
-    return (import.meta.env.VITE_DEFAULT_NETWORK || 'testnet') as NetworkType;
+    return (import.meta.env.VITE_DEFAULT_NETWORK || 'mainnet') as NetworkType;
   };
 
   const [network, setNetwork] = useState<NetworkType>(getInitialNetwork);

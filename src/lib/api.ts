@@ -29,7 +29,7 @@ export function getCoordinatorApiUrl(network?: NetworkType): string {
 
   // Fallback to default network from env
   if (!currentNetwork) {
-    currentNetwork = (import.meta.env.VITE_DEFAULT_NETWORK || 'testnet') as NetworkType;
+    currentNetwork = (import.meta.env.VITE_DEFAULT_NETWORK || 'mainnet') as NetworkType;
   }
 
   if (currentNetwork === 'mainnet') {
