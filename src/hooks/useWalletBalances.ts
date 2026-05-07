@@ -31,7 +31,6 @@ function formatTokenBalance(raw: string, decimals: number): string {
   const fracStr = fracPart
     .toString()
     .padStart(decimals, "0")
-    .slice(0, 6)
     .replace(/0+$/, "");
   return fracStr ? `${intPart.toLocaleString()}.${fracStr}` : intPart.toLocaleString();
 }
