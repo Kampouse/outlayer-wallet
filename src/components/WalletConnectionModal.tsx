@@ -1,6 +1,15 @@
 import { useNearWallet } from '@/contexts/NearWalletContext';
 import { useState, useEffect } from 'react';
 import type { NetworkType } from '@/contexts/NearWalletContext';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { X } from 'lucide-react';
 
 interface WalletConnectionModalProps {
   isOpen: boolean;
@@ -25,8 +34,6 @@ export default function WalletConnectionModal({ isOpen, onClose }: WalletConnect
     }
   }, [isConnected, isOpen, onClose]);
 
-  if (!isOpen) return null;
-
   const handleNetworkChange = async (newNetwork: NetworkType) => {
     if (newNetwork === network) {
       setPendingNetwork(newNetwork);
@@ -46,46 +53,34 @@ export default function WalletConnectionModal({ isOpen, onClose }: WalletConnect
     connect();
   };
 
-  const handleDisconnect = () => {
-    // Just close modal, disconnect button is in Settings
-    onClose();
-  };
-
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>
             {isConnected ? 'Wallet Connected' : 'Connect Wallet'}
-          </h3>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
+          </DialogTitle>
+          <DialogDescription>
+            {isConnected
+              ? 'Your wallet is already connected. Go to Settings to disconnect or switch network.'
+              : 'Select network and login with NEAR'}
+          </DialogDescription>
+        </DialogHeader>
 
         {!isConnected ? (
-          <>
-            <p className="text-gray-600 mb-4">
-              Select network and login with NEAR
-            </p>
-
+          <div className="space-y-6">
             {/* Network Selector */}
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 mb-2">
                 Network
               </label>
-              <div className="flex items-center bg-gray-100 rounded-lg p-1">
+              <div className="flex items-center bg-zinc-100 rounded-lg p-1">
                 <button
                   onClick={() => handleNetworkChange('testnet')}
                   className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                     pendingNetwork === 'testnet'
-                      ? 'bg-white text-[#cc6600] shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
+                      ? 'bg-white text-zinc-900 shadow-sm'
+                      : 'text-zinc-500 hover:text-zinc-700'
                   }`}
                 >
                   Testnet
@@ -94,8 +89,8 @@ export default function WalletConnectionModal({ isOpen, onClose }: WalletConnect
                   onClick={() => handleNetworkChange('mainnet')}
                   className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                     pendingNetwork === 'mainnet'
-                      ? 'bg-white text-[#5a8f3a] shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
+                      ? 'bg-white text-zinc-900 shadow-sm'
+                      : 'text-zinc-500 hover:text-zinc-700'
                   }`}
                 >
                   Mainnet
@@ -104,34 +99,31 @@ export default function WalletConnectionModal({ isOpen, onClose }: WalletConnect
             </div>
 
             {/* Connect Button */}
-            <button
+            <Button
               onClick={handleConnect}
               disabled={!isWalletReady || pendingNetwork !== network}
-              className="w-full px-4 py-3 bg-gradient-to-r from-[#cc6600] to-[#d4a017] text-white rounded-lg font-medium hover:from-[#b35900] hover:to-[#c49016] transition-colors shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full h-11"
             >
               {!isWalletReady || pendingNetwork !== network ? 'Switching network...' : `Connect to ${pendingNetwork === 'testnet' ? 'Testnet' : 'Mainnet'}`}
-            </button>
+            </Button>
 
             {(!isWalletReady || pendingNetwork !== network) && (
-              <p className="mt-3 text-xs text-gray-500 text-center">
+              <p className="text-xs text-zinc-400 text-center">
                 Please wait while we switch to {pendingNetwork}...
               </p>
             )}
-          </>
+          </div>
         ) : (
-          <>
-            <p className="text-gray-600 mb-6">
+          <div className="space-y-4">
+            <p className="text-zinc-600 text-sm">
               Your wallet is already connected. Go to Settings to disconnect or switch network.
             </p>
-            <button
-              onClick={handleDisconnect}
-              className="w-full px-4 py-3 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition-colors"
-            >
+            <Button variant="outline" onClick={onClose} className="w-full">
               Close
-            </button>
-          </>
+            </Button>
+          </div>
         )}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

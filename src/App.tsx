@@ -1,5 +1,6 @@
 import { Routes, Route } from 'react-router-dom'
 import BottomNav from './components/BottomNav'
+import MobileHeader from './components/MobileHeader'
 import WalletPage from './pages/WalletPage'
 import WalletManagePage from './pages/WalletManagePage'
 import WalletApprovalsPage from './pages/WalletApprovalsPage'
@@ -9,8 +10,9 @@ import WalletFundPage from './pages/WalletFundPage'
 
 export default function App() {
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50 text-gray-900">
-      <main className="flex-1 pb-20">
+    <div className="flex flex-col min-h-screen bg-zinc-50 text-zinc-900">
+      <MobileHeader />
+      <main className="flex-1 pb-20 pt-0 sm:pt-0">
         <Routes>
           <Route path="/" element={<WalletManagePage />} />
           <Route path="/wallet" element={<WalletManagePage />} />

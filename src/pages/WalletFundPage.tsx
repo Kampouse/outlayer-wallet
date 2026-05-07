@@ -4,6 +4,10 @@ import { useNearWallet } from '@/contexts/NearWalletContext';
 import WalletConnectionModal from '@/components/WalletConnectionModal';
 import { actionCreators } from '@near-js/transactions';
 import { getTransactionUrl } from '@/lib/explorer';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Switch } from '@/components/ui/switch';
+import { Loader2, Check, DollarSign } from 'lucide-react';
 
 interface TokenMeta {
   symbol: string;
@@ -91,13 +95,18 @@ function FundContent() {
   // Validate params
   if (!to || !amount) {
     return (
-      <div className="max-w-lg mx-auto mt-12">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-          <h2 className="text-lg font-semibold text-red-800 mb-2">Invalid Fund Link</h2>
-          <p className="text-red-700 text-sm">
-            Missing required parameters. The link should include <code className="bg-red-100 px-1 rounded">to</code> and <code className="bg-red-100 px-1 rounded">amount</code>.
-          </p>
-        </div>
+      <div className="max-w-lg mx-auto mt-12 px-4">
+        <Card>
+          <CardContent className="p-6 text-center">
+            <div className="w-12 h-12 bg-zinc-100 rounded-full flex items-center justify-center mx-auto mb-3">
+              <DollarSign className="w-6 h-6 text-zinc-400" />
+            </div>
+            <h2 className="text-lg font-semibold text-zinc-900 mb-2">Fund a Wallet</h2>
+            <p className="text-zinc-500 text-sm">
+              This page is accessed via a funding link with a recipient address and amount.
+            </p>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -105,8 +114,8 @@ function FundContent() {
   const parsedAmount = parseFloat(amount);
   if (isNaN(parsedAmount) || parsedAmount <= 0) {
     return (
-      <div className="max-w-lg mx-auto mt-12">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+      <div className="max-w-lg mx-auto mt-12 px-4">
+        <div className="bg-red-50 border-l-4 border-red-400 rounded-r-lg p-6">
           <h2 className="text-lg font-semibold text-red-800 mb-2">Invalid Amount</h2>
           <p className="text-red-700 text-sm">Amount must be a positive number.</p>
         </div>
@@ -321,227 +330,216 @@ function FundContent() {
   // Success state
   if (txHash) {
     return (
-      <div className="max-w-lg mx-auto mt-12">
-        <div className="bg-white shadow rounded-lg p-6 text-center">
-          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-          </div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Transfer Complete</h2>
-          <p className="text-gray-600 mb-4">
-            Sent {amount} {symbol} {depositNearViaContract
-              ? `via ${viaContract}`
-              : depositToIntents
-                ? 'to Intents balance'
-                : 'to recipient'}
-          </p>
-          {txHash !== 'submitted' && (
-            <a
-              href={getTransactionUrl(txHash, network)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-[#cc6600] hover:text-[#b35900] text-sm font-medium underline"
-            >
-              View transaction on explorer
-            </a>
-          )}
-        </div>
+      <div className="max-w-lg mx-auto mt-12 px-4">
+        <Card>
+          <CardContent className="p-6 text-center">
+            <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Check className="w-8 h-8 text-emerald-600" />
+            </div>
+            <h2 className="text-xl font-semibold text-zinc-900 mb-2">Transfer Complete</h2>
+            <p className="text-zinc-500 mb-4">
+              Sent {amount} {symbol} {depositNearViaContract
+                ? `via ${viaContract}`
+                : depositToIntents
+                  ? 'to Intents balance'
+                  : 'to recipient'}
+            </p>
+            {txHash !== 'submitted' && (
+              <a
+                href={getTransactionUrl(txHash, network)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-zinc-900 hover:underline text-sm font-medium"
+              >
+                View transaction on explorer
+              </a>
+            )}
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   return (
-    <div className="max-w-lg mx-auto mt-12">
-      <div className="bg-white shadow rounded-lg p-6">
-        {/* Header */}
-        <div className="text-center mb-6">
-          <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-3">
-            {tokenMeta?.icon ? (
-              <img src={tokenMeta.icon} alt={symbol} className="w-8 h-8 rounded-full" />
-            ) : (
-              <svg className="w-6 h-6 text-[#cc6600]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            )}
-          </div>
-          <h1 className="text-xl font-semibold text-gray-900">Fund Request</h1>
-          <p className="text-gray-500 text-sm mt-1">You are requested to top up a wallet balance</p>
-        </div>
-
-        {/* Amount display */}
-        <div className="bg-gray-50 rounded-lg p-4 mb-4">
-          <div className="text-center">
-            <span className="text-3xl font-bold text-gray-900">{amount}</span>
-            <span className="text-xl text-gray-600 ml-2">{symbol}</span>
-          </div>
-        </div>
-
-        {/* Agent message */}
-        {msg && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-            <p className="text-blue-800 text-sm">{msg}</p>
-          </div>
-        )}
-
-        {/* Recipient */}
-        <div className="mb-4">
-          <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Recipient</label>
-          <div className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
-            <span className="font-mono text-sm text-gray-700 flex-1 truncate">{truncateAccount(to)}</span>
-            <button
-              onClick={copyAddress}
-              className="text-gray-400 hover:text-gray-600 text-xs flex-shrink-0"
-              title="Copy full address"
-            >
-              {copied ? 'Copied!' : 'Copy'}
-            </button>
-          </div>
-        </div>
-
-        {/* via error */}
-        {viaError && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
-            <p className="text-red-800 text-sm">{viaError}</p>
-          </div>
-        )}
-
-        {/* Intents deposit toggle — FT tokens only */}
-        {!isNative && (
-          <div className="mb-4">
-            <label className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2.5 cursor-pointer">
-              <div>
-                <span className="text-sm font-medium text-gray-700">Deposit to Intents balance</span>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {depositToIntents
-                    ? 'Funds go to Intents balance (swaps, payments)'
-                    : 'Funds go directly to recipient\u2019s token account'}
-                </p>
-              </div>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={depositToIntents}
-                onClick={() => setDepositToIntents(!depositToIntents)}
-                className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                  depositToIntents ? 'bg-[#cc6600]' : 'bg-gray-300'
-                }`}
-              >
-                <span
-                  className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform transition duration-200 ease-in-out ${
-                    depositToIntents ? 'translate-x-5' : 'translate-x-0'
-                  }`}
-                />
-              </button>
-            </label>
-          </div>
-        )}
-
-        {/* Transaction details — show exactly what will be signed */}
-        <div className="mb-4">
-          <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Transaction details</label>
-          <div className="bg-gray-50 rounded-lg p-3 space-y-1.5 text-xs font-mono text-gray-600">
-            {depositNearViaContract ? (
-              <>
-                <div><span className="text-gray-400">Contract:</span> {viaContract}</div>
-                <div><span className="text-gray-400">Method:</span> {viaMethod}</div>
-                {viaArgs && <div className="break-all"><span className="text-gray-400">Args:</span> {viaArgs}</div>}
-                <div><span className="text-gray-400">Deposit:</span> {amount} NEAR</div>
-                <div><span className="text-gray-400">Gas:</span> {gasParam || '30'} TGas</div>
-              </>
-            ) : isNative ? (
-              <>
-                <div><span className="text-gray-400">Action:</span> Transfer</div>
-                <div><span className="text-gray-400">To:</span> {truncateAccount(to)}</div>
-                <div><span className="text-gray-400">Amount:</span> {amount} NEAR</div>
-              </>
-            ) : depositToIntents ? (
-              <>
-                <div><span className="text-gray-400">Contract:</span> {tokenParam}</div>
-                <div><span className="text-gray-400">Method:</span> ft_transfer_call</div>
-                <div><span className="text-gray-400">Receiver:</span> intents.near</div>
-                <div><span className="text-gray-400">Amount:</span> {amount} {symbol}</div>
-                <div><span className="text-gray-400">Msg:</span> {truncateAccount(to)}</div>
-              </>
-            ) : (
-              <>
-                <div><span className="text-gray-400">Contract:</span> {tokenParam}</div>
-                <div><span className="text-gray-400">Method:</span> ft_transfer</div>
-                <div><span className="text-gray-400">To:</span> {truncateAccount(to)}</div>
-                <div><span className="text-gray-400">Amount:</span> {amount} {symbol}</div>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* Storage deposit notice */}
-        {!isNative && needsStorage && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
-            <p className="text-yellow-800 text-sm">
-              The recipient is not registered on this token contract. A one-time storage deposit of 0.00125 NEAR will be included automatically.
-            </p>
-          </div>
-        )}
-
-        {/* Error */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
-            <p className="text-red-800 text-sm">{error}</p>
-          </div>
-        )}
-
-        {/* Connect or Send */}
-        {!isConnected ? (
-          <button
-            onClick={() => setShowWalletModal(true)}
-            className="w-full px-4 py-3 bg-gradient-to-r from-[#cc6600] to-[#d4a017] text-white rounded-lg font-medium hover:from-[#b35900] hover:to-[#c49016] transition-colors shadow-sm hover:shadow-md"
-          >
-            Connect Wallet to Send
-          </button>
-        ) : (
-          <div>
-            {/* Balance info */}
-            {userBalance !== null && (
-              <div className="text-sm text-gray-500 mb-3">
-                Your balance:{' '}
-                <span className="font-mono font-medium text-gray-700">
-                  {isNative
-                    ? `${formatYocto(userBalance)} NEAR`
-                    : `${formatFtAmount(userBalance, decimals)} ${symbol}`}
-                </span>
-                {!hasEnough && (
-                  <span className="text-red-600 ml-2">
-                    (insufficient{isNative ? ' — keep ~0.05 NEAR for fees' : ''})
-                  </span>
-                )}
-              </div>
-            )}
-
-            <button
-              onClick={handleSend}
-              disabled={sending || !hasEnough || !tokenMeta || !!viaError}
-              className="w-full px-4 py-3 bg-gradient-to-r from-[#cc6600] to-[#d4a017] text-white rounded-lg font-medium hover:from-[#b35900] hover:to-[#c49016] transition-colors shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {sending ? (
-                <span className="flex items-center justify-center gap-2">
-                  <LoadingSpinner small />
-                  Sending...
-                </span>
+    <div className="max-w-lg mx-auto mt-12 px-4 pb-24">
+      <Card>
+        <CardContent className="p-6">
+          {/* Header */}
+          <div className="text-center mb-6">
+            <div className="w-12 h-12 bg-zinc-100 rounded-full flex items-center justify-center mx-auto mb-3">
+              {tokenMeta?.icon ? (
+                <img src={tokenMeta.icon} alt={symbol} className="w-8 h-8 rounded-full" />
               ) : (
-                depositNearViaContract
-                  ? `Send ${amount} NEAR via ${viaContract}`
-                  : depositToIntents
-                    ? `Deposit ${amount} ${symbol} to Intents`
-                    : `Send ${amount} ${symbol}`
+                <DollarSign className="w-6 h-6 text-zinc-600" />
               )}
-            </button>
-
-            <p className="text-xs text-gray-400 text-center mt-2">
-              Connected as {accountId}
-            </p>
+            </div>
+            <h1 className="text-xl font-semibold text-zinc-900">Fund Request</h1>
+            <p className="text-zinc-400 text-sm mt-1">You are requested to top up a wallet balance</p>
           </div>
-        )}
-      </div>
+
+          {/* Amount display */}
+          <div className="bg-zinc-50 rounded-lg p-4 mb-4">
+            <div className="text-center">
+              <span className="text-3xl font-bold text-zinc-900">{amount}</span>
+              <span className="text-xl text-zinc-500 ml-2">{symbol}</span>
+            </div>
+          </div>
+
+          {/* Agent message */}
+          {msg && (
+            <div className="bg-blue-50 border-l-4 border-blue-400 rounded-r-lg p-3 mb-4">
+              <p className="text-blue-800 text-sm">{msg}</p>
+            </div>
+          )}
+
+          {/* Recipient */}
+          <div className="mb-4">
+            <label className="block text-xs font-medium text-zinc-500 uppercase tracking-wide mb-1">Recipient</label>
+            <div className="flex items-center gap-2 bg-zinc-50 border border-zinc-200 rounded-lg px-3 py-2">
+              <span className="font-mono text-sm text-zinc-700 flex-1 truncate">{truncateAccount(to)}</span>
+              <button
+                onClick={copyAddress}
+                className="text-zinc-400 hover:text-zinc-600 text-xs flex-shrink-0 font-medium"
+                title="Copy full address"
+              >
+                {copied ? 'Copied!' : 'Copy'}
+              </button>
+            </div>
+          </div>
+
+          {/* via error */}
+          {viaError && (
+            <div className="bg-red-50 border-l-4 border-red-400 rounded-r-lg p-3 mb-4">
+              <p className="text-red-800 text-sm">{viaError}</p>
+            </div>
+          )}
+
+          {/* Intents deposit toggle — FT tokens only */}
+          {!isNative && (
+            <div className="mb-4">
+              <label className="flex items-center justify-between bg-zinc-50 border border-zinc-200 rounded-lg px-3 py-2.5 cursor-pointer">
+                <div>
+                  <span className="text-sm font-medium text-zinc-700">Deposit to Intents balance</span>
+                  <p className="text-xs text-zinc-400 mt-0.5">
+                    {depositToIntents
+                      ? 'Funds go to Intents balance (swaps, payments)'
+                      : 'Funds go directly to recipient\u2019s token account'}
+                  </p>
+                </div>
+                <Switch
+                  checked={depositToIntents}
+                  onCheckedChange={setDepositToIntents}
+                />
+              </label>
+            </div>
+          )}
+
+          {/* Transaction details — show exactly what will be signed */}
+          <div className="mb-4">
+            <label className="block text-xs font-medium text-zinc-500 uppercase tracking-wide mb-1">Transaction details</label>
+            <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-3 space-y-1.5 text-xs font-mono text-zinc-600">
+              {depositNearViaContract ? (
+                <>
+                  <div><span className="text-zinc-400">Contract:</span> {viaContract}</div>
+                  <div><span className="text-zinc-400">Method:</span> {viaMethod}</div>
+                  {viaArgs && <div className="break-all"><span className="text-zinc-400">Args:</span> {viaArgs}</div>}
+                  <div><span className="text-zinc-400">Deposit:</span> {amount} NEAR</div>
+                  <div><span className="text-zinc-400">Gas:</span> {gasParam || '30'} TGas</div>
+                </>
+              ) : isNative ? (
+                <>
+                  <div><span className="text-zinc-400">Action:</span> Transfer</div>
+                  <div><span className="text-zinc-400">To:</span> {truncateAccount(to)}</div>
+                  <div><span className="text-zinc-400">Amount:</span> {amount} NEAR</div>
+                </>
+              ) : depositToIntents ? (
+                <>
+                  <div><span className="text-zinc-400">Contract:</span> {tokenParam}</div>
+                  <div><span className="text-zinc-400">Method:</span> ft_transfer_call</div>
+                  <div><span className="text-zinc-400">Receiver:</span> intents.near</div>
+                  <div><span className="text-zinc-400">Amount:</span> {amount} {symbol}</div>
+                  <div><span className="text-zinc-400">Msg:</span> {truncateAccount(to)}</div>
+                </>
+              ) : (
+                <>
+                  <div><span className="text-zinc-400">Contract:</span> {tokenParam}</div>
+                  <div><span className="text-zinc-400">Method:</span> ft_transfer</div>
+                  <div><span className="text-zinc-400">To:</span> {truncateAccount(to)}</div>
+                  <div><span className="text-zinc-400">Amount:</span> {amount} {symbol}</div>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Storage deposit notice */}
+          {!isNative && needsStorage && (
+            <div className="bg-amber-50 border-l-4 border-amber-400 rounded-r-lg p-3 mb-4">
+              <p className="text-amber-800 text-sm">
+                The recipient is not registered on this token contract. A one-time storage deposit of 0.00125 NEAR will be included automatically.
+              </p>
+            </div>
+          )}
+
+          {/* Error */}
+          {error && (
+            <div className="bg-red-50 border-l-4 border-red-400 rounded-r-lg p-3 mb-4">
+              <p className="text-red-800 text-sm">{error}</p>
+            </div>
+          )}
+
+          {/* Connect or Send */}
+          {!isConnected ? (
+            <Button
+              onClick={() => setShowWalletModal(true)}
+              className="w-full h-11"
+            >
+              Connect Wallet to Send
+            </Button>
+          ) : (
+            <div>
+              {/* Balance info */}
+              {userBalance !== null && (
+                <div className="text-sm text-zinc-500 mb-3">
+                  Your balance:{' '}
+                  <span className="font-mono font-medium text-zinc-700">
+                    {isNative
+                      ? `${formatYocto(userBalance)} NEAR`
+                      : `${formatFtAmount(userBalance, decimals)} ${symbol}`}
+                  </span>
+                  {!hasEnough && (
+                    <span className="text-red-600 ml-2">
+                      (insufficient{isNative ? ' — keep ~0.05 NEAR for fees' : ''})
+                    </span>
+                  )}
+                </div>
+              )}
+
+              <Button
+                onClick={handleSend}
+                disabled={sending || !hasEnough || !tokenMeta || !!viaError}
+                className="w-full h-11"
+              >
+                {sending ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Sending...
+                  </span>
+                ) : (
+                  depositNearViaContract
+                    ? `Send ${amount} NEAR via ${viaContract}`
+                    : depositToIntents
+                      ? `Deposit ${amount} ${symbol} to Intents`
+                      : `Send ${amount} ${symbol}`
+                )}
+              </Button>
+
+              <p className="text-xs text-zinc-400 text-center mt-2">
+                Connected as {accountId}
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <WalletConnectionModal isOpen={showWalletModal} onClose={() => setShowWalletModal(false)} />
     </div>
@@ -551,9 +549,6 @@ function FundContent() {
 function LoadingSpinner({ small }: { small?: boolean }) {
   const size = small ? 'h-4 w-4' : 'h-8 w-8';
   return (
-    <svg className={`animate-spin ${size} text-[#cc6600]`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-    </svg>
+    <Loader2 className={`animate-spin ${size} text-zinc-400`} />
   );
 }

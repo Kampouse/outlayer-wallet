@@ -10,6 +10,11 @@ import { useApiKeyHash } from '@/hooks/useApiKeyHash';
 import { usePolicyForm } from '@/hooks/usePolicyForm';
 import { PolicyFormFields } from '@/components/wallet/PolicyFormFields';
 import { PolicyJsonEditor } from '@/components/wallet/PolicyJsonEditor';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Loader2 } from 'lucide-react';
 
 interface WalletInfo {
   wallet_id: string;
@@ -19,7 +24,7 @@ interface WalletInfo {
 
 export default function WalletHandoffPage() {
   return (
-    <Suspense fallback={<div className="max-w-4xl mx-auto py-8 text-gray-400">Loading...</div>}>
+    <Suspense fallback={<div className="max-w-4xl mx-auto py-8 text-zinc-400">Loading...</div>}>
       <WalletHandoffContent />
     </Suspense>
   );
@@ -95,7 +100,9 @@ function WalletHandoffContent() {
   } = usePolicyForm({
     apiKeyHash,
     augmentPolicy: useCallback((base: Record<string, unknown>) => {
-      if (!requireApproval) return base;
+      const required = parseInt(approvalRequired, 10);
+      // No approval needed: toggle off, required set to 0, or no types selected
+      if (!requireApproval || required === 0 || approvalTypes.size === 0) return base;
       const approvers: Array<{ id: string; role: string }> = [{ id: effectiveOwner || '', role: 'admin' }];
       if (additionalApprovers.trim()) {
         additionalApprovers.split('\n').filter((l) => l.trim()).forEach((line) => {
@@ -107,7 +114,7 @@ function WalletHandoffContent() {
       return {
         ...base,
         approval: {
-          threshold: { required: parseInt(approvalRequired, 10) || 1 },
+          threshold: { required },
           ...(excluded_types.length > 0 ? { excluded_types } : {}),
           approvers,
         },
@@ -184,7 +191,8 @@ function WalletHandoffContent() {
             setPolicyForm(parsed.form);
 
             if (parsed.approval) {
-              setRequireApproval(true);
+              const req = parseInt(parsed.approval.required, 10);
+              setRequireApproval(req > 0);
               setApprovalRequired(parsed.approval.required);
               setAdditionalApprovers(
                 // Remove owner since it's auto-added — match by account_id, not role
@@ -259,343 +267,371 @@ function WalletHandoffContent() {
   // No API key provided
   if (!apiKey) {
     return (
-      <div className="max-w-2xl mx-auto py-12">
-        <h1 className="text-3xl font-bold text-gray-900 mb-4">Wallet Handoff</h1>
-        <div className="bg-white shadow rounded-lg p-8 text-center">
-          <p className="text-gray-600 mb-4">
-            This page is used to take control of an AI agent wallet.
-          </p>
-          <p className="text-sm text-gray-500">
-            Your agent should have given you a handoff URL like:<br />
-            <code className="text-xs bg-gray-100 px-2 py-1 rounded mt-1 inline-block">
-              /wallet?key=wk_...
-            </code>
-          </p>
-          <div className="mt-6">
-            <Link to="/wallet/manage"
-              className="text-[#cc6600] hover:text-[#b35900] font-medium"
-            >
-              Or manage existing wallets &rarr;
-            </Link>
-          </div>
-        </div>
+      <div className="max-w-2xl mx-auto py-12 px-4">
+        <h1 className="text-2xl sm:text-3xl font-bold text-zinc-900 mb-4">Wallet Handoff</h1>
+        <Card>
+          <CardContent className="p-8 text-center">
+            <p className="text-zinc-600 mb-4">
+              This page is used to take control of an AI agent wallet.
+            </p>
+            <p className="text-sm text-zinc-500">
+              Your agent should have given you a handoff URL like:<br />
+              <code className="text-xs bg-zinc-100 px-2 py-1 rounded mt-1 inline-block">
+                /wallet?key=wk_...
+              </code>
+            </p>
+            <div className="mt-6">
+              <Link to="/wallet/manage"
+                className="text-zinc-900 hover:underline font-medium"
+              >
+                Or manage existing wallets &rarr;
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   return (
-    <div className="max-w-3xl mx-auto py-8">
-      <h1 className="text-3xl font-bold text-gray-900 mb-2">Wallet Handoff</h1>
-      <p className="text-gray-500 mb-6">
+    <div className="max-w-3xl mx-auto py-8 px-4">
+      <h1 className="text-2xl sm:text-3xl font-bold text-zinc-900 mb-2">Wallet Handoff</h1>
+      <p className="text-zinc-500 mb-6">
         Take control of your AI agent&apos;s wallet by setting a spending policy.
       </p>
 
       {error && (
-        <div className="mb-4 bg-red-50 border border-red-200 rounded-md p-3">
-          <p className="text-sm text-red-800">{error}</p>
+        <div className="mb-4 bg-red-50 border-l-4 border-red-400 rounded-r-lg p-4">
+          <p className="text-sm text-red-700">{error}</p>
         </div>
       )}
 
       {success && (
-        <div className="mb-4 bg-green-50 border border-green-200 rounded-md p-3">
-          <p className="text-sm text-green-800">{success}</p>
+        <div className="mb-4 bg-emerald-50 border-l-4 border-emerald-400 rounded-r-lg p-4">
+          <p className="text-sm text-emerald-700">{success}</p>
         </div>
       )}
 
       {/* Step 1: Wallet Info */}
-      <div className="bg-white shadow rounded-lg p-6 mb-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-3">
-          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[#cc6600] text-white text-xs mr-2">1</span>
-          Wallet Info
-        </h2>
-
-        {loading ? (
-          <div className="flex items-center py-4">
-            <svg className="animate-spin h-5 w-5 text-[#cc6600] mr-3" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
-            <span className="text-gray-500">Loading wallet...</span>
-          </div>
-        ) : walletInfo ? (
-          <div className="space-y-2">
-            <div>
-              <span className="text-xs text-gray-500 uppercase">Wallet ID</span>
-              <p className="text-sm font-mono text-gray-900 break-all">{walletInfo.wallet_id}</p>
-            </div>
-            <div>
-              <span className="text-xs text-gray-500 uppercase">NEAR Address (implicit)</span>
-              <p className="text-sm font-mono text-gray-900 break-all">{walletInfo.address}</p>
-            </div>
-            {existingPolicy === true && (
-              <div className="mt-2 bg-blue-50 border border-blue-200 rounded p-2">
-                <p className="text-sm text-blue-800">This wallet already has a policy on-chain. Submitting a new one will replace it.</p>
-              </div>
-            )}
-          </div>
-        ) : null}
-      </div>
-
-      {/* Step 2: Policy Owner */}
-      {walletInfo && (
-        <div className="bg-white shadow rounded-lg p-6 mb-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-3">
-            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[#cc6600] text-white text-xs mr-2">2</span>
-            Policy Owner
+      <Card className="mb-6">
+        <CardContent className="p-6">
+          <h2 className="text-lg font-semibold text-zinc-900 mb-3">
+            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-zinc-900 text-white text-xs mr-2">1</span>
+            Wallet Info
           </h2>
 
-          <p className="text-sm text-gray-500 mb-4">
-            The owner can freeze the wallet, update the policy, and approve transactions.
-          </p>
-
-          <div className="flex space-x-3 mb-4">
-            <button
-              type="button"
-              onClick={() => setOwnerMode('wallet')}
-              className={`px-4 py-2 text-sm rounded-lg border ${
-                ownerMode === 'wallet'
-                  ? 'bg-[#cc6600] text-white border-[#cc6600]'
-                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-              }`}
-            >
-              Connect Wallet
-            </button>
-            <button
-              type="button"
-              onClick={() => setOwnerMode('manual')}
-              className={`px-4 py-2 text-sm rounded-lg border ${
-                ownerMode === 'manual'
-                  ? 'bg-[#cc6600] text-white border-[#cc6600]'
-                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-              }`}
-            >
-              Enter Account ID
-            </button>
-          </div>
-
-          {ownerMode === 'wallet' ? (
-            isConnected ? (
-              <p className="text-sm text-green-700">
-                Connected as <span className="font-mono font-medium">{accountId}</span>
-              </p>
-            ) : (
+          {loading ? (
+            <div className="flex items-center py-4">
+              <Loader2 className="h-5 w-5 animate-spin text-zinc-400 mr-3" />
+              <span className="text-zinc-500">Loading wallet...</span>
+            </div>
+          ) : walletInfo ? (
+            <div className="space-y-2">
               <div>
-                <button
-                  onClick={() => setShowWalletModal(true)}
-                  className="px-4 py-2 bg-gradient-to-r from-[#cc6600] to-[#d4a017] text-white rounded-lg font-medium hover:from-[#b35900] hover:to-[#c49016]"
-                >
-                  Connect Wallet
-                </button>
+                <span className="text-xs text-zinc-400 uppercase tracking-wide">Wallet ID</span>
+                <p className="text-sm font-mono text-zinc-900 break-all">{walletInfo.wallet_id}</p>
               </div>
-            )
-          ) : (
-            <div>
-              <input
-                type="text"
-                value={manualOwner}
-                onChange={(e) => setManualOwner(e.target.value)}
-                placeholder="e.g. alice.near"
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm font-mono"
-              />
-              <p className="text-xs text-gray-400 mt-1">
-                This NEAR account will be the policy owner. You still need to connect a wallet to sign the transaction.
-              </p>
-              {manualOwner.trim() && !isConnected && (
-                <div className="mt-3">
-                  <button
-                    onClick={() => setShowWalletModal(true)}
-                    className="px-4 py-2 text-sm border border-[#cc6600] text-[#cc6600] rounded-lg hover:bg-orange-50"
-                  >
-                    Connect wallet to sign transaction
-                  </button>
+              <div>
+                <span className="text-xs text-zinc-400 uppercase tracking-wide">NEAR Address (implicit)</span>
+                <p className="text-sm font-mono text-zinc-900 break-all">{walletInfo.address}</p>
+              </div>
+              {existingPolicy === true && (
+                <div className="mt-2 bg-blue-50 border-l-4 border-blue-400 rounded-r-lg p-2">
+                  <p className="text-sm text-blue-700">This wallet already has a policy on-chain. Submitting a new one will replace it.</p>
                 </div>
               )}
             </div>
-          )}
-        </div>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      {/* Step 2: Policy Owner */}
+      {walletInfo && (
+        <Card className="mb-6">
+          <CardContent className="p-6">
+            <h2 className="text-lg font-semibold text-zinc-900 mb-3">
+              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-zinc-900 text-white text-xs mr-2">2</span>
+              Policy Owner
+            </h2>
+
+            <p className="text-sm text-zinc-500 mb-4">
+              The owner can freeze the wallet, update the policy, and approve transactions.
+            </p>
+
+            <div className="flex space-x-3 mb-4">
+              <button
+                type="button"
+                onClick={() => setOwnerMode('wallet')}
+                className={`px-4 py-2 text-sm rounded-lg border transition-colors ${
+                  ownerMode === 'wallet'
+                    ? 'bg-zinc-900 text-white border-zinc-900'
+                    : 'bg-white text-zinc-600 border-zinc-200 hover:border-zinc-400'
+                }`}
+              >
+                Connect Wallet
+              </button>
+              <button
+                type="button"
+                onClick={() => setOwnerMode('manual')}
+                className={`px-4 py-2 text-sm rounded-lg border transition-colors ${
+                  ownerMode === 'manual'
+                    ? 'bg-zinc-900 text-white border-zinc-900'
+                    : 'bg-white text-zinc-600 border-zinc-200 hover:border-zinc-400'
+                }`}
+              >
+                Enter Account ID
+              </button>
+            </div>
+
+            {ownerMode === 'wallet' ? (
+              isConnected ? (
+                <p className="text-sm text-emerald-700">
+                  Connected as <span className="font-mono font-medium">{accountId}</span>
+                </p>
+              ) : (
+                <div>
+                  <Button onClick={() => setShowWalletModal(true)}>
+                    Connect Wallet
+                  </Button>
+                </div>
+              )
+            ) : (
+              <div>
+                <Input
+                  type="text"
+                  value={manualOwner}
+                  onChange={(e) => setManualOwner(e.target.value)}
+                  placeholder="e.g. alice.near"
+                  className="font-mono"
+                />
+                <p className="text-xs text-zinc-400 mt-1">
+                  This NEAR account will be the policy owner. You still need to connect a wallet to sign the transaction.
+                </p>
+                {manualOwner.trim() && !isConnected && (
+                  <div className="mt-3">
+                    <Button variant="outline" onClick={() => setShowWalletModal(true)}>
+                      Connect wallet to sign transaction
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
 
-      {/* Step 3: Set Policy */}
-      {walletInfo && ownerReady && (
-        <div className="bg-white shadow rounded-lg p-6 mb-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-6">
-            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[#cc6600] text-white text-xs mr-2">3</span>
-            Set Spending Policy
-          </h2>
+      {/* Step 3: Set Policy — wait for existing policy check so form shows current values, not defaults */}
+      {walletInfo && ownerReady && existingPolicy !== null && (
+        <Card className="mb-6">
+          <CardContent className="p-6">
+            <h2 className="text-lg font-semibold text-zinc-900 mb-6">
+              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-zinc-900 text-white text-xs mr-2">3</span>
+              Set Spending Policy
+            </h2>
 
-          <div className="space-y-6">
-            {/* Transaction Approval */}
-            <div>
-              <h3 className="text-sm font-semibold text-gray-800 mb-3">Transaction Approval</h3>
-              <div
-                className={`border-2 rounded-lg p-4 cursor-pointer transition-colors ${
-                  requireApproval
-                    ? 'border-[#cc6600] bg-orange-50'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-                onClick={() => setRequireApproval(!requireApproval)}
-              >
-                <div className="flex items-start">
-                  <input
-                    type="checkbox"
-                    checked={requireApproval}
-                    onChange={(e) => setRequireApproval(e.target.checked)}
-                    className="mt-1 mr-3 h-4 w-4 accent-[#cc6600]"
-                  />
-                  <div className="flex-1">
-                    <p className="font-medium text-gray-900">Require personal approval</p>
-                    <p className="text-sm text-gray-500 mt-1">
-                      Transactions will need approval before being executed. You can approve or reject from the dashboard.
+            <div className="space-y-6">
+              {/* Transaction Approval */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold text-zinc-800">Transaction Approval</h3>
+
+                {/* Toggle */}
+                <div
+                  className={`flex items-center justify-between rounded-lg border p-4 transition-colors ${
+                    requireApproval
+                      ? 'border-emerald-200 bg-emerald-50'
+                      : 'border-zinc-200 hover:border-zinc-300'
+                  }`}
+                >
+                  <div
+                    className="cursor-pointer"
+                    onClick={() => setRequireApproval(!requireApproval)}
+                  >
+                    <p className={`font-medium ${requireApproval ? 'text-emerald-900' : 'text-zinc-900'}`}>
+                      Require personal approval
+                    </p>
+                    <p className={`text-sm mt-0.5 ${requireApproval ? 'text-emerald-600' : 'text-zinc-500'}`}>
+                      Transactions need your approval before execution
                     </p>
                   </div>
+                  <Checkbox
+                    checked={requireApproval}
+                    onCheckedChange={(v) => setRequireApproval(!!v)}
+                  />
                 </div>
 
                 {requireApproval && (
-                  <div className="mt-4 ml-7 space-y-3" onClick={(e) => e.stopPropagation()}>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">Required Approvals</label>
-                        <input
-                          type="number"
-                          min="1"
-                          value={approvalRequired}
-                          onChange={(e) => setApprovalRequired(e.target.value)}
-                          className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">Primary Approver</label>
-                        <div className="px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded font-mono truncate">
-                          {effectiveOwner} (admin)
+                  <div className="space-y-4 pl-0" onClick={(e) => e.stopPropagation()}>
+                    {/* Approvers section */}
+                    <div className="rounded-lg border border-zinc-200 divide-y divide-zinc-100">
+                      {/* Primary approver */}
+                      <div className="p-4">
+                        <label className="block text-xs font-medium text-zinc-500 mb-2">Required Approvals</label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <Input
+                            type="text"
+                            inputMode="numeric"
+                            value={approvalRequired}
+                            onChange={(e) => {
+                              const v = e.target.value.replace(/[^0-9]/g, '');
+                              setApprovalRequired(v);
+                              if (v === '' || parseInt(v, 10) === 0) setRequireApproval(false);
+                            }}
+                            placeholder="e.g. 1"
+                          />
+                          <div className="flex items-center gap-2 px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg min-h-[38px]">
+                            <div className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                            <span className="text-sm font-mono text-zinc-700 truncate">{effectiveOwner}</span>
+                            <span className="text-xs text-zinc-400 shrink-0 ml-auto">admin</span>
+                          </div>
                         </div>
                       </div>
+
+                      {/* Additional approvers */}
+                      <div className="p-4">
+                        <label className="block text-xs font-medium text-zinc-500 mb-2">
+                          Additional Approvers
+                        </label>
+                        <textarea
+                          value={additionalApprovers}
+                          onChange={(e) => setAdditionalApprovers(e.target.value)}
+                          placeholder={"alice.near, signer\nbob.near, signer"}
+                          rows={2}
+                          className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-zinc-300 resize-none"
+                        />
+                        <p className="text-xs text-zinc-400 mt-1.5">One per line — format: account_id, role. Roles: admin or signer.</p>
+                      </div>
                     </div>
 
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">
-                        Additional Approvers (one per line: account_id, role)
-                      </label>
-                      <textarea
-                        value={additionalApprovers}
-                        onChange={(e) => setAdditionalApprovers(e.target.value)}
-                        placeholder={"alice.near, signer\nbob.near, signer"}
-                        rows={3}
-                        className="w-full border border-gray-300 rounded px-3 py-2 text-sm font-mono"
-                      />
-                      <p className="text-xs text-gray-400 mt-1">Roles: admin (can update policy), signer (can only approve)</p>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-2">Require approval for:</label>
+                    {/* Transaction types */}
+                    <div className="rounded-lg border border-zinc-200">
+                      <div className="px-4 py-3 border-b border-zinc-100">
+                        <label className="block text-xs font-medium text-zinc-500">Require approval for</label>
+                      </div>
                       {(() => {
-                        const txTypeLabels: Record<string, string> = {
-                          transfer: 'Transfer (send native currency)',
-                          call: 'Contract call',
-                          delete: 'Delete wallet',
-                          intents_withdraw: 'Send cross-chain',
-                          intents_swap: 'Swap',
-                          intents_deposit: 'Deposit to Intents',
+                        const txTypeLabels: Record<string, { label: string; desc: string }> = {
+                          transfer: { label: 'Transfer', desc: 'Send native currency' },
+                          call: { label: 'Contract call', desc: 'Smart contract interaction' },
+                          delete: { label: 'Delete wallet', desc: 'Remove the wallet' },
+                          intents_withdraw: { label: 'Cross-chain', desc: 'Send via NEAR Intents' },
+                          intents_swap: { label: 'Swap', desc: 'Token swap via Intents' },
+                          intents_deposit: { label: 'Deposit', desc: 'Deposit to Intents' },
                         };
                         const directTypes = ['transfer', 'call', 'delete'] as const;
                         const intentsTypes = ['intents_withdraw', 'intents_swap', 'intents_deposit'] as const;
-                        const renderCheckbox = (txType: string) => (
-                          <label key={txType} className="flex items-center gap-1.5 text-sm cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={approvalTypes.has(txType)}
-                              onChange={() => {
-                                setApprovalTypes((prev) => {
-                                  const next = new Set(prev);
-                                  next.has(txType) ? next.delete(txType) : next.add(txType);
-                                  return next;
-                                });
-                              }}
-                              className="rounded border-gray-300"
-                            />
-                            <span>{txTypeLabels[txType] || txType}</span>
-                          </label>
-                        );
+                        const renderToggle = (txType: string) => {
+                          const info = txTypeLabels[txType];
+                          const checked = approvalTypes.has(txType);
+                          return (
+                            <div
+                              key={txType}
+                              className={`flex items-center justify-between px-4 py-3 transition-colors hover:bg-zinc-50 ${
+                                txType === 'intents_withdraw' ? 'border-t border-zinc-100' : ''
+                              }`}
+                            >
+                              <div
+                                className="min-w-0 cursor-pointer"
+                                onClick={() => {
+                                  setApprovalTypes((prev) => {
+                                    const next = new Set(prev);
+                                    next.has(txType) ? next.delete(txType) : next.add(txType);
+                                    return next;
+                                  });
+                                }}
+                              >
+                                <p className={`text-sm font-medium ${checked ? 'text-zinc-900' : 'text-zinc-500'}`}>{info.label}</p>
+                                <p className="text-xs text-zinc-400 truncate">{info.desc}</p>
+                              </div>
+                              <Checkbox
+                                checked={checked}
+                                onCheckedChange={(v) => {
+                                  setApprovalTypes((prev) => {
+                                    const next = new Set(prev);
+                                    v ? next.add(txType) : next.delete(txType);
+                                    return next;
+                                  });
+                                }}
+                              />
+                            </div>
+                          );
+                        };
                         return (
-                          <div className="space-y-3">
-                            <div>
-                              <span className="text-xs text-gray-400">Direct on-chain operations:</span>
-                              <div className="flex flex-col gap-1 mt-1">
-                                {directTypes.map(renderCheckbox)}
-                              </div>
+                          <div>
+                            {directTypes.map(renderToggle)}
+                            <div className="mx-4 my-2 py-1.5 border-t border-zinc-100" />
+                            <div className="px-4 py-2 bg-zinc-50/50">
+                              <span className="text-[10px] font-medium text-zinc-400 uppercase tracking-wider">NEAR Intents</span>
                             </div>
-                            <div>
-                              <span className="text-xs text-gray-400">NEAR Intents (use expiring quotes):</span>
-                              <div className="flex flex-col gap-1 mt-1">
-                                {intentsTypes.map(renderCheckbox)}
-                              </div>
-                            </div>
+                            {intentsTypes.map(renderToggle)}
                           </div>
                         );
                       })()}
-                      <p className="text-xs text-gray-400 mt-1">Unchecked types execute immediately without approval.</p>
-                      {(approvalTypes.has('intents_swap') || approvalTypes.has('intents_deposit')) && (
-                        <p className="text-xs text-red-600 font-medium mt-1 animate-pulse">
-                          Warning: Intents operations (deposit, swap) use expiring quotes — approval delays may cause transaction failures.
-                        </p>
-                      )}
+                      <div className="px-4 py-2.5 border-t border-zinc-100 bg-zinc-50/50">
+                        <p className="text-[11px] text-zinc-400">Unchecked types execute immediately without approval.</p>
+                        {(approvalTypes.has('intents_swap') || approvalTypes.has('intents_deposit')) && (
+                          <p className="text-[11px] text-amber-600 font-medium mt-1">
+                            Intents deposit &amp; swap use expiring quotes — approval delays may cause failures.
+                          </p>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )}
               </div>
+
+              {/* Shared policy form fields */}
+              <PolicyFormFields policyForm={policyForm} onChange={setPolicyForm} apiKeyHash={apiKeyHash} knownKeyHashes={knownKeyHashes} onSaveKey={handleSaveKey} />
             </div>
 
-            {/* Shared policy form fields */}
-            <PolicyFormFields policyForm={policyForm} onChange={setPolicyForm} apiKeyHash={apiKeyHash} knownKeyHashes={knownKeyHashes} onSaveKey={handleSaveKey} />
-          </div>
+            {/* Policy JSON Editor */}
+            <PolicyJsonEditor
+              policyJsonText={policyJsonText}
+              onChangeText={(text) => { setPolicyJsonText(text); setJsonEdited(true); }}
+              jsonEdited={jsonEdited}
+              onReset={resetJson}
+            />
 
-          {/* Policy JSON Editor */}
-          <PolicyJsonEditor
-            policyJsonText={policyJsonText}
-            onChangeText={(text) => { setPolicyJsonText(text); setJsonEdited(true); }}
-            jsonEdited={jsonEdited}
-            onReset={resetJson}
-          />
-
-          <div className="mt-4 pt-4 border-t flex items-center justify-between">
-            <p className="text-xs text-gray-400">
-              Policy will be encrypted in TEE and stored on-chain with <span className="font-mono">{effectiveOwner}</span> as owner.
-            </p>
-            <button
-              onClick={handleSubmitPolicy}
-              disabled={submitting || !isConnected}
-              className="px-5 py-2 bg-gradient-to-r from-[#cc6600] to-[#d4a017] text-white rounded-lg font-medium hover:from-[#b35900] hover:to-[#c49016] disabled:opacity-50"
-            >
-              {submitting ? 'Encrypting & Storing...' : 'Store Policy On-Chain'}
-            </button>
-          </div>
-        </div>
+            <div className="mt-4 pt-4 border-t flex items-center justify-between">
+              <p className="text-xs text-zinc-400">
+                Policy will be encrypted in TEE and stored on-chain with <span className="font-mono">{effectiveOwner}</span> as owner.
+              </p>
+              <Button
+                onClick={handleSubmitPolicy}
+                disabled={submitting || !isConnected}
+              >
+                {submitting ? 'Encrypting & Storing...' : 'Store Policy On-Chain'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* After success — next steps */}
       {success && (
-        <div className="bg-white shadow rounded-lg p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-3">Next Steps</h2>
-          <ul className="space-y-2 text-sm text-gray-700">
-            <li>
-              <Link to={`/wallet/approvals?key=${apiKey}`} className="text-[#cc6600] hover:text-[#b35900] font-medium">
-                Approvals
-              </Link>
-              {' '}&mdash; review and approve pending transactions
-            </li>
-            <li>
-              <Link to={`/wallet/manage?key=${apiKey}`} className="text-[#cc6600] hover:text-[#b35900] font-medium">
-                Manage Wallets
-              </Link>
-              {' '}&mdash; edit policy, freeze wallet
-            </li>
-            <li>
-              <Link to={`/wallet/audit?key=${apiKey}`} className="text-[#cc6600] hover:text-[#b35900] font-medium">
-                Audit Log
-              </Link>
-              {' '}&mdash; view transaction history
-            </li>
-          </ul>
-        </div>
+        <Card>
+          <CardContent className="p-6">
+            <h2 className="text-lg font-semibold text-zinc-900 mb-3">Next Steps</h2>
+            <ul className="space-y-2 text-sm text-zinc-600">
+              <li>
+                <Link to={`/wallet/approvals?key=${apiKey}`} className="text-zinc-900 hover:underline font-medium">
+                  Approvals
+                </Link>
+                {' '}&mdash; review and approve pending transactions
+              </li>
+              <li>
+                <Link to={`/wallet/manage?key=${apiKey}`} className="text-zinc-900 hover:underline font-medium">
+                  Manage Wallets
+                </Link>
+                {' '}&mdash; edit policy, freeze wallet
+              </li>
+              <li>
+                <Link to={`/wallet/audit?key=${apiKey}`} className="text-zinc-900 hover:underline font-medium">
+                  Audit Log
+                </Link>
+                {' '}&mdash; view transaction history
+              </li>
+            </ul>
+          </CardContent>
+        </Card>
       )}
 
       <WalletConnectionModal isOpen={showWalletModal} onClose={() => setShowWalletModal(false)} />

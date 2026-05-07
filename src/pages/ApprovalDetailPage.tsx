@@ -3,6 +3,10 @@ import { getCoordinatorApiUrl } from '@/lib/api';
 import { useNearWallet } from '@/contexts/NearWalletContext';
 import { Link } from 'react-router-dom';
 import { useParams, useNavigate } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Loader2, ArrowLeft } from 'lucide-react';
 
 interface ApprovalDetail {
   id: string;
@@ -19,7 +23,7 @@ interface ApprovalDetail {
 
 export default function ApprovalDetailPage() {
   return (
-    <Suspense fallback={<div className="max-w-4xl mx-auto py-8 text-gray-400">Loading...</div>}>
+    <Suspense fallback={<div className="max-w-4xl mx-auto py-8 text-zinc-400">Loading...</div>}>
       <ApprovalDetailContent />
     </Suspense>
   );
@@ -136,131 +140,134 @@ function ApprovalDetailContent() {
   const backUrl = '/wallet/approvals';
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-4xl mx-auto px-4">
       <div className="flex items-center space-x-3 mb-6">
-        <Link to={backUrl} className="text-[#cc6600] hover:text-[#b35900]">
-          &larr; Back to Approvals
+        <Link to={backUrl} className="inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-900 transition-colors font-medium">
+          <ArrowLeft className="w-4 h-4" />
+          Back to Approvals
         </Link>
       </div>
 
-      <h1 className="text-3xl font-bold text-gray-900 mb-6">Approval Details</h1>
+      <h1 className="text-2xl sm:text-3xl font-bold text-zinc-900 mb-6">Approval Details</h1>
 
       {error && (
-        <div className="mb-4 bg-red-50 border border-red-200 rounded-md p-3">
-          <p className="text-sm text-red-800">{error}</p>
+        <div className="mb-4 bg-red-50 border-l-4 border-red-400 rounded-r-lg p-4">
+          <p className="text-sm text-red-700">{error}</p>
         </div>
       )}
 
       {success && (
-        <div className="mb-4 bg-green-50 border border-green-200 rounded-md p-3">
-          <p className="text-sm text-green-800">{success}</p>
+        <div className="mb-4 bg-emerald-50 border-l-4 border-emerald-400 rounded-r-lg p-4">
+          <p className="text-sm text-emerald-700">{success}</p>
         </div>
       )}
 
       {loading ? (
         <div className="flex items-center justify-center py-12">
-          <svg className="animate-spin h-8 w-8 text-[#cc6600]" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-          </svg>
-          <span className="ml-3 text-gray-500">Loading...</span>
+          <Loader2 className="h-6 w-6 animate-spin text-zinc-400" />
+          <span className="ml-3 text-zinc-400">Loading...</span>
         </div>
       ) : !approval ? (
-        <div className="bg-white shadow rounded-lg p-8 text-center">
-          <p className="text-gray-500">Approval not found.</p>
-        </div>
+        <Card>
+          <CardContent className="p-8 text-center">
+            <p className="text-zinc-500">Approval not found.</p>
+          </CardContent>
+        </Card>
       ) : (
         <div className="space-y-6">
           {/* Status card */}
-          <div className="bg-white shadow rounded-lg p-6 border border-gray-200">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center space-x-3">
-                <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                  approval.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                  approval.status === 'approved' ? 'bg-green-100 text-green-800' :
-                  approval.status === 'expired' ? 'bg-gray-100 text-gray-800' :
-                  'bg-red-100 text-red-800'
-                }`}>
-                  {approval.status.toUpperCase()}
+          <Card className="border-zinc-200">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center space-x-3">
+                  <Badge
+                    variant={approval.status === 'pending' ? 'outline' : approval.status === 'approved' ? 'secondary' : approval.status === 'expired' ? 'secondary' : 'destructive'}
+                    className={approval.status === 'pending' ? 'border-amber-200 bg-amber-50 text-amber-700' : approval.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : approval.status === 'expired' ? 'bg-zinc-100 text-zinc-500 border-zinc-200' : ''}
+                  >
+                    {approval.status.toUpperCase()}
+                  </Badge>
+                  <span className="text-sm text-zinc-500">{approval.request_type}</span>
+                </div>
+                <span className="text-sm text-zinc-400">
+                  {approval.approvers?.length || 0} / {approval.required_approvals} approved
                 </span>
-                <span className="text-sm text-gray-500">{approval.request_type}</span>
               </div>
-              <span className="text-sm text-gray-400">
-                {approval.approvers?.length || 0} / {approval.required_approvals} approved
-              </span>
-            </div>
 
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <p className="text-gray-500">Wallet</p>
-                <p className="font-mono text-gray-900 text-xs break-all">{approval.wallet_id}</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-zinc-400 text-xs uppercase tracking-wide">Wallet</p>
+                  <p className="font-mono text-zinc-900 text-xs break-all mt-1">{approval.wallet_id}</p>
+                </div>
+                <div>
+                  <p className="text-zinc-400 text-xs uppercase tracking-wide">Request Hash</p>
+                  <p className="font-mono text-zinc-900 text-xs break-all mt-1">{approval.request_hash}</p>
+                </div>
+                <div>
+                  <p className="text-zinc-400 text-xs uppercase tracking-wide">Created</p>
+                  <p className="text-zinc-900 mt-1">{formatDate(approval.created_at)}</p>
+                </div>
+                <div>
+                  <p className="text-zinc-400 text-xs uppercase tracking-wide">Expires</p>
+                  <p className={`${isExpired ? 'text-red-600' : 'text-zinc-900'} mt-1`}>
+                    {formatDate(approval.expires_at)}
+                    {isExpired && ' (EXPIRED)'}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-gray-500">Request Hash</p>
-                <p className="font-mono text-gray-900 text-xs break-all">{approval.request_hash}</p>
-              </div>
-              <div>
-                <p className="text-gray-500">Created</p>
-                <p className="text-gray-900">{formatDate(approval.created_at)}</p>
-              </div>
-              <div>
-                <p className="text-gray-500">Expires</p>
-                <p className={`${isExpired ? 'text-red-600' : 'text-gray-900'}`}>
-                  {formatDate(approval.expires_at)}
-                  {isExpired && ' (EXPIRED)'}
-                </p>
-              </div>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
 
           {/* Request data */}
-          <div className="bg-white shadow rounded-lg p-6 border border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900 mb-3">Request Data</h2>
-            <pre className="bg-gray-50 rounded p-4 text-sm text-gray-700 overflow-x-auto">
-              {JSON.stringify(approval.request_data, null, 2)}
-            </pre>
-          </div>
+          <Card className="border-zinc-200">
+            <CardContent className="p-6">
+              <h2 className="text-lg font-semibold text-zinc-900 mb-3">Request Data</h2>
+              <pre className="bg-zinc-50 border border-zinc-200 rounded-lg p-4 text-sm text-zinc-700 overflow-x-auto">
+                {JSON.stringify(approval.request_data, null, 2)}
+              </pre>
+            </CardContent>
+          </Card>
 
           {/* Existing approvers */}
           {approval.approvers && approval.approvers.length > 0 && (
-            <div className="bg-white shadow rounded-lg p-6 border border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">Approvers</h2>
-              <div className="space-y-2">
-                {approval.approvers.map((a, i) => (
-                  <div key={i} className="flex items-center justify-between bg-green-50 rounded p-3">
-                    <div>
-                      <p className="text-sm font-mono text-gray-800">{a.approver_id}</p>
-                      <p className="text-xs text-gray-500">Role: {a.approver_role}</p>
+            <Card className="border-zinc-200">
+              <CardContent className="p-6">
+                <h2 className="text-lg font-semibold text-zinc-900 mb-3">Approvers</h2>
+                <div className="space-y-2">
+                  {approval.approvers.map((a, i) => (
+                    <div key={i} className="flex items-center justify-between bg-emerald-50 border border-emerald-100 rounded-lg p-3">
+                      <div>
+                        <p className="text-sm font-mono text-zinc-800">{a.approver_id}</p>
+                        <p className="text-xs text-zinc-500">Role: {a.approver_role}</p>
+                      </div>
+                      <p className="text-xs text-zinc-400">{formatDate(a.created_at)}</p>
                     </div>
-                    <p className="text-xs text-gray-400">{formatDate(a.created_at)}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
           )}
 
           {/* Approve button */}
           {approval.status === 'pending' && !isExpired && (
             <div className="flex justify-end space-x-3">
-              <button
+              <Button
+                variant="outline"
                 onClick={() => navigate(backUrl)}
-                className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50"
               >
                 Back
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={handleApprove}
                 disabled={approving || !isConnected}
-                className="px-6 py-3 bg-gradient-to-r from-[#cc6600] to-[#d4a017] text-white rounded-lg font-medium hover:from-[#b35900] hover:to-[#c49016] disabled:opacity-50"
               >
                 {approving ? 'Approving...' : 'Approve'}
-              </button>
+              </Button>
             </div>
           )}
 
           {!isConnected && approval.status === 'pending' && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
-              <p className="text-sm text-yellow-800">
+            <div className="bg-amber-50 border-l-4 border-amber-400 rounded-r-lg p-4">
+              <p className="text-sm text-amber-800">
                 Connect your NEAR wallet to approve this request.
               </p>
             </div>

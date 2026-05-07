@@ -74,7 +74,11 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
   };
 
   const [network, setNetwork] = useState<NetworkType>(getInitialNetwork);
-  const [accountId, setAccountId] = useState<string | null>(null);
+  // Read cached accountId synchronously from localStorage — no flash
+  const [accountId, setAccountId] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem('outlayer:cachedAccountId');
+  });
   const [isWalletReady, setIsWalletReady] = useState(false);
   const [shouldReopenModal, setShouldReopenModal] = useState(false);
 
@@ -101,7 +105,6 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
   // Initialize connector and restore session
   useEffect(() => {
     setIsWalletReady(false);
-    setAccountId(null);
 
     const connector = new NearConnector({
       network: network,
@@ -114,11 +117,18 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
     connector.getConnectedWallet()
       .then(({ accounts }) => {
         if (accounts.length > 0) {
-          setAccountId(accounts[0].accountId);
+          const id = accounts[0].accountId;
+          setAccountId(id);
+          localStorage.setItem('outlayer:cachedAccountId', id);
+        } else {
+          setAccountId(null);
+          localStorage.removeItem('outlayer:cachedAccountId');
         }
       })
       .catch(() => {
-        // No existing session — that's fine
+        // No existing session — clear cache
+        setAccountId(null);
+        localStorage.removeItem('outlayer:cachedAccountId');
       })
       .finally(() => {
         setIsWalletReady(true);
@@ -127,12 +137,15 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
     // Listen for sign-in events
     const handleSignIn = ({ accounts }: { accounts: Array<{ accountId: string }> }) => {
       if (accounts.length > 0) {
-        setAccountId(accounts[0].accountId);
+        const id = accounts[0].accountId;
+        setAccountId(id);
+        localStorage.setItem('outlayer:cachedAccountId', id);
       }
     };
 
     const handleSignOut = () => {
       setAccountId(null);
+      localStorage.removeItem('outlayer:cachedAccountId');
     };
 
     connector.on('wallet:signIn', handleSignIn as any);
@@ -159,6 +172,7 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
       // Already disconnected
     }
     setAccountId(null);
+    localStorage.removeItem('outlayer:cachedAccountId');
   }, []);
 
   const switchNetwork = useCallback(async (newNetwork: NetworkType) => {
