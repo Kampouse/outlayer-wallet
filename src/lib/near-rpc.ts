@@ -9,9 +9,38 @@ export type NetworkType = 'testnet' | 'mainnet';
  */
 function getNearRpcUrl(network: NetworkType): string {
   if (network === 'mainnet') {
-    return import.meta.env.VITE_MAINNET_RPC_URL || 'https://rpc.mainnet.near.org';
+    return import.meta.env.VITE_MAINNET_RPC_URL || 'https://free.rpc.fastnear.com';
   }
   return import.meta.env.VITE_TESTNET_RPC_URL || 'https://rpc.testnet.near.org';
+}
+
+/**
+ * Query account balance directly from NEAR RPC.
+ * Returns balance in yoctoNEAR (string).
+ */
+export async function fetchNearAccountBalance(
+  accountId: string,
+  network: NetworkType = 'mainnet',
+): Promise<string> {
+  const rpcUrl = getNearRpcUrl(network);
+  const resp = await fetch(rpcUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'query',
+      params: {
+        request_type: 'view_account',
+        finality: 'final',
+        account_id: accountId,
+      },
+    }),
+  });
+  if (!resp.ok) throw new Error(`RPC failed: ${resp.status}`);
+  const data = await resp.json();
+  if (data.error) throw new Error(data.error.message || 'RPC error');
+  return data.result.amount;
 }
 
 /**

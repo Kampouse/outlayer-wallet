@@ -115,9 +115,9 @@ function FundContent() {
   if (isNaN(parsedAmount) || parsedAmount <= 0) {
     return (
       <div className="max-w-lg mx-auto mt-12 px-4">
-        <div className="bg-red-50 border-l-4 border-red-400 rounded-r-lg p-6">
+        <div className="bg-red-500/10 border-l-4 border-red-500 rounded-r-lg p-6">
           <h2 className="text-lg font-semibold text-red-800 mb-2">Invalid Amount</h2>
-          <p className="text-red-700 text-sm">Amount must be a positive number.</p>
+          <p className="text-red-400 text-sm">Amount must be a positive number.</p>
         </div>
       </div>
     );
@@ -333,8 +333,8 @@ function FundContent() {
       <div className="max-w-lg mx-auto mt-12 px-4">
         <Card>
           <CardContent className="p-6 text-center">
-            <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Check className="w-8 h-8 text-emerald-600" />
+            <div className="w-16 h-16 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Check className="w-8 h-8 text-emerald-400" />
             </div>
             <h2 className="text-xl font-semibold text-zinc-900 mb-2">Transfer Complete</h2>
             <p className="text-zinc-500 mb-4">
@@ -387,7 +387,7 @@ function FundContent() {
 
           {/* Agent message */}
           {msg && (
-            <div className="bg-blue-50 border-l-4 border-blue-400 rounded-r-lg p-3 mb-4">
+            <div className="bg-blue-500/10 border-l-4 border-blue-500 rounded-r-lg p-3 mb-4">
               <p className="text-blue-800 text-sm">{msg}</p>
             </div>
           )}
@@ -409,7 +409,7 @@ function FundContent() {
 
           {/* via error */}
           {viaError && (
-            <div className="bg-red-50 border-l-4 border-red-400 rounded-r-lg p-3 mb-4">
+            <div className="bg-red-500/10 border-l-4 border-red-500 rounded-r-lg p-3 mb-4">
               <p className="text-red-800 text-sm">{viaError}</p>
             </div>
           )}
@@ -473,7 +473,7 @@ function FundContent() {
 
           {/* Storage deposit notice */}
           {!isNative && needsStorage && (
-            <div className="bg-amber-50 border-l-4 border-amber-400 rounded-r-lg p-3 mb-4">
+            <div className="bg-amber-500/10 border-l-4 border-amber-500 rounded-r-lg p-3 mb-4">
               <p className="text-amber-800 text-sm">
                 The recipient is not registered on this token contract. A one-time storage deposit of 0.00125 NEAR will be included automatically.
               </p>
@@ -482,7 +482,7 @@ function FundContent() {
 
           {/* Error */}
           {error && (
-            <div className="bg-red-50 border-l-4 border-red-400 rounded-r-lg p-3 mb-4">
+            <div className="bg-red-500/10 border-l-4 border-red-500 rounded-r-lg p-3 mb-4">
               <p className="text-red-800 text-sm">{error}</p>
             </div>
           )}
@@ -507,7 +507,7 @@ function FundContent() {
                       : `${formatFtAmount(userBalance, decimals)} ${symbol}`}
                   </span>
                   {!hasEnough && (
-                    <span className="text-red-600 ml-2">
+                    <span className="text-red-400 ml-2">
                       (insufficient{isNative ? ' — keep ~0.05 NEAR for fees' : ''})
                     </span>
                   )}

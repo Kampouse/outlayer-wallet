@@ -7,16 +7,16 @@
 
 /* Override zinc scale in dark mode so hardcoded classes work automatically */
 .dark {
-  --color-zinc-50: oklch(0.21 0 0);
-  --color-zinc-100: oklch(0.27 0 0);
-  --color-zinc-200: oklch(0.35 0 0);
-  --color-zinc-300: oklch(0.50 0 0);
-  --color-zinc-400: oklch(0.60 0 0);
+  --color-zinc-50: oklch(0.178 0 0);
+  --color-zinc-100: oklch(0.21 0 0);
+  --color-zinc-200: oklch(0.27 0 0);
+  --color-zinc-300: oklch(0.37 0 0);
+  --color-zinc-400: oklch(0.52 0 0);
   --color-zinc-500: oklch(0.65 0 0);
-  --color-zinc-600: oklch(0.72 0 0);
-  --color-zinc-700: oklch(0.80 0 0);
-  --color-zinc-800: oklch(0.88 0 0);
-  --color-zinc-900: oklch(0.95 0 0);
+  --color-zinc-600: oklch(0.78 0 0);
+  --color-zinc-700: oklch(0.87 0 0);
+  --color-zinc-800: oklch(0.93 0 0);
+  --color-zinc-900: oklch(0.98 0 0);
   --color-white: oklch(0.145 0 0);
 }
 
@@ -130,20 +130,20 @@ button.text-xs, a.text-xs, button.text-sm, a.text-sm {
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
+  --background: oklch(0.13 0 0);
+  --foreground: oklch(0.97 0 0);
+  --card: oklch(0.178 0 0);
+  --card-foreground: oklch(0.97 0 0);
+  --popover: oklch(0.178 0 0);
+  --popover-foreground: oklch(0.97 0 0);
   --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --primary-foreground: oklch(0.178 0 0);
+  --secondary: oklch(0.235 0 0);
+  --secondary-foreground: oklch(0.97 0 0);
+  --muted: oklch(0.235 0 0);
+  --muted-foreground: oklch(0.75 0 0);
+  --accent: oklch(0.235 0 0);
+  --accent-foreground: oklch(0.97 0 0);
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);

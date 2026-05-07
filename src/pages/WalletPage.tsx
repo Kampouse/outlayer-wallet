@@ -14,7 +14,6 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Loader2 } from 'lucide-react';
 
 interface WalletInfo {
   wallet_id: string;
@@ -268,21 +267,21 @@ function WalletHandoffContent() {
   if (!apiKey) {
     return (
       <div className="max-w-2xl mx-auto py-12 px-4">
-        <h1 className="text-2xl sm:text-3xl font-bold text-zinc-900 mb-4">Wallet Handoff</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-4">Wallet Handoff</h1>
         <Card>
           <CardContent className="p-8 text-center">
-            <p className="text-zinc-600 mb-4">
+            <p className="text-muted-foreground mb-4">
               This page is used to take control of an AI agent wallet.
             </p>
-            <p className="text-sm text-zinc-500">
+            <p className="text-sm text-muted-foreground">
               Your agent should have given you a handoff URL like:<br />
-              <code className="text-xs bg-zinc-100 px-2 py-1 rounded mt-1 inline-block">
+              <code className="text-xs bg-muted px-2 py-1 rounded mt-1 inline-block">
                 /wallet?key=wk_...
               </code>
             </p>
             <div className="mt-6">
               <Link to="/wallet/manage"
-                className="text-zinc-900 hover:underline font-medium"
+                className="text-foreground hover:underline font-medium"
               >
                 Or manage existing wallets &rarr;
               </Link>
@@ -295,35 +294,41 @@ function WalletHandoffContent() {
 
   return (
     <div className="max-w-3xl mx-auto py-8 px-4">
-      <h1 className="text-2xl sm:text-3xl font-bold text-zinc-900 mb-2">Wallet Handoff</h1>
-      <p className="text-zinc-500 mb-6">
+      <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">Wallet Handoff</h1>
+      <p className="text-muted-foreground mb-6">
         Take control of your AI agent&apos;s wallet by setting a spending policy.
       </p>
 
       {error && (
-        <div className="mb-4 bg-red-50 border-l-4 border-red-400 rounded-r-lg p-4">
-          <p className="text-sm text-red-700">{error}</p>
+        <div className="mb-4 bg-red-500/10 border-l-4 border-red-500 rounded-r-lg p-4">
+          <p className="text-sm text-red-400">{error}</p>
         </div>
       )}
 
       {success && (
-        <div className="mb-4 bg-emerald-50 border-l-4 border-emerald-400 rounded-r-lg p-4">
-          <p className="text-sm text-emerald-700">{success}</p>
+        <div className="mb-4 bg-emerald-500/10 border-l-4 border-emerald-500 rounded-r-lg p-4">
+          <p className="text-sm text-emerald-400">{success}</p>
         </div>
       )}
 
       {/* Step 1: Wallet Info */}
       <Card className="mb-6">
         <CardContent className="p-6">
-          <h2 className="text-lg font-semibold text-zinc-900 mb-3">
-            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-zinc-900 text-white text-xs mr-2">1</span>
+          <h2 className="text-lg font-semibold text-foreground mb-3">
+            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs mr-2">1</span>
             Wallet Info
           </h2>
 
           {loading ? (
-            <div className="flex items-center py-4">
-              <Loader2 className="h-5 w-5 animate-spin text-zinc-400 mr-3" />
-              <span className="text-zinc-500">Loading wallet...</span>
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <div className="h-3 w-16 bg-muted rounded animate-pulse" />
+                <div className="h-4 w-48 bg-muted rounded animate-pulse" />
+              </div>
+              <div className="space-y-1.5">
+                <div className="h-3 w-32 bg-muted rounded animate-pulse" />
+                <div className="h-4 w-72 bg-muted rounded animate-pulse" />
+              </div>
             </div>
           ) : walletInfo ? (
             <div className="space-y-2">
@@ -336,8 +341,8 @@ function WalletHandoffContent() {
                 <p className="text-sm font-mono text-zinc-900 break-all">{walletInfo.address}</p>
               </div>
               {existingPolicy === true && (
-                <div className="mt-2 bg-blue-50 border-l-4 border-blue-400 rounded-r-lg p-2">
-                  <p className="text-sm text-blue-700">This wallet already has a policy on-chain. Submitting a new one will replace it.</p>
+                <div className="mt-2 bg-blue-500/10 border-l-4 border-blue-500 rounded-r-lg p-2">
+                  <p className="text-sm text-blue-400">This wallet already has a policy on-chain. Submitting a new one will replace it.</p>
                 </div>
               )}
             </div>
@@ -345,16 +350,49 @@ function WalletHandoffContent() {
         </CardContent>
       </Card>
 
+      {/* Step 2: Policy Owner — skeleton while loading */}
+      {loading && (
+        <Card className="mb-6 animate-pulse">
+          <CardContent className="p-6">
+            <div className="flex items-center mb-4">
+              <div className="w-6 h-6 rounded-full bg-muted mr-2" />
+              <div className="h-5 w-28 bg-muted rounded" />
+            </div>
+            <div className="h-4 w-64 bg-muted rounded mb-4" />
+            <div className="flex space-x-3">
+              <div className="h-9 w-32 bg-muted rounded-lg" />
+              <div className="h-9 w-36 bg-muted rounded-lg" />
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Step 3: skeleton while loading */}
+      {loading && (
+        <Card className="mb-6 animate-pulse">
+          <CardContent className="p-6">
+            <div className="flex items-center mb-4">
+              <div className="w-6 h-6 rounded-full bg-muted mr-2" />
+              <div className="h-5 w-32 bg-muted rounded" />
+            </div>
+            <div className="h-4 w-40 bg-muted rounded mb-3" />
+            <div className="h-10 bg-muted rounded-lg" />
+            <div className="h-10 bg-muted rounded-lg mt-2" />
+            <div className="h-10 bg-muted rounded-lg mt-2" />
+          </CardContent>
+        </Card>
+      )}
+
       {/* Step 2: Policy Owner */}
       {walletInfo && (
         <Card className="mb-6">
           <CardContent className="p-6">
-            <h2 className="text-lg font-semibold text-zinc-900 mb-3">
-              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-zinc-900 text-white text-xs mr-2">2</span>
-              Policy Owner
+          <h2 className="text-lg font-semibold text-foreground mb-3">
+            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs mr-2">2</span>
+            Policy Owner
             </h2>
 
-            <p className="text-sm text-zinc-500 mb-4">
+            <p className="text-sm text-muted-foreground mb-4">
               The owner can freeze the wallet, update the policy, and approve transactions.
             </p>
 
@@ -365,7 +403,7 @@ function WalletHandoffContent() {
                 className={`px-4 py-2 text-sm rounded-lg border transition-colors ${
                   ownerMode === 'wallet'
                     ? 'bg-zinc-900 text-white border-zinc-900'
-                    : 'bg-white text-zinc-600 border-zinc-200 hover:border-zinc-400'
+                    : 'bg-background text-muted-foreground border-border hover:border-muted-foreground'
                 }`}
               >
                 Connect Wallet
@@ -376,7 +414,7 @@ function WalletHandoffContent() {
                 className={`px-4 py-2 text-sm rounded-lg border transition-colors ${
                   ownerMode === 'manual'
                     ? 'bg-zinc-900 text-white border-zinc-900'
-                    : 'bg-white text-zinc-600 border-zinc-200 hover:border-zinc-400'
+                    : 'bg-background text-muted-foreground border-border hover:border-muted-foreground'
                 }`}
               >
                 Enter Account ID
@@ -385,7 +423,7 @@ function WalletHandoffContent() {
 
             {ownerMode === 'wallet' ? (
               isConnected ? (
-                <p className="text-sm text-emerald-700">
+                <p className="text-sm text-emerald-400">
                   Connected as <span className="font-mono font-medium">{accountId}</span>
                 </p>
               ) : (
@@ -420,25 +458,38 @@ function WalletHandoffContent() {
         </Card>
       )}
 
-      {/* Step 3: Set Policy — wait for existing policy check so form shows current values, not defaults */}
+      {/* Step 3: Set Policy — show skeleton while checking existing policy */}
+      {walletInfo && ownerReady && existingPolicy === null && (
+        <Card className="mb-6 animate-pulse">
+          <CardContent className="p-6">
+            <div className="flex items-center mb-4">
+              <div className="w-6 h-6 rounded-full bg-muted mr-2" />
+              <div className="h-5 w-32 bg-muted rounded" />
+            </div>
+            <div className="h-4 w-40 bg-muted rounded mb-4" />
+            <div className="h-10 bg-muted rounded-lg" />
+            <div className="h-10 bg-muted rounded-lg mt-2" />
+          </CardContent>
+        </Card>
+      )}
       {walletInfo && ownerReady && existingPolicy !== null && (
         <Card className="mb-6">
           <CardContent className="p-6">
-            <h2 className="text-lg font-semibold text-zinc-900 mb-6">
-              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-zinc-900 text-white text-xs mr-2">3</span>
+            <h2 className="text-lg font-semibold text-foreground mb-6">
+              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs mr-2">3</span>
               Set Spending Policy
             </h2>
 
             <div className="space-y-6">
               {/* Transaction Approval */}
               <div className="space-y-4">
-                <h3 className="text-sm font-semibold text-zinc-800">Transaction Approval</h3>
+                <h3 className="text-sm font-semibold text-foreground">Transaction Approval</h3>
 
                 {/* Toggle */}
                 <div
                   className={`flex items-center justify-between rounded-lg border p-4 transition-colors ${
                     requireApproval
-                      ? 'border-emerald-200 bg-emerald-50'
+                      ? 'border-emerald-500/25 bg-emerald-500/10'
                       : 'border-zinc-200 hover:border-zinc-300'
                   }`}
                 >
@@ -446,10 +497,10 @@ function WalletHandoffContent() {
                     className="cursor-pointer"
                     onClick={() => setRequireApproval(!requireApproval)}
                   >
-                    <p className={`font-medium ${requireApproval ? 'text-emerald-900' : 'text-zinc-900'}`}>
+                    <p className={`font-medium ${requireApproval ? 'text-emerald-400' : 'text-foreground'}`}>
                       Require personal approval
                     </p>
-                    <p className={`text-sm mt-0.5 ${requireApproval ? 'text-emerald-600' : 'text-zinc-500'}`}>
+                    <p className={`text-sm mt-0.5 ${requireApproval ? 'text-emerald-400/70' : 'text-muted-foreground'}`}>
                       Transactions need your approval before execution
                     </p>
                   </div>
@@ -609,22 +660,22 @@ function WalletHandoffContent() {
       {success && (
         <Card>
           <CardContent className="p-6">
-            <h2 className="text-lg font-semibold text-zinc-900 mb-3">Next Steps</h2>
-            <ul className="space-y-2 text-sm text-zinc-600">
+            <h2 className="text-lg font-semibold text-foreground mb-3">Next Steps</h2>
+            <ul className="space-y-2 text-sm text-muted-foreground">
               <li>
-                <Link to={`/wallet/approvals?key=${apiKey}`} className="text-zinc-900 hover:underline font-medium">
+                <Link to={`/wallet/approvals?key=${apiKey}`} className="text-foreground hover:underline font-medium">
                   Approvals
                 </Link>
                 {' '}&mdash; review and approve pending transactions
               </li>
               <li>
-                <Link to={`/wallet/manage?key=${apiKey}`} className="text-zinc-900 hover:underline font-medium">
+                <Link to={`/wallet/manage?key=${apiKey}`} className="text-foreground hover:underline font-medium">
                   Manage Wallets
                 </Link>
                 {' '}&mdash; edit policy, freeze wallet
               </li>
               <li>
-                <Link to={`/wallet/audit?key=${apiKey}`} className="text-zinc-900 hover:underline font-medium">
+                <Link to={`/wallet/audit?key=${apiKey}`} className="text-foreground hover:underline font-medium">
                   Audit Log
                 </Link>
                 {' '}&mdash; view transaction history

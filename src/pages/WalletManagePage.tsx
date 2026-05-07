@@ -191,8 +191,8 @@ export default function WalletManagePage() {
         </h1>
 
         {error && (
-          <div className="mb-4 bg-red-50 border-l-4 border-red-400 rounded-r-lg p-4">
-            <p className="text-sm text-red-700">{error}</p>
+          <div className="mb-4 bg-red-500/10 border-l-4 border-red-500 rounded-r-lg p-4">
+            <p className="text-sm text-red-400">{error}</p>
           </div>
         )}
 
@@ -271,14 +271,14 @@ export default function WalletManagePage() {
   return (
     <div className="max-w-4xl mx-auto px-4 pt-4">
       {error && (
-        <div className="mb-4 bg-red-50 border-l-4 border-red-400 rounded-r-lg p-4">
-          <p className="text-sm text-red-700">{error}</p>
+        <div className="mb-4 bg-red-500/10 border-l-4 border-red-500 rounded-r-lg p-4">
+          <p className="text-sm text-red-400">{error}</p>
         </div>
       )}
 
       {success && (
-        <div className="mb-4 bg-emerald-50 border-l-4 border-emerald-400 rounded-r-lg p-4">
-          <p className="text-sm text-emerald-700">{success}</p>
+        <div className="mb-4 bg-emerald-500/10 border-l-4 border-emerald-500 rounded-r-lg p-4">
+          <p className="text-sm text-emerald-400">{success}</p>
         </div>
       )}
 
@@ -398,7 +398,7 @@ export default function WalletManagePage() {
                         {wallet.frozen ? (
                           <Badge variant="default">FROZEN</Badge>
                         ) : (
-                          <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 border-emerald-200">Active</Badge>
+                          <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">Active</span>
                         )}
                       </div>
                       <CopyableAddress
@@ -504,7 +504,7 @@ export default function WalletManagePage() {
                               return n;
                             });
                           }}
-                          className="text-xs text-red-500 hover:text-red-700 px-1"
+                          className="text-xs text-red-500 hover:text-red-400 px-1"
                         >
                           remove
                         </button>

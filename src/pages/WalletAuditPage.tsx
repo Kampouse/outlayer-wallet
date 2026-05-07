@@ -37,13 +37,13 @@ interface WalletKeyInfo {
 
 const EVENT_TYPE_COLORS: Record<string, string> = {
   withdraw: 'bg-orange-50 text-orange-700 border-orange-200',
-  withdraw_pending_approval: 'bg-yellow-50 text-yellow-700 border-yellow-200',
-  withdraw_auto_executed: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  deposit: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  withdraw_pending_approval: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
+  withdraw_auto_executed: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  deposit: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
   policy_change: 'bg-purple-50 text-purple-700 border-purple-200',
-  approval: 'bg-blue-50 text-blue-700 border-blue-200',
-  freeze: 'bg-red-50 text-red-700 border-red-200',
-  unfreeze: 'bg-teal-50 text-teal-700 border-teal-200',
+  approval: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  freeze: 'bg-red-500/10 text-red-400 border-red-500/20',
+  unfreeze: 'bg-teal-500/10 text-teal-400 border-teal-500/20',
 };
 
 const PAGE_SIZE = 50;
@@ -288,7 +288,7 @@ export default function WalletAuditPage() {
             className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
               selectedWallet === 'all'
                 ? 'bg-zinc-900 text-white border-zinc-900'
-                : 'bg-white text-zinc-600 border-zinc-200 hover:border-zinc-400'
+                : 'bg-background text-muted-foreground border-border hover:border-muted-foreground'
             }`}
           >
             All wallets ({finalWallets.length})
@@ -300,7 +300,7 @@ export default function WalletAuditPage() {
               className={`px-3 py-1.5 text-sm rounded-lg border transition-colors font-mono ${
                 selectedWallet === w.walletId
                   ? 'bg-zinc-900 text-white border-zinc-900'
-                  : 'bg-white text-zinc-600 border-zinc-200 hover:border-zinc-400'
+                  : 'bg-background text-muted-foreground border-border hover:border-muted-foreground'
               }`}
             >
               {w.label}
@@ -311,9 +311,9 @@ export default function WalletAuditPage() {
       )}
 
       {errors.length > 0 && (
-        <div className="mb-4 bg-red-50 border-l-4 border-red-400 rounded-r-lg p-4">
+        <div className="mb-4 bg-red-500/100/10 border-l-4 border-red-500 rounded-r-lg p-4">
           {errors.map((e, i) => (
-            <p key={i} className="text-sm text-red-700">{e}</p>
+            <p key={i} className="text-sm text-red-400">{e}</p>
           ))}
         </div>
       )}
@@ -333,7 +333,7 @@ export default function WalletAuditPage() {
       ) : (
         <>
           {/* Desktop table - hidden on mobile */}
-          <div className="hidden sm:block bg-white rounded-lg border border-zinc-200 overflow-hidden">
+          <div className="hidden sm:block bg-background rounded-lg border border-border overflow-hidden">
             <table className="min-w-full divide-y divide-zinc-200">
               <thead className="bg-zinc-50">
                 <tr>
@@ -356,7 +356,7 @@ export default function WalletAuditPage() {
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-zinc-100">
+              <tbody className="bg-background divide-y divide-border">
                 {mergedEvents.map((event, i) => (
                   <tr key={`dt-${event._walletId}-${i}`} className="hover:bg-zinc-50/50">
                     <td className="px-4 py-3 whitespace-nowrap text-xs text-zinc-500">

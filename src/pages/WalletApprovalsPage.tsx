@@ -286,21 +286,21 @@ export default function WalletApprovalsPage() {
       </div>
 
       {error && (
-        <div className="mb-4 bg-red-50 border-l-4 border-red-400 rounded-r-lg p-4">
-          <p className="text-sm text-red-700">{error}</p>
+        <div className="mb-4 bg-red-500/10 border-l-4 border-red-500 rounded-r-lg p-4">
+          <p className="text-sm text-red-400">{error}</p>
         </div>
       )}
 
       {success && (
-        <div className="mb-4 bg-emerald-50 border-l-4 border-emerald-400 rounded-r-lg p-4">
-          <p className="text-sm text-emerald-700">{success}</p>
+        <div className="mb-4 bg-emerald-500/10 border-l-4 border-emerald-500 rounded-r-lg p-4">
+          <p className="text-sm text-emerald-400">{success}</p>
         </div>
       )}
 
       {/* API key prompt dialog */}
       {showApiKeyPrompt && (
-        <div className="mb-4 bg-blue-50 border-l-4 border-blue-400 rounded-r-lg p-4">
-          <p className="text-sm text-blue-700 mb-3">
+        <div className="mb-4 bg-blue-500/10 border-l-4 border-blue-500 rounded-r-lg p-4">
+          <p className="text-sm text-blue-400 mb-3">
             Enter the wallet API key to reject this request.
             It will be saved in this browser for future use.
           </p>

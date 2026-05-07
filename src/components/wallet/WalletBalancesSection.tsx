@@ -144,15 +144,13 @@ export default function WalletBalancesSection({
       ) : null}
 
       {/* Intents balances */}
-      <div className="mt-1.5 pt-1.5 border-t border-zinc-50">
-        <div className="flex items-center justify-between mb-1">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
-            Intents
-          </span>
-          {intentsLoading && (
+      <div className="mt-1.5 pt-1.5 border-t border-zinc-100">
+        {intentsLoading && tokens.length === 0 && (
+          <div className="flex items-center gap-1.5">
             <div className="w-3 h-3 border border-zinc-300 border-t-zinc-500 rounded-full animate-spin" />
-          )}
-        </div>
+            <span className="text-xs text-zinc-400">Loading...</span>
+          </div>
+        )}
 
         {tokens.length > 0 && (
           <div className="space-y-0.5">
@@ -161,14 +159,7 @@ export default function WalletBalancesSection({
                 key={t.defuse_asset_id}
                 className="flex items-center justify-between py-0.5"
               >
-                <span className="text-xs text-zinc-500">
-                  {t.symbol}
-                  {t.chains.length > 0 && (
-                    <span className="text-zinc-300 ml-1">
-                      {t.chains[0]}
-                    </span>
-                  )}
-                </span>
+                <span className="text-xs text-zinc-500">{t.symbol}</span>
                 <span className="text-xs font-mono font-medium text-zinc-800">
                   {formatTokenBalance(t.balance, t.decimals)}
                 </span>

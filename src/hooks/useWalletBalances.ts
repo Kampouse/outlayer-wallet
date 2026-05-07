@@ -1,12 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import {
-  getCoordinatorApiUrl,
-  fetchWalletBalance,
   fetchSupportedTokens,
   fetchIntentsBalancesBatch,
-  type WalletBalanceResponse,
   type SupportedToken,
 } from "@/lib/api";
+import { fetchNearAccountBalance } from "@/lib/near-rpc";
 
 export interface TokenBalance {
   symbol: string;
@@ -36,24 +34,26 @@ function formatTokenBalance(raw: string, decimals: number): string {
 }
 
 export function useWalletBalances(
-  apiKey: string | null | undefined,
+  _apiKey: string | null | undefined,
   accountId: string | null | undefined,
 ) {
-  const baseUrl = getCoordinatorApiUrl();
-
-  // NEAR balance (on-chain native, requires API key)
+  // NEAR balance — direct from NEAR RPC, no API key needed
   const nearQuery = useQuery({
-    queryKey: ["wallet-balance-near", apiKey],
-    queryFn: () => fetchWalletBalance(baseUrl, apiKey!),
-    enabled: !!apiKey,
-    staleTime: 30_000,
+    queryKey: ["wallet-balance-near", accountId],
+    queryFn: async () => {
+      if (!accountId) return null;
+      const yocto = await fetchNearAccountBalance(accountId);
+      return { balance: yocto, token: "NEAR", account_id: accountId };
+    },
+    enabled: !!accountId,
+    staleTime: 0,
   });
 
   // Token catalog from ChainDefuser (public, includes prices, no API key)
   const catalogQuery = useQuery({
     queryKey: ["wallet-supported-tokens"],
     queryFn: () => fetchSupportedTokens(),
-    staleTime: 5 * 60_000,
+    staleTime: 60_000,
   });
 
   // Intents balances — single RPC call via mt_batch_balance_of
@@ -86,7 +86,7 @@ export function useWalletBalances(
       }
     },
     enabled: !!accountId && allTokens.length > 0,
-    staleTime: 30_000,
+    staleTime: 0,
   });
 
   const loading = nearQuery.isLoading;

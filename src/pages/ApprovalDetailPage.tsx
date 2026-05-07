@@ -151,14 +151,14 @@ function ApprovalDetailContent() {
       <h1 className="text-2xl sm:text-3xl font-bold text-zinc-900 mb-6">Approval Details</h1>
 
       {error && (
-        <div className="mb-4 bg-red-50 border-l-4 border-red-400 rounded-r-lg p-4">
-          <p className="text-sm text-red-700">{error}</p>
+        <div className="mb-4 bg-red-500/10 border-l-4 border-red-500 rounded-r-lg p-4">
+          <p className="text-sm text-red-400">{error}</p>
         </div>
       )}
 
       {success && (
-        <div className="mb-4 bg-emerald-50 border-l-4 border-emerald-400 rounded-r-lg p-4">
-          <p className="text-sm text-emerald-700">{success}</p>
+        <div className="mb-4 bg-emerald-500/10 border-l-4 border-emerald-500 rounded-r-lg p-4">
+          <p className="text-sm text-emerald-400">{success}</p>
         </div>
       )}
 
@@ -182,7 +182,7 @@ function ApprovalDetailContent() {
                 <div className="flex items-center space-x-3">
                   <Badge
                     variant={approval.status === 'pending' ? 'outline' : approval.status === 'approved' ? 'secondary' : approval.status === 'expired' ? 'secondary' : 'destructive'}
-                    className={approval.status === 'pending' ? 'border-amber-200 bg-amber-50 text-amber-700' : approval.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : approval.status === 'expired' ? 'bg-zinc-100 text-zinc-500 border-zinc-200' : ''}
+                    className={approval.status === 'pending' ? 'border-amber-200 bg-amber-50 text-amber-400' : approval.status === 'approved' ? 'bg-emerald-50 text-emerald-400 border-emerald-200' : approval.status === 'expired' ? 'bg-muted text-muted-foreground border-border' : ''}
                   >
                     {approval.status.toUpperCase()}
                   </Badge>
@@ -208,7 +208,7 @@ function ApprovalDetailContent() {
                 </div>
                 <div>
                   <p className="text-zinc-400 text-xs uppercase tracking-wide">Expires</p>
-                  <p className={`${isExpired ? 'text-red-600' : 'text-zinc-900'} mt-1`}>
+                  <p className={`${isExpired ? 'text-red-400' : 'text-zinc-900'} mt-1`}>
                     {formatDate(approval.expires_at)}
                     {isExpired && ' (EXPIRED)'}
                   </p>
@@ -266,7 +266,7 @@ function ApprovalDetailContent() {
           )}
 
           {!isConnected && approval.status === 'pending' && (
-            <div className="bg-amber-50 border-l-4 border-amber-400 rounded-r-lg p-4">
+            <div className="bg-amber-500/10 border-l-4 border-amber-500 rounded-r-lg p-4">
               <p className="text-sm text-amber-800">
                 Connect your NEAR wallet to approve this request.
               </p>

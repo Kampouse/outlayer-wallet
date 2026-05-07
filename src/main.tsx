@@ -19,7 +19,7 @@ const MAX_AGE = 30 * 60_000 // 30 min
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 10 * 60_000,     // 10 min before refetch
+      staleTime: 0,             // always refetch on mount
       gcTime: MAX_AGE,            // match persistence TTL
       retry: 1,
       refetchOnWindowFocus: true,
