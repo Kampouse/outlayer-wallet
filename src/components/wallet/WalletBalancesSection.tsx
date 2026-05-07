@@ -58,14 +58,14 @@ export default function WalletBalancesSection({
     const wnear = allTokens.find((t) => t.symbol === "wNEAR");
     const nearPrice = wnear?.price ?? priceMap["nep141:wrap.near"] ?? 0;
     if (near && nearPrice > 0) {
-      const nearVal = Number(BigInt(near.balance) / 10n ** 24n);
+      const nearVal = Number(BigInt(near.balance)) / 10 ** 24;
       total += nearVal * nearPrice;
     }
     for (const t of tokens) {
       const price = priceMap[t.defuse_asset_id];
       if (price) {
-        const val = BigInt(t.balance) / 10n ** BigInt(t.decimals);
-        total += Number(val) * price;
+        const val = Number(t.balance) / 10 ** t.decimals;
+        total += val * price;
       }
     }
     return total;
