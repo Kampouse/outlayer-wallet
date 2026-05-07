@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useNearWallet } from '@/contexts/NearWalletContext'
+import ThemeToggle from './ThemeToggle'
 
 export default function MobileHeader() {
   const { accountId, isConnected, network } = useNearWallet()
@@ -27,13 +28,16 @@ export default function MobileHeader() {
             <span className="text-sm font-semibold text-zinc-900 tracking-tight">Outlayer</span>
           )}
         </Link>
-        <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-          network === 'testnet'
-            ? 'bg-amber-50 text-amber-600 border border-amber-200'
-            : 'bg-emerald-50 text-emerald-600 border border-emerald-200'
-        }`}>
-          {network === 'testnet' ? 'Testnet' : 'Mainnet'}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <ThemeToggle />
+          <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+            network === 'testnet'
+              ? 'bg-amber-50 text-amber-600 border border-amber-200'
+              : 'bg-emerald-50 text-emerald-600 border border-emerald-200'
+          }`}>
+            {network === 'testnet' ? 'Testnet' : 'Mainnet'}
+          </span>
+        </div>
       </div>
     </header>
   )

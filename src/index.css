@@ -5,6 +5,21 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Override zinc scale in dark mode so hardcoded classes work automatically */
+.dark {
+  --color-zinc-50: oklch(0.21 0 0);
+  --color-zinc-100: oklch(0.27 0 0);
+  --color-zinc-200: oklch(0.35 0 0);
+  --color-zinc-300: oklch(0.50 0 0);
+  --color-zinc-400: oklch(0.60 0 0);
+  --color-zinc-500: oklch(0.65 0 0);
+  --color-zinc-600: oklch(0.72 0 0);
+  --color-zinc-700: oklch(0.80 0 0);
+  --color-zinc-800: oklch(0.88 0 0);
+  --color-zinc-900: oklch(0.95 0 0);
+  --color-white: oklch(0.145 0 0);
+}
+
 :root {
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);

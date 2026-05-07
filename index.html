@@ -12,6 +12,9 @@
     <link rel="manifest" href="/manifest.json" />
   </head>
   <body>
+    <script>
+      (function(){try{var t=localStorage.getItem('outlayer-theme');if(t==='dark'||(!t&&matchMedia('(prefers-color-scheme:dark)').matches))document.documentElement.classList.add('dark')}catch(e){}})();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
