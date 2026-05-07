@@ -33,7 +33,7 @@ function formatTokenBalance(raw: string, decimals: number): string {
     .padStart(decimals, "0")
     .slice(0, 6)
     .replace(/0+$/, "");
-  return `${intPart.toLocaleString()}.${fracStr}`;
+  return fracStr ? `${intPart.toLocaleString()}.${fracStr}` : intPart.toLocaleString();
 }
 
 export function useWalletBalances(
