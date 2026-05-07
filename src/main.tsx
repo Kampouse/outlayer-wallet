@@ -52,3 +52,10 @@ createRoot(document.getElementById('root')!).render(
     </PersistQueryClientProvider>
   </BrowserRouter>,
 )
+
+// Register service worker in production
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
