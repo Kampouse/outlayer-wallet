@@ -3,6 +3,7 @@ import { useLocation, Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNearWallet } from "@/contexts/NearWalletContext";
 import WalletConnectionModal from "@/components/WalletConnectionModal";
+import WalletBalancesSection from "@/components/wallet/WalletBalancesSection";
 import { getCoordinatorApiUrl } from "@/lib/api";
 import { actionCreators } from "@near-js/transactions";
 import {
@@ -187,16 +188,73 @@ export default function WalletManagePage() {
         <h1 className="text-2xl sm:text-3xl font-bold text-zinc-900 mb-6">
           Manage Wallets
         </h1>
-        <Card>
-          <CardContent className="p-8 text-center">
-            <p className="text-zinc-500 mb-6">
-              Connect your NEAR wallet to manage wallet policies.
-            </p>
-            <Button onClick={() => setShowWalletModal(true)} size="lg">
-              Connect Wallet
-            </Button>
-          </CardContent>
-        </Card>
+
+        {error && (
+          <div className="mb-4 bg-red-50 border-l-4 border-red-400 rounded-r-lg p-4">
+            <p className="text-sm text-red-700">{error}</p>
+          </div>
+        )}
+
+        {/* Saved API key wallets — visible even without NEAR connection */}
+        {Object.keys(savedKeys).length > 0 ? (
+          Object.keys(savedKeys).map((pubkey) => (
+            <Card key={pubkey} className="mb-4 border-2 border-dashed border-zinc-300">
+              <CardContent className="p-4 sm:p-6">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-sm font-medium text-zinc-900">
+                        Intent Wallet
+                      </span>
+                      <Badge variant="outline">No Policy</Badge>
+                    </div>
+                    <a
+                      href={`https://near.rocks/account/${pubkey.replace(/^ed25519:/, "")}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-1 text-xs text-zinc-500 font-mono break-all hover:text-zinc-700 hover:underline"
+                    >
+                      {pubkey.replace(/^ed25519:/, "")}
+                    </a>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Link to={`/handoff?key=${savedKeys[pubkey]}`}>
+                      <Button size="sm">Set Policy</Button>
+                    </Link>
+                  </div>
+                </div>
+                <WalletBalancesSection apiKey={savedKeys[pubkey]} accountId={pubkey} />
+              </CardContent>
+            </Card>
+          ))
+        ) : (
+          <Card>
+            <CardContent className="p-8 text-center">
+              <p className="text-zinc-500 mb-6">
+                Connect your NEAR wallet to manage on-chain policies, or save an API key to view an intent wallet.
+              </p>
+              <div className="flex flex-col items-center gap-3">
+                <Button onClick={() => setShowWalletModal(true)} size="lg">
+                  Connect NEAR Wallet
+                </Button>
+                <span className="text-xs text-zinc-400">or save an API key below</span>
+                <button
+                  onClick={() => {
+                    const key = prompt("Paste your OutLayer API key (wk_...):");
+                    if (key?.trim()) {
+                      // We need to resolve the address first — redirect with ?key= param
+                      window.location.href = `${window.location.pathname}?key=${encodeURIComponent(key.trim())}`;
+                    }
+                  }}
+                  className="text-sm text-zinc-900 hover:underline font-medium"
+                >
+                  + Add API Key
+                </button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <WalletConnectionModal
           isOpen={showWalletModal}
           onClose={() => setShowWalletModal(false)}
@@ -235,7 +293,14 @@ export default function WalletManagePage() {
                     <Badge variant="outline">No Policy</Badge>
                   </div>
                   <p className="mt-1 text-xs text-zinc-500 font-mono break-all">
-                    ed25519:{apiKeyWallet.address}
+                    <a
+                      href={`https://near.rocks/account/${apiKeyWallet.address}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:text-zinc-700 hover:underline"
+                    >
+                      {apiKeyWallet.address}
+                    </a>
                   </p>
                   <p className="text-xs text-zinc-400 mt-1">
                     NEAR address: {apiKeyWallet.address}
@@ -253,19 +318,60 @@ export default function WalletManagePage() {
           </Card>
         )}
 
-      {isSuccess && wallets.length === 0 && !apiKeyWallet ? (
+      {/* Saved API key wallets that have no on-chain policy (intent-only, etc.) */}
+      {Object.keys(savedKeys)
+        .filter(
+          (pk) =>
+            !wallets.some((w) => w.wallet_pubkey === pk) &&
+            !(apiKeyWallet && `ed25519:${apiKeyWallet.address}` === pk),
+        )
+        .map((pubkey) => (
+          <Card key={pubkey} className="mb-4 border-2 border-dashed border-zinc-300">
+            <CardContent className="p-4 sm:p-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm font-medium text-zinc-900">
+                      Intent Wallet
+                    </span>
+                    <Badge variant="outline">No Policy</Badge>
+                  </div>
+                  <div>
+                    <a
+                      href={`https://near.rocks/account/${pubkey.replace(/^ed25519:/, "")}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-1 text-xs text-zinc-500 font-mono break-all hover:text-zinc-700 hover:underline"
+                    >
+                      {pubkey.replace(/^ed25519:/, "")}
+                    </a>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                    <Link to={`/handoff?key=${savedKeys[pubkey]}`}>
+                      <Button size="sm">Set Policy</Button>
+                  </Link>
+                </div>
+              </div>
+
+              {/* Balances (NEAR + Intents tokens) */}
+              <WalletBalancesSection apiKey={savedKeys[pubkey]} accountId={pubkey} />
+            </CardContent>
+          </Card>
+        ))}
+
+      {isSuccess && wallets.length === 0 && !apiKeyWallet && Object.keys(savedKeys).length === 0 ? (
         <Card>
           <CardContent className="p-8 text-center">
             <p className="text-zinc-500">
-              No wallet policies found for your account.
-            </p>
-            <p className="text-sm text-zinc-400 mt-2">
-              Wallet policies are created when an AI agent registers a wallet with
-              your account as controller.
+              No wallets found. Connect your NEAR wallet to see on-chain policies, or save an API key to view an intent wallet.
             </p>
           </CardContent>
         </Card>
-      ) : (
+      ) : null}
+
+      {/* On-chain wallets with policies */}
+      {wallets.length > 0 && (
         <div className="space-y-4">
           {wallets.map((wallet) => {
             const walletKey = getWalletApiKey(wallet.wallet_pubkey);
@@ -281,7 +387,9 @@ export default function WalletManagePage() {
                         <Badge variant="secondary" className="text-[10px]">
                           {wallet.wallet_pubkey.startsWith("ed25519:")
                             ? "NEAR"
-                            : wallet.wallet_pubkey.split(":")[0]}
+                            : wallet.wallet_pubkey.split(
+                                ":"
+                              )[0]}
                         </Badge>
                         {wallet.frozen ? (
                           <Badge variant="default">FROZEN</Badge>
@@ -289,10 +397,15 @@ export default function WalletManagePage() {
                           <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 border-emerald-200">Active</Badge>
                         )}
                       </div>
-                      <p className="mt-1 text-xs text-zinc-500 font-mono break-all">
+                      <a
+                        href={`https://near.rocks/account/${(wallet.wallet_pubkey.split(":").slice(1).join(":") || wallet.wallet_pubkey)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-1 text-xs text-zinc-500 font-mono break-all hover:text-zinc-700 hover:underline"
+                      >
                         {wallet.wallet_pubkey.split(":").slice(1).join(":") ||
                           wallet.wallet_pubkey}
-                      </p>
+                      </a>
                       <p className="text-xs text-zinc-400 mt-1">
                         Updated: {formatTimestamp(wallet.updated_at)}
                       </p>
@@ -463,6 +576,9 @@ export default function WalletManagePage() {
                       update <code className="text-zinc-500">authorized_key_hashes</code> in the policy.
                     </p>
                   </div>
+
+                  {/* Balances (NEAR + Intents tokens) */}
+                  <WalletBalancesSection apiKey={walletKey} accountId={wallet.wallet_pubkey} />
                 </CardContent>
               </Card>
             );

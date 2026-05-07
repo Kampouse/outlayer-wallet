@@ -250,6 +250,92 @@ export async function fetchPricing(): Promise<PricingConfig> {
 }
 
 // ============================================================================
+// Wallet Balance (authed)
+// ============================================================================
+
+export interface WalletBalanceResponse {
+  balance: string;
+  token: string;
+  account_id: string;
+}
+
+export interface SupportedToken {
+  id: string;
+  symbol: string;
+  chains: string[];
+  decimals: number;
+  defuse_asset_id: string;
+}
+
+/** Fetch NEAR balance for a wallet (requires API key) */
+export async function fetchWalletBalance(
+  baseUrl: string,
+  apiKey: string,
+): Promise<WalletBalanceResponse> {
+  const resp = await fetch(`${baseUrl}/wallet/v1/balance`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+  });
+  if (!resp.ok) throw new Error(`Balance fetch failed: ${resp.status}`);
+  return resp.json();
+}
+
+/** Fetch supported token catalog (requires API key) */
+export async function fetchSupportedTokens(
+  baseUrl: string,
+  apiKey: string,
+): Promise<SupportedToken[]> {
+  const resp = await fetch(`${baseUrl}/wallet/v1/tokens`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+  });
+  if (!resp.ok) throw new Error(`Token list fetch failed: ${resp.status}`);
+  const data = await resp.json();
+  return data.tokens ?? data;
+}
+
+/**
+ * Batch-query Intents balances via the on-chain intents.near contract.
+ * Uses mt_batch_balance_of (NEP-245) — single RPC call, no API key needed.
+ * Returns raw balance strings indexed by token_id.
+ */
+export async function fetchIntentsBalancesBatch(
+  accountId: string,
+  tokenIds: string[],
+  rpcUrl: string = "https://free.rpc.fastnear.com",
+): Promise<string[]> {
+  const args = JSON.stringify({
+    account_id: accountId,
+    token_ids: tokenIds,
+  });
+  const argsBase64 = btoa(args);
+
+  const resp = await fetch(rpcUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "query",
+      params: {
+        request_type: "call_function",
+        finality: "final",
+        account_id: "intents.near",
+        method_name: "mt_batch_balance_of",
+        args_base64: argsBase64,
+      },
+    }),
+  });
+  if (!resp.ok) throw new Error(`RPC call failed: ${resp.status}`);
+  const result = await resp.json();
+  if (result.error) throw new Error(result.error.message || "RPC error");
+
+  const raw = result?.result?.result;
+  if (!raw) throw new Error("Empty RPC result");
+  const resultBytes = Uint8Array.from(raw);
+  const decoded = new TextDecoder().decode(resultBytes);
+  return JSON.parse(decoded);
+}
+
+// ============================================================================
 // Wallet Stats (public, no auth)
 // ============================================================================
 
