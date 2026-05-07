@@ -1,73 +1,55 @@
-# React + TypeScript + Vite
+# OutLayer Wallet
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Mobile-first PWA for managing NEAR custody wallet policies. Connect your NEAR wallet, view wallets you own, set spending limits, configure approval flows, and monitor audit logs.
 
-Currently, two official plugins are available:
+**Live:** https://outlayer-wallet.pages.dev
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Features
 
-## React Compiler
+- **Wallet Management** — View wallets where your account is the policy owner. Freeze/unfreeze wallets.
+- **Policy Editor** — Set spending limits (per-transaction, hourly, daily, monthly), address restrictions (whitelist/blacklist), allowed tokens, transaction types, time restrictions, rate limits, and webhook URLs.
+- **Approval System** — Require personal approval for transactions. Configure which types need approval, how many signatures are required, and add additional approvers.
+- **Audit Log** — Paginated transaction history with detail view.
+- **Live JSON Preview** — Form changes sync to a policy JSON editor in real time. Edit JSON directly if needed.
+- **Handoff Flow** — AI agents can share a handoff URL (`/wallet?key=wk_...`) for new owners to set policy.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Tech Stack
 
-## Expanding the ESLint configuration
+- **Vite + React + TypeScript** (no Next.js — required for `@hot-labs/near-connect` Firefox compatibility)
+- **TanStack Query** — server state with localStorage cache persistence (30-min TTL)
+- **shadcn/ui** — New York style, zinc color palette
+- **Radix UI** — accessible primitives (Checkbox, Dialog, etc.)
+- **@hot-labs/near-connect** — NEAR wallet connection
+- **Tailwind CSS v4**
+- **Cloudflare Pages** — deployment
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Pages
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+| Route | Description |
+|---|---|
+| `/wallet/manage` | Wallet list, freeze/unfreeze, API key management |
+| `/wallet/approvals` | Pending transaction approvals (auto-polls every 30s) |
+| `/wallet/audit` | Transaction history with detail drill-down |
+| `/wallet` (`?key=wk_...`) | Policy editor (handoff flow) |
+| `/wallet/fund` (`?to=&amount=`) | Fund wallet (deep-link only) |
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+## Development
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+npx vite --port 3003 --host
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Build & Deploy
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npx vite build
+npx wrangler pages deploy dist --project-name outlayer-wallet
 ```
+
+## Architecture Notes
+
+- **SPA routing** — `public/_redirects` handles all routes → `index.html` on Cloudflare Pages
+- **No `useSearchParams()`** — replaced with `useLocation().search` to avoid React Router v7 Suspense triggers
+- **localStorage cache** — query cache (`outlayer-query-cache`) and account ID (`outlayer-cached-account`) persist across reloads to eliminate loading flashes
+- **Policy sync** — `usePolicyForm` hook with `useMemo` + `useEffect` keeps form ↔ JSON editor in sync; manual JSON edits are tracked via `jsonEdited` flag
