@@ -12,7 +12,7 @@ const tabs = [
 export default function BottomNav() {
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-md border-t border-border z-50 pb-[env(safe-area-inset-bottom)]">
-      <div className="flex justify-around items-center h-16 max-w-lg mx-auto">
+      <div className="flex justify-around items-center h-16 max-w-lg mx-auto sm:max-w-xl md:max-w-2xl">
         {tabs.map((tab) => {
           const Icon = tab.icon
           return (

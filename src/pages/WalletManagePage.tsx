@@ -9,14 +9,18 @@ import { getCoordinatorApiUrl } from "@/lib/api";
 import { actionCreators } from "@near-js/transactions";
 import {
   saveWalletKey,
+  saveWalletKeyWithPasskey,
   getAllWalletKeys,
   removeWalletKey,
+  unlockWalletKeyWithPasskey,
+  isPasskeyProtected,
 } from "@/lib/wallet-keys";
+import { isPlatformAuthenticatorAvailable } from "@/lib/passkey-store";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Loader2 } from "lucide-react";
+import { Loader2, ShieldCheck, Lock, Fingerprint } from "lucide-react";
 
 interface WalletPolicy {
   wallet_pubkey: string;
@@ -54,6 +58,17 @@ export default function WalletManagePage() {
   const [showKeyInput, setShowKeyInput] = useState<string | null>(null);
   const [keyInput, setKeyInput] = useState("");
   const [revealedKeys, setRevealedKeys] = useState<Set<string>>(new Set());
+
+  // Passkey state
+  const [passkeyAvailable, setPasskeyAvailable] = useState(false);
+  const [unlockingKey, setUnlockingKey] = useState<string | null>(null);
+  const [passkeySaving, setPasskeySaving] = useState<string | null>(null);
+  const [unlockedKeys, setUnlockedKeys] = useState<Record<string, string>>({});
+
+  // Check passkey availability on mount
+  useEffect(() => {
+    isPlatformAuthenticatorAvailable().then(setPasskeyAvailable);
+  }, []);
 
   // Load saved keys on mount
   useEffect(() => {
@@ -176,7 +191,12 @@ export default function WalletManagePage() {
 
   /** Get the API key for a wallet — from saved keys or URL param */
   const getWalletApiKey = (walletPubkey: string): string | null => {
-    return savedKeys[walletPubkey] || searchParams.get("key") || null;
+    return (
+      savedKeys[walletPubkey] ||
+      unlockedKeys[walletPubkey] ||
+      searchParams.get("key") ||
+      null
+    );
   };
 
   const formatTimestamp = (nanos: number) => {
@@ -457,122 +477,272 @@ export default function WalletManagePage() {
                     </div>
 
                     {/* Local saved key */}
-                    {savedKeys[wallet.wallet_pubkey] ? (
-                      <div className="flex flex-wrap items-center gap-2 mb-2">
-                        <span className="text-xs text-zinc-400">Local:</span>
-                        <code className="text-xs font-mono bg-zinc-100 px-2 py-0.5 rounded select-all text-zinc-600">
-                          {revealedKeys.has(wallet.wallet_pubkey)
-                            ? savedKeys[wallet.wallet_pubkey]
-                            : savedKeys[wallet.wallet_pubkey].substring(0, 6) +
-                              "..." +
-                              savedKeys[wallet.wallet_pubkey].slice(-4)}
-                        </code>
-                        <button
-                          onClick={() =>
-                            setRevealedKeys((prev) => {
-                              const next = new Set(prev);
-                              next.has(wallet.wallet_pubkey)
-                                ? next.delete(wallet.wallet_pubkey)
-                                : next.add(wallet.wallet_pubkey);
-                              return next;
-                            })
-                          }
-                          className="text-xs text-zinc-400 hover:text-zinc-600 px-1"
-                        >
-                          {revealedKeys.has(wallet.wallet_pubkey)
-                            ? "hide"
-                            : "show"}
-                        </button>
-                        <button
-                          onClick={() => {
-                            navigator.clipboard.writeText(
-                              savedKeys[wallet.wallet_pubkey],
-                            );
-                            setSuccess("API key copied");
-                            setTimeout(() => setSuccess(null), 2000);
-                          }}
-                          className="text-xs text-zinc-900 hover:underline px-1 font-medium"
-                        >
-                          copy
-                        </button>
-                        <button
-                          onClick={() => {
-                            removeWalletKey(wallet.wallet_pubkey);
-                            setSavedKeys((prev) => {
-                              const n = { ...prev };
-                              delete n[wallet.wallet_pubkey];
-                              return n;
-                            });
-                          }}
-                          className="text-xs text-red-500 hover:text-red-400 px-1"
-                        >
-                          remove
-                        </button>
-                      </div>
-                    ) : showKeyInput === wallet.wallet_pubkey ? (
-                      <div className="flex items-center gap-2 mb-2">
-                        <input
-                          type="text"
-                          value={keyInput}
-                          onChange={(e) => setKeyInput(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" && keyInput.trim()) {
-                              saveWalletKey(
-                                wallet.wallet_pubkey,
-                                keyInput.trim(),
-                              );
-                              setSavedKeys((prev) => ({
-                                ...prev,
-                                [wallet.wallet_pubkey]: keyInput.trim(),
-                              }));
-                              setKeyInput("");
+                    {(() => {
+                      const pk = wallet.wallet_pubkey;
+                      const hasPlaintext = savedKeys[pk] && savedKeys[pk].length > 0;
+                      const hasUnlocked = !!unlockedKeys[pk];
+                      const isLocked = isPasskeyProtected(pk);
+                      const walletKey = getWalletApiKey(pk);
+
+                      // Passkey-protected, not yet unlocked
+                      if (isLocked && !hasUnlocked) {
+                        return (
+                          <div className="mb-2">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Lock className="w-3.5 h-3.5 text-emerald-500" />
+                              <span className="text-xs text-zinc-500">Protected by passkey</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={async () => {
+                                  setUnlockingKey(pk);
+                                  const key = await unlockWalletKeyWithPasskey(pk);
+                                  if (key) {
+                                    setUnlockedKeys((prev) => ({ ...prev, [pk]: key }));
+                                  }
+                                  setUnlockingKey(null);
+                                }}
+                                disabled={unlockingKey === pk}
+                                className="flex items-center gap-1.5 text-xs text-zinc-900 hover:text-emerald-600 font-medium disabled:opacity-50"
+                              >
+                                {unlockingKey === pk ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  <Fingerprint className="w-3.5 h-3.5" />
+                                )}
+                                {unlockingKey === pk ? "Unlocking..." : "Unlock"}
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  await removeWalletKey(pk);
+                                  setSavedKeys((prev) => {
+                                    const n = { ...prev };
+                                    delete n[pk];
+                                    return n;
+                                  });
+                                  setUnlockedKeys((prev) => {
+                                    const n = { ...prev };
+                                    delete n[pk];
+                                    return n;
+                                  });
+                                }}
+                                className="text-xs text-red-500 hover:text-red-400 px-1"
+                              >
+                                remove
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      // Unlocked from passkey
+                      if (isLocked && hasUnlocked) {
+                        return (
+                          <div className="flex flex-wrap items-center gap-2 mb-2">
+                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+                            <code className="text-xs font-mono bg-zinc-100 px-2 py-0.5 rounded select-all text-zinc-600">
+                              {revealedKeys.has(pk)
+                                ? unlockedKeys[pk]
+                                : unlockedKeys[pk].substring(0, 6) +
+                                  "..." +
+                                  unlockedKeys[pk].slice(-4)}
+                            </code>
+                            <button
+                              onClick={() =>
+                                setRevealedKeys((prev) => {
+                                  const next = new Set(prev);
+                                  next.has(pk) ? next.delete(pk) : next.add(pk);
+                                  return next;
+                                })
+                              }
+                              className="text-xs text-zinc-400 hover:text-zinc-600 px-1"
+                            >
+                              {revealedKeys.has(pk) ? "hide" : "show"}
+                            </button>
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(unlockedKeys[pk]);
+                                setSuccess("API key copied");
+                                setTimeout(() => setSuccess(null), 2000);
+                              }}
+                              className="text-xs text-zinc-900 hover:underline px-1 font-medium"
+                            >
+                              copy
+                            </button>
+                            <button
+                              onClick={async () => {
+                                await removeWalletKey(pk);
+                                setSavedKeys((prev) => {
+                                  const n = { ...prev };
+                                  delete n[pk];
+                                  return n;
+                                });
+                                setUnlockedKeys((prev) => {
+                                  const n = { ...prev };
+                                  delete n[pk];
+                                  return n;
+                                });
+                              }}
+                              className="text-xs text-red-500 hover:text-red-400 px-1"
+                            >
+                              remove
+                            </button>
+                          </div>
+                        );
+                      }
+
+                      // Plaintext key saved
+                      if (hasPlaintext) {
+                        return (
+                          <div className="mb-2">
+                            <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                              <span className="text-xs text-zinc-400">Local:</span>
+                              <code className="text-xs font-mono bg-zinc-100 px-2 py-0.5 rounded select-all text-zinc-600">
+                                {revealedKeys.has(pk)
+                                  ? savedKeys[pk]
+                                  : savedKeys[pk].substring(0, 6) +
+                                    "..." +
+                                    savedKeys[pk].slice(-4)}
+                              </code>
+                              <button
+                                onClick={() =>
+                                  setRevealedKeys((prev) => {
+                                    const next = new Set(prev);
+                                    next.has(pk) ? next.delete(pk) : next.add(pk);
+                                    return next;
+                                  })
+                                }
+                                className="text-xs text-zinc-400 hover:text-zinc-600 px-1"
+                              >
+                                {revealedKeys.has(pk) ? "hide" : "show"}
+                              </button>
+                              <button
+                                onClick={() => {
+                                  navigator.clipboard.writeText(savedKeys[pk]);
+                                  setSuccess("API key copied");
+                                  setTimeout(() => setSuccess(null), 2000);
+                                }}
+                                className="text-xs text-zinc-900 hover:underline px-1 font-medium"
+                              >
+                                copy
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  await removeWalletKey(pk);
+                                  setSavedKeys((prev) => {
+                                    const n = { ...prev };
+                                    delete n[pk];
+                                    return n;
+                                  });
+                                }}
+                                className="text-xs text-red-500 hover:text-red-400 px-1"
+                              >
+                                remove
+                              </button>
+                            </div>
+                            {passkeyAvailable && (
+                              <button
+                                onClick={async () => {
+                                  setPasskeySaving(pk);
+                                  const result = await saveWalletKeyWithPasskey(
+                                    pk,
+                                    savedKeys[pk],
+                                  );
+                                  if (result.passkeySaved) {
+                                    setUnlockedKeys((prev) => ({
+                                      ...prev,
+                                      [pk]: savedKeys[pk],
+                                    }));
+                                    setSavedKeys((prev) => {
+                                      const n = { ...prev };
+                                      delete n[pk];
+                                      return n;
+                                    });
+                                    setSuccess("Key protected with passkey");
+                                    setTimeout(() => setSuccess(null), 3000);
+                                  } else {
+                                    setSuccess("Passkey not available, key saved normally");
+                                    setTimeout(() => setSuccess(null), 3000);
+                                  }
+                                  setPasskeySaving(null);
+                                }}
+                                disabled={passkeySaving === pk}
+                                className="flex items-center gap-1.5 text-xs text-emerald-600 hover:text-emerald-700 font-medium disabled:opacity-50"
+                              >
+                                {passkeySaving === pk ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  <ShieldCheck className="w-3.5 h-3.5" />
+                                )}
+                                {passkeySaving === pk
+                                  ? "Setting up..."
+                                  : "Protect with passkey"}
+                              </button>
+                            )}
+                          </div>
+                        );
+                      }
+
+                      // No key saved
+                      return showKeyInput === pk ? (
+                        <div className="flex items-center gap-2 mb-2">
+                          <input
+                            type="text"
+                            value={keyInput}
+                            onChange={(e) => setKeyInput(e.target.value)}
+                            onKeyDown={async (e) => {
+                              if (e.key === "Enter" && keyInput.trim()) {
+                                saveWalletKey(pk, keyInput.trim());
+                                setSavedKeys((prev) => ({
+                                  ...prev,
+                                  [pk]: keyInput.trim(),
+                                }));
+                                setKeyInput("");
+                                setShowKeyInput(null);
+                              }
+                            }}
+                            placeholder="wk_..."
+                            className="flex-1 px-2 py-1 border border-zinc-200 rounded text-xs font-mono focus:outline-none focus:ring-2 focus:ring-zinc-300"
+                            autoFocus
+                          />
+                          <button
+                            onClick={() => {
+                              if (keyInput.trim()) {
+                                saveWalletKey(pk, keyInput.trim());
+                                setSavedKeys((prev) => ({
+                                  ...prev,
+                                  [pk]: keyInput.trim(),
+                                }));
+                                setKeyInput("");
+                                setShowKeyInput(null);
+                              }
+                            }}
+                            className="text-xs text-zinc-900 hover:underline font-medium"
+                          >
+                            save
+                          </button>
+                          <button
+                            onClick={() => {
                               setShowKeyInput(null);
-                            }
-                          }}
-                          placeholder="wk_..."
-                          className="flex-1 px-2 py-1 border border-zinc-200 rounded text-xs font-mono focus:outline-none focus:ring-2 focus:ring-zinc-300"
-                          autoFocus
-                        />
-                        <button
-                          onClick={() => {
-                            if (keyInput.trim()) {
-                              saveWalletKey(
-                                wallet.wallet_pubkey,
-                                keyInput.trim(),
-                              );
-                              setSavedKeys((prev) => ({
-                                ...prev,
-                                [wallet.wallet_pubkey]: keyInput.trim(),
-                              }));
                               setKeyInput("");
-                              setShowKeyInput(null);
-                            }
-                          }}
-                          className="text-xs text-zinc-900 hover:underline font-medium"
-                        >
-                          save
-                        </button>
+                            }}
+                            className="text-xs text-zinc-400 hover:text-zinc-600"
+                          >
+                            cancel
+                          </button>
+                        </div>
+                      ) : (
                         <button
                           onClick={() => {
-                            setShowKeyInput(null);
+                            setShowKeyInput(pk);
                             setKeyInput("");
                           }}
-                          className="text-xs text-zinc-400 hover:text-zinc-600"
+                          className="text-xs text-zinc-900 hover:underline font-medium mb-2"
                         >
-                          cancel
+                          + Save API key to browser
                         </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => {
-                          setShowKeyInput(wallet.wallet_pubkey);
-                          setKeyInput("");
-                        }}
-                        className="text-xs text-zinc-900 hover:underline font-medium mb-2"
-                      >
-                        + Save API key to browser
-                      </button>
-                    )}
+                      );
+                    })()}
 
                     <p className="text-xs text-zinc-400 mt-2">
                       Key is stored in this browser only. To add/rotate keys,

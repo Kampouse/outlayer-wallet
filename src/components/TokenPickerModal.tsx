@@ -75,10 +75,10 @@ export function TokenPickerModal({
       <DialogTitle className="sr-only">{title}</DialogTitle>
       <DialogContent
         showCloseButton={false}
-        className="fixed bottom-0 left-0 right-0 top-auto translate-y-0 translate-x-0 max-w-full rounded-b-none rounded-t-2xl max-h-[80dvh] flex flex-col overflow-hidden p-0"
+        className="fixed bottom-0 left-0 right-0 top-auto translate-y-0 translate-x-0 max-w-full rounded-b-none rounded-t-2xl max-h-[80dvh] flex flex-col overflow-hidden p-0 sm:bottom-auto sm:left-1/2 sm:right-auto sm:top-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:max-w-md sm:rounded-xl sm:rounded-b-xl sm:rounded-t-2xl"
       >
-        {/* Drag handle */}
-        <div className="flex justify-center pt-3 pb-1 shrink-0">
+        {/* Drag handle (mobile only) */}
+        <div className="flex justify-center pt-3 pb-1 shrink-0 sm:hidden">
           <div className="w-10 h-1 rounded-full bg-zinc-300 dark:bg-zinc-600" />
         </div>
 

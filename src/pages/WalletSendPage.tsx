@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "react-router-dom";
 import { getCoordinatorApiUrl } from "@/lib/api";
-import { getAllWalletKeys } from "@/lib/wallet-keys";
+import { getAllWalletKeys, unlockWalletKeyWithPasskey, isPasskeyProtected } from "@/lib/wallet-keys";
 import { useWalletBalances, formatTokenBalance } from "@/hooks/useWalletBalances";
 import { useToast } from "@/components/ToastProvider";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,8 @@ import {
   Wallet,
   Info,
   ShieldCheck,
+  Lock,
+  Fingerprint,
 } from "lucide-react";
 import { TokenPickerModal, type TokenOption } from "@/components/TokenPickerModal";
 
@@ -83,14 +85,27 @@ export default function WalletSendPage() {
   const [mode, setMode] = useState<Mode>("withdraw");
 
   // Load all saved wallets from localStorage
+  const [unlockedKeys, setUnlockedKeys] = useState<Record<string, string>>({});
+  const [unlockingPubkey, setUnlockingPubkey] = useState<string | null>(null);
+
   const savedWallets = useMemo(() => {
     const keys = getAllWalletKeys();
     return Object.entries(keys).map(([pubkey, stored]) => ({
       pubkey,
       label: stored.label,
-      apiKey: stored.apiKey,
+      apiKey: stored.apiKey || unlockedKeys[pubkey] || "",
+      passkeyProtected: stored.passkeyProtected && !unlockedKeys[pubkey],
     }));
-  }, []);
+  }, [unlockedKeys]);
+
+  const handleUnlock = async (pubkey: string) => {
+    setUnlockingPubkey(pubkey);
+    const key = await unlockWalletKeyWithPasskey(pubkey);
+    if (key) {
+      setUnlockedKeys((prev) => ({ ...prev, [pubkey]: key }));
+    }
+    setUnlockingPubkey(null);
+  };
 
   // Check for ?key= query param — use that wallet if it matches a saved key
   const urlKey = searchParams.get("key");
@@ -535,15 +550,34 @@ export default function WalletSendPage() {
               >
                 {savedWallets.map((w, i) => {
                   const display = w.label || shortAddr(w.pubkey.replace(/^ed25519:/, ""));
+                  const locked = w.passkeyProtected;
                   return (
-                    <option key={w.apiKey} value={i}>
-                      {display}
+                    <option key={w.pubkey} value={i} disabled={locked}>
+                      {locked ? "🔒 " : ""}{display}{locked ? " — tap to unlock" : ""}
                     </option>
                   );
                 })}
               </select>
               <Wallet className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
             </div>
+            {savedWallets[selectedIndex]?.passkeyProtected && (
+              <button
+                type="button"
+                onClick={async () => {
+                  const pk = savedWallets[selectedIndex].pubkey;
+                  await handleUnlock(pk);
+                }}
+                disabled={unlockingPubkey !== null}
+                className="flex items-center gap-1.5 mt-2 text-xs text-emerald-600 hover:text-emerald-700 font-medium disabled:opacity-50"
+              >
+                {unlockingPubkey ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Fingerprint className="w-3.5 h-3.5" />
+                )}
+                {unlockingPubkey ? "Unlocking..." : "Unlock with passkey"}
+              </button>
+            )}
           </CardContent>
         </Card>
       )}

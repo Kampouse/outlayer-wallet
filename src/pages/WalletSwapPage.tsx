@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { getCoordinatorApiUrl, fetchSupportedTokens, type SupportedToken } from "@/lib/api";
-import { getAllWalletKeys } from "@/lib/wallet-keys";
+import { getAllWalletKeys, unlockWalletKeyWithPasskey } from "@/lib/wallet-keys";
 import { useWalletBalances, formatTokenBalance } from "@/hooks/useWalletBalances";
 import { useToast } from "@/components/ToastProvider";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowDownUp, Loader2, Wallet } from "lucide-react";
+import { ArrowDownUp, Loader2, Wallet, Fingerprint } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { TokenPickerModal, type TokenOption } from "@/components/TokenPickerModal";
 
@@ -50,14 +50,27 @@ export default function WalletSwapPage() {
   const coordinatorUrl = getCoordinatorApiUrl();
 
   // Load all saved wallets from localStorage
+  const [unlockedKeys, setUnlockedKeys] = useState<Record<string, string>>({});
+  const [unlockingPubkey, setUnlockingPubkey] = useState<string | null>(null);
+
   const savedWallets = useMemo(() => {
     const keys = getAllWalletKeys();
     return Object.entries(keys).map(([pubkey, stored]) => ({
       pubkey,
       label: stored.label,
-      apiKey: stored.apiKey,
+      apiKey: stored.apiKey || unlockedKeys[pubkey] || "",
+      passkeyProtected: stored.passkeyProtected && !unlockedKeys[pubkey],
     }));
-  }, []);
+  }, [unlockedKeys]);
+
+  const handleUnlock = async (pubkey: string) => {
+    setUnlockingPubkey(pubkey);
+    const key = await unlockWalletKeyWithPasskey(pubkey);
+    if (key) {
+      setUnlockedKeys((prev) => ({ ...prev, [pubkey]: key }));
+    }
+    setUnlockingPubkey(null);
+  };
 
   const [selectedIndex, setSelectedIndex] = useState(0);
   const activeApiKey = savedWallets[selectedIndex]?.apiKey ?? null;
@@ -250,7 +263,7 @@ export default function WalletSwapPage() {
 
   if (savedWallets.length === 0) {
     return (
-      <div className="max-w-lg mx-auto px-4 pt-4 pb-24">
+      <div className="max-w-lg mx-auto px-4 pt-4 pb-24 sm:max-w-xl md:max-w-2xl">
         <Card>
           <CardContent className="p-8 text-center">
             <div className="w-14 h-14 rounded-2xl bg-zinc-100 flex items-center justify-center mx-auto mb-4">
@@ -267,7 +280,7 @@ export default function WalletSwapPage() {
   }
 
   return (
-    <div className="max-w-lg mx-auto px-4 pt-4 pb-24">
+    <div className="max-w-lg mx-auto px-4 pt-4 pb-24 sm:max-w-xl md:max-w-2xl">
       {/* Header */}
       <div className="flex items-center gap-2 mb-4">
         <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
@@ -297,15 +310,34 @@ export default function WalletSwapPage() {
             >
               {savedWallets.map((w, i) => {
                 const display = w.label || shortAddr(w.pubkey.replace(/^ed25519:/, ""));
+                const locked = w.passkeyProtected;
                 return (
-                  <option key={w.apiKey} value={i}>
-                    {display}
+                  <option key={w.pubkey} value={i} disabled={locked}>
+                    {locked ? "🔒 " : ""}{display}{locked ? " — tap to unlock" : ""}
                   </option>
                 );
               })}
             </select>
             <Wallet className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
           </div>
+          {savedWallets[selectedIndex]?.passkeyProtected && (
+            <button
+              type="button"
+              onClick={async () => {
+                const pk = savedWallets[selectedIndex].pubkey;
+                await handleUnlock(pk);
+              }}
+              disabled={unlockingPubkey !== null}
+              className="flex items-center gap-1.5 mt-2 text-xs text-emerald-600 hover:text-emerald-700 font-medium disabled:opacity-50"
+            >
+              {unlockingPubkey ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Fingerprint className="w-3.5 h-3.5" />
+              )}
+              {unlockingPubkey ? "Unlocking..." : "Unlock with passkey"}
+            </button>
+          )}
         </CardContent>
       </Card>
 
