@@ -57,7 +57,7 @@ function shortAddr(hex: string): string {
 }
 
 /** Gas reserve for NEAR transfers/deposits (0.00045 NEAR) */
-const NEAR_GAS_RESERVE = "45000000000000000000000";
+const NEAR_GAS_RESERVE = "450000000000000000000";
 
 type Mode = "withdraw" | "deposit";
 

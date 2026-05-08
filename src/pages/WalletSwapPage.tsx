@@ -190,7 +190,7 @@ export default function WalletSwapPage() {
   const balanceAccountId = activePubkey?.replace(/^ed25519:/, "") ?? null;
 
   // Fetch balances for the selected wallet (gives us tokens with non-zero balance)
-  const { near, tokens, loading, error: balanceError, refetch } = useWalletBalances(
+  const { tokens, loading, error: balanceError, refetch } = useWalletBalances(
     activeApiKey,
     balanceAccountId,
   );
@@ -205,14 +205,18 @@ export default function WalletSwapPage() {
   const catalog = catalogQuery.data ?? [];
 
   // Build balance lookup: defuse_asset_id -> raw balance string
+  // For swap, use Intents balances only (from mt_batch_balance_of), not base chain.
+  // NEAR in Intents is represented as nep141:wrap.near.
   const balanceMap = useMemo(() => {
     const map: Record<string, string> = {};
-    if (near?.balance) map["near"] = near.balance;
     for (const t of tokens) {
       map[t.defuse_asset_id] = t.balance;
     }
+    // Map wrap.near Intents balance to "near" for swap token list
+    const wnear = tokens.find((t) => t.defuse_asset_id === "nep141:wrap.near");
+    if (wnear) map["near"] = wnear.balance;
     return map;
-  }, [near, tokens]);
+  }, [tokens]);
 
   // Build full token list: all catalog tokens + NEAR, with balances merged in
   const tokenOptions = useMemo((): TokenOption[] => {
@@ -229,9 +233,10 @@ export default function WalletSwapPage() {
     });
     seen.add("near");
 
-    // All catalog tokens
+    // All catalog tokens (skip wrap.near — already represented as "near" above)
     for (const t of catalog) {
       if (seen.has(t.defuse_asset_id)) continue;
+      if (t.defuse_asset_id === "nep141:wrap.near") continue;
       seen.add(t.defuse_asset_id);
       options.push({
         id: t.defuse_asset_id,
@@ -273,7 +278,7 @@ export default function WalletSwapPage() {
     if (!tokenIn) return;
     if (tokenIn.id === "near") {
       const balance = BigInt(tokenIn.balance);
-      const reserve = BigInt("45000000000000000000000"); // 0.00045 NEAR
+      const reserve = BigInt("450000000000000000000"); // 0.00045 NEAR
       if (balance <= reserve) return;
       const available = balance - reserve;
       const whole = available / 10n ** 24n;
