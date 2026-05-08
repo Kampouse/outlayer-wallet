@@ -77,19 +77,20 @@ function formatAmount(rawAmount: unknown, decimals: number): string | null {
 }
 
 export function decodeTransactionDetails(
-  details: Record<string, unknown>,
+  details: Record<string, unknown> | null | undefined,
   eventType: string,
   tokenCatalog: SupportedToken[],
 ): DecodedTransaction {
+  const d = details ?? {};
   // Withdraw variants
   if (
     eventType === 'withdraw' ||
     eventType === 'withdraw_pending_approval' ||
     eventType === 'withdraw_auto_executed'
   ) {
-    const tokenInfo = findTokenSymbol(details.token, tokenCatalog);
+    const tokenInfo = findTokenSymbol(d.token, tokenCatalog);
     const amount = tokenInfo
-      ? formatAmount(details.amount, tokenInfo.decimals)
+      ? formatAmount(d.amount, tokenInfo.decimals)
       : null;
 
     if (tokenInfo && amount) {
@@ -102,7 +103,7 @@ export function decodeTransactionDetails(
     }
 
     // Check if it's NEAR (no token field, just amount)
-    const nearAmount = details.amount ? formatAmount(details.amount, 24) : null;
+    const nearAmount = d.amount ? formatAmount(d.amount, 24) : null;
     if (nearAmount) {
       // NEAR has 24 decimals — convert to human-readable
       const nearNum = Number(nearAmount);
@@ -117,7 +118,7 @@ export function decodeTransactionDetails(
 
     return {
       description: 'Withdraw',
-      amount: details.amount ? String(details.amount) : null,
+      amount: d.amount ? String(d.amount) : null,
       symbol: tokenInfo?.symbol ?? null,
       icon: eventType === 'withdraw_pending_approval' ? 'withdraw_pending' : 'withdraw',
     };
@@ -125,9 +126,9 @@ export function decodeTransactionDetails(
 
   // Deposit
   if (eventType === 'deposit') {
-    const tokenInfo = findTokenSymbol(details.token, tokenCatalog);
+    const tokenInfo = findTokenSymbol(d.token, tokenCatalog);
     const amount = tokenInfo
-      ? formatAmount(details.amount, tokenInfo.decimals)
+      ? formatAmount(d.amount, tokenInfo.decimals)
       : null;
 
     if (tokenInfo && amount) {
@@ -141,7 +142,7 @@ export function decodeTransactionDetails(
 
     return {
       description: 'Deposit',
-      amount: details.amount ? String(details.amount) : null,
+      amount: d.amount ? String(d.amount) : null,
       symbol: tokenInfo?.symbol ?? null,
       icon: 'deposit',
     };
@@ -179,7 +180,7 @@ export function decodeTransactionDetails(
 
   // Approval
   if (eventType === 'approval') {
-    const reqId = details.request_id ?? details.id ?? null;
+    const reqId = d.request_id ?? d.id ?? null;
     const suffix = reqId ? ` #${String(reqId).substring(0, 8)}` : '';
     return {
       description: `Approval${suffix}`,
@@ -192,7 +193,7 @@ export function decodeTransactionDetails(
   // Unknown
   return {
     description: eventType.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
-    amount: details.amount ? String(details.amount) : null,
+    amount: d.amount ? String(d.amount) : null,
     symbol: null,
     icon: 'unknown',
   };

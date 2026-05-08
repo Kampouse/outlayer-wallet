@@ -1,8 +1,7 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useLocation } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
 import { getCoordinatorApiUrl } from "@/lib/api";
-import { getAllWalletKeys } from "@/lib/wallet-keys";
+import { getAllWalletKeys, type StoredKey } from "@/lib/wallet-keys";
 import { useWalletBalances, formatTokenBalance } from "@/hooks/useWalletBalances";
 import { useToast } from "@/components/ToastProvider";
 import { Button } from "@/components/ui/button";
@@ -10,7 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { SendHorizontal, Loader2, ChevronDown, ArrowUpRight } from "lucide-react";
+import { SendHorizontal, Loader2, ChevronDown, ArrowUpRight, Wallet } from "lucide-react";
 
 /** Convert human-readable NEAR amount to yoctoNEAR string */
 function nearToYocto(amount: string): string {
@@ -43,6 +42,12 @@ function formatYoctoToNear(yocto: string): string {
   return fracStr ? `${whole.toLocaleString()}.${fracStr}` : whole.toLocaleString();
 }
 
+/** Shorten hex address for display */
+function shortAddr(hex: string): string {
+  if (hex.length <= 12) return hex;
+  return `${hex.slice(0, 6)}...${hex.slice(-4)}`;
+}
+
 /** Gas reserve for NEAR transfers (0.00045 NEAR) */
 const NEAR_GAS_RESERVE = "45000000000000000000000";
 
@@ -52,52 +57,43 @@ export default function WalletSendPage() {
   const { toast } = useToast();
   const coordinatorUrl = getCoordinatorApiUrl();
 
-  // Resolve API key from query param or localStorage
-  const apiKey = useMemo(() => {
-    const urlKey = searchParams.get("key");
-    if (urlKey) return urlKey;
-    const saved = getAllWalletKeys();
-    const firstKey = Object.values(saved)[0];
-    return firstKey?.apiKey ?? null;
-  }, [searchParams]);
+  // Load all saved wallets from localStorage
+  const savedWallets = useMemo(() => {
+    const keys = getAllWalletKeys();
+    return Object.entries(keys).map(([pubkey, stored]) => ({
+      pubkey,
+      label: stored.label,
+      apiKey: stored.apiKey,
+    }));
+  }, []);
 
-  // Resolve accountId from localStorage keys
-  const accountId = useMemo(() => {
-    const urlKey = searchParams.get("key");
-    if (urlKey) {
-      // We need to resolve the address — use a query
-      return null; // will be set via the address query
-    }
-    const saved = getAllWalletKeys();
-    const entries = Object.entries(saved);
-    if (entries.length > 0) {
-      return entries[0][0].replace(/^ed25519:/, "") || null;
-    }
-    return null;
-  }, [searchParams]);
+  // Check for ?key= query param — use that wallet if it matches a saved key
+  const urlKey = searchParams.get("key");
 
-  // Resolve wallet address from API key (for ?key= param)
-  const { data: resolvedAddress } = useQuery({
-    queryKey: ["wallet-address", apiKey],
-    queryFn: async () => {
-      if (!apiKey) return null;
-      const resp = await fetch(`${coordinatorUrl}/wallet/v1/address?chain=near`, {
-        headers: { Authorization: `Bearer ${apiKey}` },
-      });
-      if (!resp.ok) return null;
-      const data = await resp.json();
-      return data.address as string;
-    },
-    enabled: !!apiKey && !accountId,
-    staleTime: 60_000,
-  });
+  // Selected wallet index
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const initialIndexSet = useMemo(() => {
+    if (!urlKey) return -1;
+    const idx = savedWallets.findIndex((w) => w.apiKey === urlKey);
+    return idx;
+  }, [urlKey, savedWallets]);
 
-  const effectiveAccountId = accountId || resolvedAddress || null;
+  useEffect(() => {
+    if (initialIndexSet >= 0) setSelectedIndex(initialIndexSet);
+  }, [initialIndexSet]);
 
-  // Fetch balances
+  // If ?key= doesn't match any saved wallet, use it directly
+  const directApiKey = urlKey && initialIndexSet < 0 ? urlKey : null;
+
+  // The active API key and pubkey for the selected wallet
+  const activeApiKey = savedWallets[selectedIndex]?.apiKey ?? directApiKey ?? null;
+  const activePubkey = savedWallets[selectedIndex]?.pubkey ?? null;
+  const balanceAccountId = activePubkey?.replace(/^ed25519:/, "") ?? null;
+
+  // Fetch balances for the selected wallet (uses pubkey, same as manage page)
   const { near, tokens, loading, error: balanceError, refetch } = useWalletBalances(
-    apiKey,
-    effectiveAccountId,
+    activeApiKey,
+    balanceAccountId,
   );
 
   // Form state
@@ -107,15 +103,24 @@ export default function WalletSendPage() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Reset form when wallet changes
+  useEffect(() => {
+    setSelectedToken("NEAR");
+    setAmount("");
+    setRecipient("");
+    setError(null);
+  }, [activeApiKey]);
+
   // Build token options: NEAR + all tokens with non-zero balance
   const tokenOptions = useMemo(() => {
-    const options = [{ id: "NEAR", symbol: "NEAR", decimals: 24, balance: near?.balance ?? "0" }];
+    const options = [{ id: "NEAR", symbol: "NEAR", decimals: 24, balance: near?.balance ?? "0", chain: "near" as const }];
     for (const t of tokens) {
       options.push({
         id: t.defuse_asset_id,
         symbol: t.symbol,
         decimals: t.decimals,
         balance: t.balance,
+        chain: t.chains[0] ?? "near",
       });
     }
     return options;
@@ -150,7 +155,7 @@ export default function WalletSendPage() {
   };
 
   const handleSend = async () => {
-    if (!apiKey || !recipient.trim() || !amount.trim() || !selected) return;
+    if (!activeApiKey || !recipient.trim() || !amount.trim() || !selected) return;
 
     const parsed = parseFloat(amount);
     if (isNaN(parsed) || parsed <= 0) {
@@ -170,25 +175,54 @@ export default function WalletSendPage() {
         resp = await fetch(`${coordinatorUrl}/wallet/v1/transfer`, {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${apiKey}`,
+            Authorization: `Bearer ${activeApiKey}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ recipient: recipient.trim(), amount: yoctoAmount }),
+          body: JSON.stringify({ receiver_id: recipient.trim(), amount: yoctoAmount }),
         });
       } else {
-        // Withdraw Intents token
+        // Withdraw Intents token (dry-run first, then execute)
+        const assetId = selected.id;
+        const contractName = assetId.startsWith("nep141:")
+          ? assetId.slice("nep141:".length)
+          : assetId;
         const minimalUnits = toMinimalUnits(amount, selected.decimals);
+        const withdrawBody = {
+          to: recipient.trim(),
+          amount: minimalUnits,
+          token: contractName,
+          chain: selected.chain,
+        };
+
+        // Dry-run to validate before submitting
+        const dryRun = await fetch(
+          `${coordinatorUrl}/wallet/v1/intents/withdraw/dry-run`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${activeApiKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(withdrawBody),
+          },
+        );
+        const dryResult = await dryRun.json();
+        if (!dryRun.ok || dryResult.would_succeed === false) {
+          throw new Error(
+            dryResult.message || dryResult.error || "Dry-run failed",
+          );
+        }
+        // Multisig required is informational — the actual withdraw handles it
+        // (returns pending_approval status for signers to approve)
+
+        // Execute the actual withdraw
         resp = await fetch(`${coordinatorUrl}/wallet/v1/intents/withdraw`, {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${apiKey}`,
+            Authorization: `Bearer ${activeApiKey}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            token: selected.id,
-            amount: minimalUnits,
-            recipient: recipient.trim() || undefined,
-          }),
+          body: JSON.stringify(withdrawBody),
         });
       }
 
@@ -209,15 +243,36 @@ export default function WalletSendPage() {
     }
   };
 
+  // Check if amount exceeds available balance
+  const amountExceedsBalance = useMemo(() => {
+    if (!selected || !amount.trim()) return false;
+    const parsed = parseFloat(amount);
+    if (isNaN(parsed) || parsed <= 0) return false;
+    try {
+      if (selected.id === "NEAR") {
+        const yoctoAmount = BigInt(nearToYocto(amount));
+        const balance = BigInt(selected.balance);
+        return yoctoAmount > balance;
+      } else {
+        const minimalAmount = BigInt(toMinimalUnits(amount, selected.decimals));
+        const balance = BigInt(selected.balance);
+        return minimalAmount > balance;
+      }
+    } catch {
+      return false;
+    }
+  }, [selected, amount]);
+
   const isValid =
     recipient.trim().length > 0 &&
     amount.trim().length > 0 &&
     !isNaN(parseFloat(amount)) &&
     parseFloat(amount) > 0 &&
-    !!apiKey;
+    !!activeApiKey &&
+    !amountExceedsBalance;
 
-  // No API key state
-  if (!apiKey) {
+  // No wallets saved state
+  if (savedWallets.length === 0 && !directApiKey) {
     return (
       <div className="max-w-lg mx-auto px-4 pt-4 pb-24">
         <Card>
@@ -247,6 +302,34 @@ export default function WalletSendPage() {
           <p className="text-xs text-muted-foreground">Transfer from your custody wallet</p>
         </div>
       </div>
+
+      {/* Wallet selector */}
+      {savedWallets.length > 0 && (
+        <Card className="mb-4">
+          <CardContent className="p-3">
+            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5 block">
+              From Wallet
+            </Label>
+            <div className="relative">
+              <select
+                value={selectedIndex}
+                onChange={(e) => setSelectedIndex(Number(e.target.value))}
+                className="w-full h-11 appearance-none bg-zinc-50 border border-zinc-200 rounded-lg px-3 pr-10 text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-colors"
+              >
+                {savedWallets.map((w, i) => {
+                  const display = w.label || shortAddr(w.pubkey.replace(/^ed25519:/, ""));
+                  return (
+                    <option key={w.apiKey} value={i}>
+                      {display}
+                    </option>
+                  );
+                })}
+              </select>
+              <Wallet className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {balanceError && (
         <div className="mb-4 bg-red-500/10 border-l-4 border-red-500 rounded-r-lg p-3">
@@ -335,7 +418,12 @@ export default function WalletSendPage() {
                 Max
               </button>
             </div>
-            {selectedToken === "NEAR" && (
+            {amountExceedsBalance && (
+              <p className="text-xs text-red-400 mt-1">
+                Amount exceeds available balance ({displayBalance} {selected?.symbol})
+              </p>
+            )}
+            {selectedToken === "NEAR" && !amountExceedsBalance && (
               <p className="text-[10px] text-muted-foreground mt-1">
                 ~0.00045 NEAR reserved for gas
               </p>
