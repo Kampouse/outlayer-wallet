@@ -6,6 +6,7 @@ import {
 } from "@/components/ui/dialog";
 import { Search, Check } from "lucide-react";
 import { formatTokenBalance } from "@/hooks/useWalletBalances";
+import TokenIcon from "@/components/TokenIcon";
 
 export interface TokenOption {
   id: string;
@@ -13,16 +14,6 @@ export interface TokenOption {
   decimals: number;
   balance: string;
   price?: number;
-}
-
-/** Deterministic color from symbol */
-function tokenColor(symbol: string): string {
-  let hash = 0;
-  for (let i = 0; i < symbol.length; i++) {
-    hash = symbol.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  const hue = Math.abs(hash) % 360;
-  return `hsl(${hue}, 55%, 45%)`;
 }
 
 interface TokenPickerModalProps {
@@ -115,8 +106,6 @@ export function TokenPickerModal({
             filtered.map((t) => {
               const hasBalance = t.balance !== "0" && t.balance !== "";
               const isSelected = t.id === selectedId;
-              const color = tokenColor(t.symbol);
-              const letter = t.symbol.charAt(0).toUpperCase();
 
               return (
                 <button
@@ -133,12 +122,7 @@ export function TokenPickerModal({
                   }`}
                 >
                   {/* Icon */}
-                  <div
-                    className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0"
-                    style={{ backgroundColor: color }}
-                  >
-                    {letter}
-                  </div>
+                  <TokenIcon symbol={t.symbol} size={36} />
 
                   {/* Symbol + name */}
                   <div className="flex-1 min-w-0 text-left">
@@ -181,12 +165,7 @@ export function TokenPickerModal({
               onClick={() => onOpenChange(false)}
               className="w-full flex items-center justify-center gap-2 text-sm font-medium text-emerald-600 dark:text-emerald-400"
             >
-              <div
-                className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold"
-                style={{ backgroundColor: tokenColor(selected.symbol) }}
-              >
-                {selected.symbol.charAt(0).toUpperCase()}
-              </div>
+              <TokenIcon symbol={selected.symbol} size={24} />
               {selected.symbol}
               <span className="text-muted-foreground">— Close</span>
             </button>

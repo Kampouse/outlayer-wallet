@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { getCoordinatorApiUrl, fetchSupportedTokens, type SupportedToken } from "@/lib/api";
-import { getAllWalletKeys, unlockWalletKeyWithPasskey } from "@/lib/wallet-keys";
+import { getAllWalletKeys } from "@/lib/wallet-keys";
 import { useWalletBalances, formatTokenBalance } from "@/hooks/useWalletBalances";
 import { useToast } from "@/components/ToastProvider";
 import { Button } from "@/components/ui/button";
@@ -8,9 +8,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowDownUp, Loader2, Wallet, Fingerprint } from "lucide-react";
+import { ArrowDownUp, Loader2, Wallet } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { TokenPickerModal, type TokenOption } from "@/components/TokenPickerModal";
+import TokenIcon from "@/components/TokenIcon";
 
 /** Convert human-readable amount to FT minimal units using decimals */
 function toMinimalUnits(amount: string, decimals: number): string {
@@ -35,43 +36,21 @@ function formatPrice(price: number | undefined): string {
   return `$${price.toFixed(6)}`;
 }
 
-/** Deterministic color from symbol */
-function tokenColor(symbol: string): string {
-  let hash = 0;
-  for (let i = 0; i < symbol.length; i++) {
-    hash = symbol.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  const hue = Math.abs(hash) % 360;
-  return `hsl(${hue}, 55%, 45%)`;
-}
-
 export default function WalletSwapPage() {
   const { toast } = useToast();
   const coordinatorUrl = getCoordinatorApiUrl();
 
   // Load all saved wallets from localStorage
-  const [unlockedKeys, setUnlockedKeys] = useState<Record<string, string>>({});
-  const [unlockingPubkey, setUnlockingPubkey] = useState<string | null>(null);
-
   const savedWallets = useMemo(() => {
     const keys = getAllWalletKeys();
     return Object.entries(keys).map(([pubkey, stored]) => ({
       pubkey,
       label: stored.label,
-      apiKey: stored.apiKey || unlockedKeys[pubkey] || "",
-      passkeyProtected: stored.passkeyProtected && !unlockedKeys[pubkey],
+      apiKey: stored.apiKey,
     }));
-  }, [unlockedKeys]);
+  }, []);
 
-  const handleUnlock = async (pubkey: string) => {
-    setUnlockingPubkey(pubkey);
-    const key = await unlockWalletKeyWithPasskey(pubkey);
-    if (key) {
-      setUnlockedKeys((prev) => ({ ...prev, [pubkey]: key }));
-    }
-    setUnlockingPubkey(null);
-  };
-
+  // Check for ?key= query param
   const [selectedIndex, setSelectedIndex] = useState(0);
   const activeApiKey = savedWallets[selectedIndex]?.apiKey ?? null;
   const activePubkey = savedWallets[selectedIndex]?.pubkey ?? null;
@@ -310,34 +289,15 @@ export default function WalletSwapPage() {
             >
               {savedWallets.map((w, i) => {
                 const display = w.label || shortAddr(w.pubkey.replace(/^ed25519:/, ""));
-                const locked = w.passkeyProtected;
                 return (
-                  <option key={w.pubkey} value={i} disabled={locked}>
-                    {locked ? "🔒 " : ""}{display}{locked ? " — tap to unlock" : ""}
+                  <option key={w.pubkey} value={i}>
+                    {display}
                   </option>
                 );
               })}
             </select>
             <Wallet className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
           </div>
-          {savedWallets[selectedIndex]?.passkeyProtected && (
-            <button
-              type="button"
-              onClick={async () => {
-                const pk = savedWallets[selectedIndex].pubkey;
-                await handleUnlock(pk);
-              }}
-              disabled={unlockingPubkey !== null}
-              className="flex items-center gap-1.5 mt-2 text-xs text-emerald-600 hover:text-emerald-700 font-medium disabled:opacity-50"
-            >
-              {unlockingPubkey ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <Fingerprint className="w-3.5 h-3.5" />
-              )}
-              {unlockingPubkey ? "Unlocking..." : "Unlock with passkey"}
-            </button>
-          )}
         </CardContent>
       </Card>
 
@@ -386,12 +346,7 @@ export default function WalletSwapPage() {
               >
                 {tokenIn ? (
                   <>
-                    <div
-                      className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
-                      style={{ backgroundColor: tokenColor(tokenIn.symbol) }}
-                    >
-                      {tokenIn.symbol.charAt(0)}
-                    </div>
+                    <TokenIcon symbol={tokenIn.symbol} size={24} />
                     <span className="flex-1 text-left">{tokenIn.symbol}</span>
                     {tokenIn.price != null && tokenIn.price > 0 && (
                       <span className="text-xs text-muted-foreground">{formatPrice(tokenIn.price)}</span>
@@ -435,12 +390,7 @@ export default function WalletSwapPage() {
               >
                 {tokenOut ? (
                   <>
-                    <div
-                      className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
-                      style={{ backgroundColor: tokenColor(tokenOut.symbol) }}
-                    >
-                      {tokenOut.symbol.charAt(0)}
-                    </div>
+                    <TokenIcon symbol={tokenOut.symbol} size={24} />
                     <span className="flex-1 text-left">{tokenOut.symbol}</span>
                     {tokenOut.price != null && tokenOut.price > 0 && (
                       <span className="text-xs text-muted-foreground">{formatPrice(tokenOut.price)}</span>

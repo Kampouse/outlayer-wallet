@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useLocation, Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNearWallet } from "@/contexts/NearWalletContext";
@@ -9,18 +9,12 @@ import { getCoordinatorApiUrl } from "@/lib/api";
 import { actionCreators } from "@near-js/transactions";
 import {
   saveWalletKey,
-  saveWalletKeyWithPasskey,
   getAllWalletKeys,
   removeWalletKey,
-  unlockWalletKeyWithPasskey,
-  isPasskeyProtected,
 } from "@/lib/wallet-keys";
-import { isPlatformAuthenticatorAvailable } from "@/lib/passkey-store";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Loader2, ShieldCheck, Lock, Fingerprint } from "lucide-react";
 
 interface WalletPolicy {
   wallet_pubkey: string;
@@ -58,17 +52,6 @@ export default function WalletManagePage() {
   const [showKeyInput, setShowKeyInput] = useState<string | null>(null);
   const [keyInput, setKeyInput] = useState("");
   const [revealedKeys, setRevealedKeys] = useState<Set<string>>(new Set());
-
-  // Passkey state
-  const [passkeyAvailable, setPasskeyAvailable] = useState(false);
-  const [unlockingKey, setUnlockingKey] = useState<string | null>(null);
-  const [passkeySaving, setPasskeySaving] = useState<string | null>(null);
-  const [unlockedKeys, setUnlockedKeys] = useState<Record<string, string>>({});
-
-  // Check passkey availability on mount
-  useEffect(() => {
-    isPlatformAuthenticatorAvailable().then(setPasskeyAvailable);
-  }, []);
 
   // Load saved keys on mount
   useEffect(() => {
@@ -191,17 +174,59 @@ export default function WalletManagePage() {
 
   /** Get the API key for a wallet — from saved keys or URL param */
   const getWalletApiKey = (walletPubkey: string): string | null => {
-    return (
-      savedKeys[walletPubkey] ||
-      unlockedKeys[walletPubkey] ||
-      searchParams.get("key") ||
-      null
-    );
+    return savedKeys[walletPubkey] || searchParams.get("key") || null;
   };
 
   const formatTimestamp = (nanos: number) => {
     return new Date(nanos / 1_000_000).toLocaleString();
   };
+
+  /** Simple inline API key display: Local: [masked/key] [show/hide] [copy] [remove] */
+  const renderApiKeyRow = (pk: string, apiKey: string) => (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="text-xs text-zinc-400">Local:</span>
+      <code className="text-xs font-mono bg-zinc-100 px-2 py-0.5 rounded select-all text-zinc-600">
+        {revealedKeys.has(pk)
+          ? apiKey
+          : apiKey.substring(0, 6) + "..." + apiKey.slice(-4)}
+      </code>
+      <button
+        onClick={() =>
+          setRevealedKeys((prev) => {
+            const next = new Set(prev);
+            next.has(pk) ? next.delete(pk) : next.add(pk);
+            return next;
+          })
+        }
+        className="text-xs text-zinc-400 hover:text-zinc-600 px-1"
+      >
+        {revealedKeys.has(pk) ? "hide" : "show"}
+      </button>
+      <button
+        onClick={() => {
+          navigator.clipboard.writeText(apiKey);
+          setSuccess("API key copied");
+          setTimeout(() => setSuccess(null), 2000);
+        }}
+        className="text-xs text-zinc-900 hover:underline px-1 font-medium"
+      >
+        copy
+      </button>
+      <button
+        onClick={() => {
+          removeWalletKey(pk);
+          setSavedKeys((prev) => {
+            const n = { ...prev };
+            delete n[pk];
+            return n;
+          });
+        }}
+        className="text-xs text-red-500 hover:text-red-400 px-1"
+      >
+        remove
+      </button>
+    </div>
+  );
 
   if (!isConnected) {
     return (
@@ -241,6 +266,15 @@ export default function WalletManagePage() {
                     </Link>
                   </div>
                 </div>
+
+                {/* API Key management */}
+                <div className="mt-3 pt-3 border-t border-zinc-100">
+                  <div className="mb-2">
+                    <span className="text-xs font-semibold text-zinc-600">API Key</span>
+                  </div>
+                  {renderApiKeyRow(pubkey, savedKeys[pubkey])}
+                </div>
+
                 <WalletBalancesSection apiKey={savedKeys[pubkey]} accountId={pubkey} />
               </CardContent>
             </Card>
@@ -267,7 +301,6 @@ export default function WalletManagePage() {
                   onClick={() => {
                     const key = prompt("Paste your OutLayer API key (wk_...):");
                     if (key?.trim()) {
-                      // We need to resolve the address first — redirect with ?key= param
                       window.location.href = `${window.location.pathname}?key=${encodeURIComponent(key.trim())}`;
                     }
                   }}
@@ -369,6 +402,14 @@ export default function WalletManagePage() {
                       <Button size="sm">Set Policy</Button>
                   </Link>
                 </div>
+              </div>
+
+              {/* API Key management */}
+              <div className="mt-3 pt-3 border-t border-zinc-100">
+                <div className="mb-2">
+                  <span className="text-xs font-semibold text-zinc-600">API Key</span>
+                </div>
+                {renderApiKeyRow(pubkey, savedKeys[pubkey])}
               </div>
 
               {/* Balances (NEAR + Intents tokens) */}
@@ -476,221 +517,23 @@ export default function WalletManagePage() {
                       </span>
                     </div>
 
-                    {/* Local saved key */}
                     {(() => {
                       const pk = wallet.wallet_pubkey;
-                      const hasPlaintext = savedKeys[pk] && savedKeys[pk].length > 0;
-                      const hasUnlocked = !!unlockedKeys[pk];
-                      const isLocked = isPasskeyProtected(pk);
-                      const walletKey = getWalletApiKey(pk);
+                      const localKey = savedKeys[pk];
 
-                      // Passkey-protected, not yet unlocked
-                      if (isLocked && !hasUnlocked) {
-                        return (
-                          <div className="mb-2">
-                            <div className="flex items-center gap-2 mb-2">
-                              <Lock className="w-3.5 h-3.5 text-emerald-500" />
-                              <span className="text-xs text-zinc-500">Protected by passkey</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={async () => {
-                                  setUnlockingKey(pk);
-                                  const key = await unlockWalletKeyWithPasskey(pk);
-                                  if (key) {
-                                    setUnlockedKeys((prev) => ({ ...prev, [pk]: key }));
-                                  }
-                                  setUnlockingKey(null);
-                                }}
-                                disabled={unlockingKey === pk}
-                                className="flex items-center gap-1.5 text-xs text-zinc-900 hover:text-emerald-600 font-medium disabled:opacity-50"
-                              >
-                                {unlockingKey === pk ? (
-                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                ) : (
-                                  <Fingerprint className="w-3.5 h-3.5" />
-                                )}
-                                {unlockingKey === pk ? "Unlocking..." : "Unlock"}
-                              </button>
-                              <button
-                                onClick={async () => {
-                                  await removeWalletKey(pk);
-                                  setSavedKeys((prev) => {
-                                    const n = { ...prev };
-                                    delete n[pk];
-                                    return n;
-                                  });
-                                  setUnlockedKeys((prev) => {
-                                    const n = { ...prev };
-                                    delete n[pk];
-                                    return n;
-                                  });
-                                }}
-                                className="text-xs text-red-500 hover:text-red-400 px-1"
-                              >
-                                remove
-                              </button>
-                            </div>
-                          </div>
-                        );
+                      if (localKey) {
+                        return renderApiKeyRow(pk, localKey);
                       }
 
-                      // Unlocked from passkey
-                      if (isLocked && hasUnlocked) {
-                        return (
-                          <div className="flex flex-wrap items-center gap-2 mb-2">
-                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-                            <code className="text-xs font-mono bg-zinc-100 px-2 py-0.5 rounded select-all text-zinc-600">
-                              {revealedKeys.has(pk)
-                                ? unlockedKeys[pk]
-                                : unlockedKeys[pk].substring(0, 6) +
-                                  "..." +
-                                  unlockedKeys[pk].slice(-4)}
-                            </code>
-                            <button
-                              onClick={() =>
-                                setRevealedKeys((prev) => {
-                                  const next = new Set(prev);
-                                  next.has(pk) ? next.delete(pk) : next.add(pk);
-                                  return next;
-                                })
-                              }
-                              className="text-xs text-zinc-400 hover:text-zinc-600 px-1"
-                            >
-                              {revealedKeys.has(pk) ? "hide" : "show"}
-                            </button>
-                            <button
-                              onClick={() => {
-                                navigator.clipboard.writeText(unlockedKeys[pk]);
-                                setSuccess("API key copied");
-                                setTimeout(() => setSuccess(null), 2000);
-                              }}
-                              className="text-xs text-zinc-900 hover:underline px-1 font-medium"
-                            >
-                              copy
-                            </button>
-                            <button
-                              onClick={async () => {
-                                await removeWalletKey(pk);
-                                setSavedKeys((prev) => {
-                                  const n = { ...prev };
-                                  delete n[pk];
-                                  return n;
-                                });
-                                setUnlockedKeys((prev) => {
-                                  const n = { ...prev };
-                                  delete n[pk];
-                                  return n;
-                                });
-                              }}
-                              className="text-xs text-red-500 hover:text-red-400 px-1"
-                            >
-                              remove
-                            </button>
-                          </div>
-                        );
-                      }
-
-                      // Plaintext key saved
-                      if (hasPlaintext) {
-                        return (
-                          <div className="mb-2">
-                            <div className="flex flex-wrap items-center gap-2 mb-1.5">
-                              <span className="text-xs text-zinc-400">Local:</span>
-                              <code className="text-xs font-mono bg-zinc-100 px-2 py-0.5 rounded select-all text-zinc-600">
-                                {revealedKeys.has(pk)
-                                  ? savedKeys[pk]
-                                  : savedKeys[pk].substring(0, 6) +
-                                    "..." +
-                                    savedKeys[pk].slice(-4)}
-                              </code>
-                              <button
-                                onClick={() =>
-                                  setRevealedKeys((prev) => {
-                                    const next = new Set(prev);
-                                    next.has(pk) ? next.delete(pk) : next.add(pk);
-                                    return next;
-                                  })
-                                }
-                                className="text-xs text-zinc-400 hover:text-zinc-600 px-1"
-                              >
-                                {revealedKeys.has(pk) ? "hide" : "show"}
-                              </button>
-                              <button
-                                onClick={() => {
-                                  navigator.clipboard.writeText(savedKeys[pk]);
-                                  setSuccess("API key copied");
-                                  setTimeout(() => setSuccess(null), 2000);
-                                }}
-                                className="text-xs text-zinc-900 hover:underline px-1 font-medium"
-                              >
-                                copy
-                              </button>
-                              <button
-                                onClick={async () => {
-                                  await removeWalletKey(pk);
-                                  setSavedKeys((prev) => {
-                                    const n = { ...prev };
-                                    delete n[pk];
-                                    return n;
-                                  });
-                                }}
-                                className="text-xs text-red-500 hover:text-red-400 px-1"
-                              >
-                                remove
-                              </button>
-                            </div>
-                            {passkeyAvailable && (
-                              <button
-                                onClick={async () => {
-                                  setPasskeySaving(pk);
-                                  const result = await saveWalletKeyWithPasskey(
-                                    pk,
-                                    savedKeys[pk],
-                                  );
-                                  if (result.passkeySaved) {
-                                    setUnlockedKeys((prev) => ({
-                                      ...prev,
-                                      [pk]: savedKeys[pk],
-                                    }));
-                                    setSavedKeys((prev) => {
-                                      const n = { ...prev };
-                                      delete n[pk];
-                                      return n;
-                                    });
-                                    setSuccess("Key protected with passkey");
-                                    setTimeout(() => setSuccess(null), 3000);
-                                  } else {
-                                    setSuccess("Passkey not available, key saved normally");
-                                    setTimeout(() => setSuccess(null), 3000);
-                                  }
-                                  setPasskeySaving(null);
-                                }}
-                                disabled={passkeySaving === pk}
-                                className="flex items-center gap-1.5 text-xs text-emerald-600 hover:text-emerald-700 font-medium disabled:opacity-50"
-                              >
-                                {passkeySaving === pk ? (
-                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                ) : (
-                                  <ShieldCheck className="w-3.5 h-3.5" />
-                                )}
-                                {passkeySaving === pk
-                                  ? "Setting up..."
-                                  : "Protect with passkey"}
-                              </button>
-                            )}
-                          </div>
-                        );
-                      }
-
-                      // No key saved
+                      // No key saved — show inline input
                       return showKeyInput === pk ? (
                         <div className="flex items-center gap-2 mb-2">
                           <input
-                            type="text"
+                            type="password"
+                            autoComplete="new-password"
                             value={keyInput}
                             onChange={(e) => setKeyInput(e.target.value)}
-                            onKeyDown={async (e) => {
+                            onKeyDown={(e) => {
                               if (e.key === "Enter" && keyInput.trim()) {
                                 saveWalletKey(pk, keyInput.trim());
                                 setSavedKeys((prev) => ({

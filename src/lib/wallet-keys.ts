@@ -1,24 +1,10 @@
 /**
  * Browser-local wallet API key storage.
  *
- * Keys are stored ONLY in the browser.
+ * Keys are stored ONLY in the browser (localStorage).
  * The server never stores plaintext API keys — only SHA256 hashes.
  * Users should back up their keys independently.
- *
- * Storage modes:
- * 1. **Plaintext** (default) — localStorage, works everywhere
- * 2. **Passkey-protected** — IndexedDB + AES-GCM + WebAuthn biometric unlock
- *    The key is encrypted and stored in IndexedDB. The plaintext is removed
- *    from localStorage. On unlock, the key lives only in React state.
  */
-
-import {
-  isPlatformAuthenticatorAvailable,
-  getPasskeyProtectedPubkeys,
-  unlockWithPasskey,
-  registerPasskey,
-  removePasskeyEntry,
-} from "./passkey-store";
 
 const STORAGE_KEY = "outlayer_wallet_keys";
 
@@ -26,7 +12,6 @@ export interface StoredKey {
   apiKey: string;
   savedAt: string;
   label?: string;
-  passkeyProtected?: boolean;
 }
 
 type KeyStore = Record<string, StoredKey>; // walletPubkey → StoredKey
@@ -57,87 +42,24 @@ export function saveWalletKey(
   save(store);
 }
 
-/**
- * Save an API key with passkey protection.
- * Encrypts the key and stores in IndexedDB. Removes plaintext from localStorage.
- * Falls back to plaintext if WebAuthn is not available.
- */
-export async function saveWalletKeyWithPasskey(
-  walletPubkey: string,
-  apiKey: string,
-  label?: string,
-): Promise<{ passkeySaved: boolean }> {
-  const hasPlatform = await isPlatformAuthenticatorAvailable();
-  if (!hasPlatform) {
-    // Fallback to plaintext
-    saveWalletKey(walletPubkey, apiKey, label);
-    return { passkeySaved: false };
-  }
-
-  try {
-    await registerPasskey(walletPubkey, apiKey, label);
-    // Mark as passkey-protected in localStorage (no plaintext key)
-    const store = load();
-    store[walletPubkey] = {
-      apiKey: "", // no plaintext — encrypted in IndexedDB
-      savedAt: new Date().toISOString(),
-      label,
-      passkeyProtected: true,
-    };
-    save(store);
-    return { passkeySaved: true };
-  } catch (err) {
-    // Passkey registration failed — fall back to plaintext
-    console.warn("Passkey registration failed, saving plaintext:", err);
-    saveWalletKey(walletPubkey, apiKey, label);
-    return { passkeySaved: false };
-  }
-}
-
-/**
- * Get saved API key for a wallet pubkey.
- * If passkey-protected, returns null (must call unlockWalletKeyWithPasskey instead).
- */
+/** Get saved API key for a wallet pubkey */
 export function getWalletKey(walletPubkey: string): string | null {
   const store = load();
   const entry = store[walletPubkey];
   if (!entry) return null;
-  if (entry.passkeyProtected) return null; // must unlock with passkey
   return entry.apiKey || null;
 }
 
-/**
- * Unlock a passkey-protected key via biometric auth.
- * Returns the plaintext API key, or null if auth fails/cancelled.
- */
-export async function unlockWalletKeyWithPasskey(
-  walletPubkey: string,
-): Promise<string | null> {
-  return unlockWithPasskey(walletPubkey);
-}
-
-/** Get all saved wallet keys (passkey-protected ones have empty apiKey) */
+/** Get all saved wallet keys */
 export function getAllWalletKeys(): Record<string, StoredKey> {
   return load();
 }
 
-/** Check if a wallet pubkey is passkey-protected */
-export function isPasskeyProtected(walletPubkey: string): boolean {
-  const store = load();
-  return store[walletPubkey]?.passkeyProtected === true;
-}
-
-/** Remove a saved key (both localStorage and IndexedDB if passkey-protected) */
-export async function removeWalletKey(walletPubkey: string) {
+/** Remove a saved key */
+export function removeWalletKey(walletPubkey: string) {
   const store = load();
   delete store[walletPubkey];
   save(store);
-  // Also remove from IndexedDB if present
-  try {
-    await removePasskeyEntry(walletPubkey);
-  } catch {
-    // Ignore if not in IndexedDB
-  }
 }
 
 /** Find API key by matching any of the given wallet pubkeys */
@@ -145,19 +67,11 @@ export function findKeyForWallets(walletPubkeys: string[]): string | null {
   const store = load();
   for (const pk of walletPubkeys) {
     const entry = store[pk];
-    if (entry && !entry.passkeyProtected && entry.apiKey) {
+    if (entry && entry.apiKey) {
       return entry.apiKey;
     }
   }
   return null;
-}
-
-/** Get the set of pubkeys that are passkey-protected (from localStorage metadata) */
-export function getPasskeyProtectedFromStore(): string[] {
-  const store = load();
-  return Object.entries(store)
-    .filter(([, v]) => v.passkeyProtected)
-    .map(([k]) => k);
 }
 
 /** Compute SHA256 hex hash of an API key string */
