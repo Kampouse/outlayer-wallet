@@ -8,8 +8,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowDownUp, Loader2, Wallet, Search, Check } from "lucide-react";
+import { ArrowDownUp, Loader2, Wallet } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { TokenPickerModal, type TokenOption } from "@/components/TokenPickerModal";
 
 /** Convert human-readable amount to FT minimal units using decimals */
 function toMinimalUnits(amount: string, decimals: number): string {
@@ -34,140 +35,14 @@ function formatPrice(price: number | undefined): string {
   return `$${price.toFixed(6)}`;
 }
 
-/** Merged token info for the picker: catalog + balance */
-interface TokenOption {
-  id: string;            // defuse_asset_id or "near"
-  symbol: string;
-  decimals: number;
-  balance: string;       // raw minimal units, "0" if none
-  price?: number;
-}
-
-/** Token picker dropdown with search */
-function TokenPicker({
-  tokens,
-  selectedId,
-  onSelect,
-  label,
-  placeholder,
-}: {
-  tokens: TokenOption[];
-  selectedId: string;
-  onSelect: (id: string) => void;
-  label: string;
-  placeholder: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState("");
-  const filtered = useMemo(() => {
-    if (!search.trim()) return tokens;
-    const q = search.toLowerCase();
-    return tokens.filter((t) => t.symbol.toLowerCase().includes(q));
-  }, [tokens, search]);
-
-  const selected = tokens.find((t) => t.id === selectedId);
-
-  return (
-    <div>
-      <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5 block">
-        {label}
-      </Label>
-
-      {/* Selected display / trigger */}
-      <button
-        type="button"
-        onClick={() => {
-          setOpen(!open);
-          setSearch("");
-        }}
-        className="w-full h-11 flex items-center justify-between bg-zinc-50 border border-zinc-200 rounded-lg px-3 text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-colors"
-      >
-        <span className={selected ? "text-foreground" : "text-muted-foreground"}>
-          {selected ? selected.symbol : placeholder}
-        </span>
-        <span className="flex items-center gap-2">
-          {selected?.price != null && selected.price > 0 && (
-            <span className="text-xs text-muted-foreground">{formatPrice(selected.price)}</span>
-          )}
-          <span className={`transition-transform ${open ? "rotate-180" : ""}`} style={{ display: "inline-flex" }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground"><path d="m6 9 6 6 6-6"/></svg>
-          </span>
-        </span>
-      </button>
-
-      {/* Dropdown */}
-      {open && (
-        <>
-          {/* Backdrop to close */}
-          <div className="fixed inset-0 z-40" onClick={() => { setOpen(false); setSearch(""); }} />
-          <div className="absolute z-50 mt-1 w-[calc(100%-2rem)] bg-background border border-border rounded-lg shadow-lg overflow-hidden">
-            {/* Search input */}
-            <div className="p-2 border-b border-border">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                <Input
-                  type="text"
-                  placeholder="Search tokens..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="h-8 text-xs pl-8 pr-3"
-                  autoFocus
-                />
-              </div>
-            </div>
-
-            {/* Token list */}
-            <div className="max-h-56 overflow-y-auto">
-              {filtered.length === 0 ? (
-                <div className="px-3 py-4 text-center text-xs text-muted-foreground">
-                  No tokens found
-                </div>
-              ) : (
-                filtered.map((t) => {
-                  const hasBalance = t.balance !== "0" && t.balance !== "";
-                  return (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => {
-                        onSelect(t.id);
-                        setOpen(false);
-                        setSearch("");
-                      }}
-                      className={`w-full flex items-center justify-between px-3 py-2.5 text-sm hover:bg-muted/50 transition-colors ${
-                        t.id === selectedId ? "bg-emerald-500/10" : ""
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        {t.id === selectedId ? (
-                          <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                        ) : (
-                          <span className="w-3.5 shrink-0" />
-                        )}
-                        <span className="font-medium">{t.symbol}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {hasBalance && (
-                          <span className="text-xs text-foreground font-mono">
-                            {formatTokenBalance(t.balance, t.decimals)}
-                          </span>
-                        )}
-                        {t.price != null && t.price > 0 && (
-                          <span className="text-xs text-muted-foreground">
-                            {formatPrice(t.price)}
-                          </span>
-                        )}
-                      </div>
-                    </button>
-                  );
-                })
-              )}
-            </div>
-          </div>
-        </>
-      )}
-    </div>
-  );
+/** Deterministic color from symbol */
+function tokenColor(symbol: string): string {
+  let hash = 0;
+  for (let i = 0; i < symbol.length; i++) {
+    hash = symbol.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const hue = Math.abs(hash) % 360;
+  return `hsl(${hue}, 55%, 45%)`;
 }
 
 export default function WalletSwapPage() {
@@ -253,6 +128,7 @@ export default function WalletSwapPage() {
   const [tokenInId, setTokenInId] = useState<string>("");
   const [tokenOutId, setTokenOutId] = useState<string>("");
   const [amount, setAmount] = useState("");
+  const [pickerOpen, setPickerOpen] = useState<"from" | "to" | null>(null);
   const [swapping, setSwapping] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [txStatus, setTxStatus] = useState<"idle" | "pending" | "success" | "error">("idle");
@@ -467,17 +343,33 @@ export default function WalletSwapPage() {
               <Skeleton className="h-11 w-full rounded-lg" />
             </div>
           ) : (
-            <TokenPicker
-              tokens={tokenOptions}
-              selectedId={tokenInId}
-              onSelect={(id) => {
-                setTokenInId(id);
-                setAmount("");
-                setError(null);
-              }}
-              label="From"
-              placeholder="Select token"
-            />
+            <div>
+              <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5 block">
+                From
+              </Label>
+              <button
+                type="button"
+                onClick={() => setPickerOpen("from")}
+                className="w-full h-11 flex items-center gap-2 bg-zinc-50 border border-zinc-200 rounded-lg px-3 text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-colors"
+              >
+                {tokenIn ? (
+                  <>
+                    <div
+                      className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
+                      style={{ backgroundColor: tokenColor(tokenIn.symbol) }}
+                    >
+                      {tokenIn.symbol.charAt(0)}
+                    </div>
+                    <span className="flex-1 text-left">{tokenIn.symbol}</span>
+                    {tokenIn.price != null && tokenIn.price > 0 && (
+                      <span className="text-xs text-muted-foreground">{formatPrice(tokenIn.price)}</span>
+                    )}
+                  </>
+                ) : (
+                  <span className="text-muted-foreground">Select token</span>
+                )}
+              </button>
+            </div>
           )}
 
           {/* Swap direction button */}
@@ -500,16 +392,33 @@ export default function WalletSwapPage() {
               <Skeleton className="h-11 w-full rounded-lg" />
             </div>
           ) : (
-            <TokenPicker
-              tokens={tokenOptions}
-              selectedId={tokenOutId}
-              onSelect={(id) => {
-                setTokenOutId(id);
-                setError(null);
-              }}
-              label="To"
-              placeholder="Select token"
-            />
+            <div>
+              <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5 block">
+                To
+              </Label>
+              <button
+                type="button"
+                onClick={() => setPickerOpen("to")}
+                className="w-full h-11 flex items-center gap-2 bg-zinc-50 border border-zinc-200 rounded-lg px-3 text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-colors"
+              >
+                {tokenOut ? (
+                  <>
+                    <div
+                      className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
+                      style={{ backgroundColor: tokenColor(tokenOut.symbol) }}
+                    >
+                      {tokenOut.symbol.charAt(0)}
+                    </div>
+                    <span className="flex-1 text-left">{tokenOut.symbol}</span>
+                    {tokenOut.price != null && tokenOut.price > 0 && (
+                      <span className="text-xs text-muted-foreground">{formatPrice(tokenOut.price)}</span>
+                    )}
+                  </>
+                ) : (
+                  <span className="text-muted-foreground">Select token</span>
+                )}
+              </button>
+            </div>
           )}
 
           {/* Amount */}
@@ -579,6 +488,31 @@ export default function WalletSwapPage() {
           </Button>
         </CardContent>
       </Card>
+
+      {/* Token picker modals */}
+      <TokenPickerModal
+        open={pickerOpen === "from"}
+        onOpenChange={(o) => setPickerOpen(o ? "from" : null)}
+        tokens={tokenOptions.filter((t) => t.balance !== "0" && t.balance !== "")}
+        selectedId={tokenInId}
+        onSelect={(id) => {
+          setTokenInId(id);
+          setAmount("");
+          setError(null);
+        }}
+        title="Select token to swap"
+      />
+      <TokenPickerModal
+        open={pickerOpen === "to"}
+        onOpenChange={(o) => setPickerOpen(o ? "to" : null)}
+        tokens={tokenOptions}
+        selectedId={tokenOutId}
+        onSelect={(id) => {
+          setTokenOutId(id);
+          setError(null);
+        }}
+        title="Select token to receive"
+      />
     </div>
   );
 }

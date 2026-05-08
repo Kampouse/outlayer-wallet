@@ -13,11 +13,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   SendHorizontal,
   Loader2,
-  ChevronDown,
   ArrowUpRight,
   ArrowDownLeft,
   Wallet,
+  Info,
+  ShieldCheck,
 } from "lucide-react";
+import { TokenPickerModal, type TokenOption } from "@/components/TokenPickerModal";
 
 /** Convert human-readable NEAR amount to yoctoNEAR string */
 function nearToYocto(amount: string): string {
@@ -54,6 +56,16 @@ function formatYoctoToNear(yocto: string): string {
 function shortAddr(hex: string): string {
   if (hex.length <= 12) return hex;
   return `${hex.slice(0, 6)}...${hex.slice(-4)}`;
+}
+
+/** Deterministic color from symbol */
+function tokenColor(symbol: string): string {
+  let hash = 0;
+  for (let i = 0; i < symbol.length; i++) {
+    hash = symbol.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const hue = Math.abs(hash) % 360;
+  return `hsl(${hue}, 55%, 45%)`;
 }
 
 /** Gas reserve for NEAR transfers/deposits (0.00045 NEAR) */
@@ -165,6 +177,7 @@ export default function WalletSendPage() {
   const [error, setError] = useState<string | null>(null);
   const [txStatus, setTxStatus] = useState<"idle" | "pending" | "success" | "error">("idle");
   const [txHash, setTxHash] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [estimatedFee, setEstimatedFee] = useState<string | null>(null);
 
   // Reset form when wallet or mode changes
@@ -579,30 +592,26 @@ export default function WalletSendPage() {
             {isTokenLoading ? (
               <Skeleton className="h-11 w-full rounded-lg" />
             ) : (
-              <div className="relative">
-                <select
-                  value={selectedToken}
-                  onChange={(e) => {
-                    setSelectedToken(e.target.value);
-                    setAmount("");
-                    setEstimatedFee(null);
-                  }}
-                  className="w-full h-11 appearance-none bg-zinc-50 border border-zinc-200 rounded-lg px-3 pr-10 text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-colors"
-                >
-                  {tokenOptions.map((t) => {
-                    const bal =
-                      t.id === "NEAR"
-                        ? formatYoctoToNear(t.balance)
-                        : formatTokenBalance(t.balance, t.decimals);
-                    return (
-                      <option key={t.id} value={t.id}>
-                        {t.symbol} — {bal}
-                      </option>
-                    );
-                  })}
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-              </div>
+              <button
+                type="button"
+                onClick={() => setPickerOpen(true)}
+                className="w-full h-11 flex items-center gap-2 bg-zinc-50 border border-zinc-200 rounded-lg px-3 text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-colors"
+              >
+                {selected ? (
+                  <>
+                    <div
+                      className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
+                      style={{ backgroundColor: tokenColor(selected.symbol) }}
+                    >
+                      {selected.symbol.charAt(0)}
+                    </div>
+                    <span className="flex-1 text-left">{selected.symbol}</span>
+                    <span className="text-xs text-muted-foreground">{displayBalance}</span>
+                  </>
+                ) : (
+                  <span className="text-muted-foreground">Select token</span>
+                )}
+              </button>
             )}
           </div>
 
@@ -712,6 +721,20 @@ export default function WalletSendPage() {
           </Button>
         </CardContent>
       </Card>
+
+      {/* Token picker modal */}
+      <TokenPickerModal
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        tokens={tokenOptions as TokenOption[]}
+        selectedId={selectedToken}
+        onSelect={(id) => {
+          setSelectedToken(id);
+          setAmount("");
+          setEstimatedFee(null);
+        }}
+        title={mode === "deposit" ? "Select token to deposit" : "Select token to send"}
+      />
     </div>
   );
 }

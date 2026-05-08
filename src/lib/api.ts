@@ -290,7 +290,17 @@ export async function fetchSupportedTokens(): Promise<SupportedToken[]> {
   const resp = await fetch("https://1click.chaindefuser.com/v0/tokens");
   if (!resp.ok) throw new Error(`Token list fetch failed: ${resp.status}`);
   const data = await resp.json();
-  return (Array.isArray(data) ? data : data.tokens ?? []).map((t: Record<string, unknown>) => ({
+  const raw = Array.isArray(data) ? data : data.tokens ?? [];
+  // Deduplicate by symbol — ChainDefuser returns the same token from many chains (e.g. 15x USDC).
+  // Keep the first occurrence per symbol (NEAR-native entries come first).
+  const seenSymbol = new Set<string>();
+  const deduped = raw.filter((t: Record<string, unknown>) => {
+    const sym = String(t.symbol ?? "");
+    if (seenSymbol.has(sym)) return false;
+    seenSymbol.add(sym);
+    return true;
+  });
+  return deduped.map((t: Record<string, unknown>) => ({
     id: String(t.assetId ?? t.defuse_asset_id ?? ""),
     symbol: String(t.symbol ?? ""),
     chains: [String(t.blockchain ?? "")],
