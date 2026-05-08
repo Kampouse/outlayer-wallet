@@ -1,12 +1,12 @@
 import { NavLink } from 'react-router-dom'
-import { Globe, SendHorizontal, ShieldCheck, ClipboardList, Activity } from 'lucide-react'
+import { Globe, SendHorizontal, ArrowDownUp, ShieldCheck, ClipboardList } from 'lucide-react'
 
 const tabs = [
   { to: '/', label: 'Wallets', icon: Globe },
   { to: '/wallet/send', label: 'Send', icon: SendHorizontal },
+  { to: '/wallet/swap', label: 'Swap', icon: ArrowDownUp },
   { to: '/wallet/approvals', label: 'Approvals', icon: ShieldCheck },
   { to: '/wallet/audit', label: 'Audit', icon: ClipboardList },
-  { to: '/wallet/history', label: 'Activity', icon: Activity },
 ]
 
 export default function BottomNav() {

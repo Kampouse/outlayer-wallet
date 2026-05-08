@@ -43,6 +43,8 @@ export default function WalletBalancesSection({
     refetch,
   } = useWalletBalances(apiKey, accountIdRaw);
 
+  const isRefreshing = intentsLoading;
+
   // Build a quick price lookup from the catalog
   const priceMap: Record<string, number> = {};
   for (const t of allTokens) {
@@ -98,8 +100,6 @@ export default function WalletBalancesSection({
       .replace(/0+$/, "");
     return `${whole.toLocaleString()}.${fracStr} NEAR`;
   };
-
-  const isRefreshing = intentsLoading;
 
   return (
     <div className="mt-3 pt-3 border-t border-zinc-100">

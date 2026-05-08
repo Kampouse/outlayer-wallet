@@ -108,7 +108,7 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
 
     const connector = new NearConnector({
       network: network,
-      autoConnect: false,
+      autoConnect: true,
     });
 
     connectorRef.current = connector;

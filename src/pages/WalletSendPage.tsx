@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "react-router-dom";
 import { getCoordinatorApiUrl } from "@/lib/api";
-import { getAllWalletKeys, type StoredKey } from "@/lib/wallet-keys";
+import { getAllWalletKeys } from "@/lib/wallet-keys";
 import { useWalletBalances, formatTokenBalance } from "@/hooks/useWalletBalances";
 import { useToast } from "@/components/ToastProvider";
 import { Button } from "@/components/ui/button";
@@ -9,7 +10,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { SendHorizontal, Loader2, ChevronDown, ArrowUpRight, Wallet } from "lucide-react";
+import {
+  SendHorizontal,
+  Loader2,
+  ChevronDown,
+  ArrowUpRight,
+  ArrowDownLeft,
+  Wallet,
+} from "lucide-react";
 
 /** Convert human-readable NEAR amount to yoctoNEAR string */
 function nearToYocto(amount: string): string {
@@ -48,14 +56,19 @@ function shortAddr(hex: string): string {
   return `${hex.slice(0, 6)}...${hex.slice(-4)}`;
 }
 
-/** Gas reserve for NEAR transfers (0.00045 NEAR) */
+/** Gas reserve for NEAR transfers/deposits (0.00045 NEAR) */
 const NEAR_GAS_RESERVE = "45000000000000000000000";
+
+type Mode = "withdraw" | "deposit";
 
 export default function WalletSendPage() {
   const location = useLocation();
   const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const { toast } = useToast();
   const coordinatorUrl = getCoordinatorApiUrl();
+
+  // Mode selector
+  const [mode, setMode] = useState<Mode>("withdraw");
 
   // Load all saved wallets from localStorage
   const savedWallets = useMemo(() => {
@@ -90,11 +103,59 @@ export default function WalletSendPage() {
   const activePubkey = savedWallets[selectedIndex]?.pubkey ?? null;
   const balanceAccountId = activePubkey?.replace(/^ed25519:/, "") ?? null;
 
-  // Fetch balances for the selected wallet (uses pubkey, same as manage page)
-  const { near, tokens, loading, error: balanceError, refetch } = useWalletBalances(
+  // Withdraw mode: Intents balances (pubkey-based, same as manage page)
+  const { near, tokens, allTokens, loading, error: balanceError, refetch } = useWalletBalances(
     activeApiKey,
     balanceAccountId,
   );
+
+  // Base chain FT balances via OutLayer API (for deposit mode)
+  // NEAR base chain balance is already available from `near` (RPC view_account).
+  // For FTs on base chain, we query /wallet/v1/balance per NEAR-chain token
+  // that has a non-zero Intents balance (likely very few).
+  const nearChainTokens = useMemo(
+    () =>
+      allTokens
+        .filter((t) => t.chains.includes("near") && !t.defuse_asset_id.includes("wrap.near"))
+        .slice(0, 20), // cap to avoid too many API calls
+    [allTokens],
+  );
+
+  const baseFtQuery = useQuery({
+    queryKey: ["base-chain-ft-balances", activeApiKey, nearChainTokens.length],
+    queryFn: async () => {
+      if (!activeApiKey || nearChainTokens.length === 0) return {};
+      const results: Record<string, string> = {};
+      const contractIds = nearChainTokens.map((t) => {
+        const id = t.defuse_asset_id;
+        return id.startsWith("nep141:") ? id.slice("nep141:".length) : id;
+      });
+      // Batch: query up to 10 at a time
+      for (let i = 0; i < contractIds.length; i += 10) {
+        const batch = contractIds.slice(i, i + 10);
+        const entries = await Promise.allSettled(
+          batch.map(async (contract, j) => {
+            const token = nearChainTokens[i + j];
+            const resp = await fetch(
+              `${coordinatorUrl}/wallet/v1/balance?chain=near&token=${encodeURIComponent(contract)}`,
+              { headers: { Authorization: `Bearer ${activeApiKey}` } },
+            );
+            if (!resp.ok) return null;
+            const data = await resp.json();
+            return { assetId: token.defuse_asset_id, balance: data.balance as string };
+          }),
+        );
+        for (const entry of entries) {
+          if (entry.status === "fulfilled" && entry.value && entry.value.balance !== "0") {
+            results[entry.value.assetId] = entry.value.balance;
+          }
+        }
+      }
+      return results;
+    },
+    enabled: mode === "deposit" && !!activeApiKey && nearChainTokens.length > 0,
+    staleTime: 0,
+  });
 
   // Form state
   const [selectedToken, setSelectedToken] = useState<string>("NEAR");
@@ -102,29 +163,82 @@ export default function WalletSendPage() {
   const [amount, setAmount] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [txStatus, setTxStatus] = useState<"idle" | "pending" | "success" | "error">("idle");
+  const [txHash, setTxHash] = useState<string | null>(null);
+  const [estimatedFee, setEstimatedFee] = useState<string | null>(null);
 
-  // Reset form when wallet changes
+  // Reset form when wallet or mode changes
   useEffect(() => {
     setSelectedToken("NEAR");
     setAmount("");
     setRecipient("");
     setError(null);
-  }, [activeApiKey]);
+    setEstimatedFee(null);
+    setTxStatus("idle");
+    setTxHash(null);
+  }, [activeApiKey, mode]);
 
-  // Build token options: NEAR + all tokens with non-zero balance
+  // Loading state based on mode
+  const isTokenLoading =
+    mode === "withdraw"
+      ? loading
+      : loading || baseFtQuery.isLoading;
+
+  // Build token options based on mode
   const tokenOptions = useMemo(() => {
-    const options = [{ id: "NEAR", symbol: "NEAR", decimals: 24, balance: near?.balance ?? "0", chain: "near" as const }];
-    for (const t of tokens) {
+    if (mode === "withdraw") {
+      const options = [
+        { id: "NEAR", symbol: "NEAR", decimals: 24, balance: near?.balance ?? "0", chain: "near" as const, contractId: "" },
+      ];
+      for (const t of tokens) {
+        options.push({
+          id: t.defuse_asset_id,
+          symbol: t.symbol,
+          decimals: t.decimals,
+          balance: t.balance,
+          chain: t.chains[0] ?? "near",
+          contractId: "",
+        });
+      }
+      return options;
+    }
+
+    // Deposit mode: base chain balances
+    // NEAR from RPC (already fetched), FTs from OutLayer /wallet/v1/balance
+    const options: Array<{
+      id: string; symbol: string; decimals: number; balance: string; chain: string; contractId: string;
+    }> = [];
+    const ftBalances = baseFtQuery.data ?? {};
+
+    // NEAR — same RPC balance as withdraw mode (this IS the base chain balance)
+    options.push({
+      id: "NEAR",
+      symbol: "NEAR",
+      decimals: 24,
+      balance: near?.balance ?? "0",
+      chain: "near",
+      contractId: "wrap.near",
+    });
+
+    // FTs with non-zero base chain balance
+    for (const t of nearChainTokens) {
+      const bal = ftBalances[t.defuse_asset_id];
+      if (!bal) continue;
+      const contractId = t.defuse_asset_id.startsWith("nep141:")
+        ? t.defuse_asset_id.slice("nep141:".length)
+        : t.defuse_asset_id;
       options.push({
         id: t.defuse_asset_id,
         symbol: t.symbol,
         decimals: t.decimals,
-        balance: t.balance,
+        balance: bal,
         chain: t.chains[0] ?? "near",
+        contractId,
       });
     }
+
     return options;
-  }, [near, tokens]);
+  }, [mode, near, tokens, baseFtQuery.data, nearChainTokens]);
 
   const selected = tokenOptions.find((t) => t.id === selectedToken);
 
@@ -140,22 +254,26 @@ export default function WalletSendPage() {
   // Max amount (for NEAR, subtract gas reserve)
   const maxAmount = useMemo(() => {
     if (!selected) return "0";
-    if (selected.id === "NEAR") {
-      const balance = BigInt(selected.balance);
-      const reserve = BigInt(NEAR_GAS_RESERVE);
-      if (balance <= reserve) return "0";
-      const available = balance - reserve;
-      return formatYoctoToNear(available.toString());
+    try {
+      if (selected.id === "NEAR") {
+        const bal = BigInt(selected.balance);
+        const reserve = BigInt(NEAR_GAS_RESERVE);
+        if (bal <= reserve) return "0";
+        return formatYoctoToNear((bal - reserve).toString());
+      }
+      return formatTokenBalance(selected.balance, selected.decimals);
+    } catch {
+      return "0";
     }
-    return formatTokenBalance(selected.balance, selected.decimals);
   }, [selected]);
 
   const handleMax = () => {
     setAmount(maxAmount);
   };
 
-  const handleSend = async () => {
-    if (!activeApiKey || !recipient.trim() || !amount.trim() || !selected) return;
+  const handleSubmit = async () => {
+    if (!activeApiKey || !amount.trim() || !selected) return;
+    if (mode === "withdraw" && !recipient.trim()) return;
 
     const parsed = parseFloat(amount);
     if (isNaN(parsed) || parsed <= 0) {
@@ -165,14 +283,41 @@ export default function WalletSendPage() {
 
     setSending(true);
     setError(null);
+    setTxStatus("pending");
 
     try {
-      let resp: Response;
+      let result: Record<string, unknown> | null = null;
 
-      if (selected.id === "NEAR") {
-        // Transfer NEAR
+      if (mode === "deposit") {
+        // Deposit to Intents — move from base chain to Intents
+        const minimalUnits =
+          selected.id === "NEAR"
+            ? nearToYocto(amount)
+            : toMinimalUnits(amount, selected.decimals);
+        const token = selected.contractId; // "wrap.near" for NEAR, contract name for FTs
+
+        const resp = await fetch(`${coordinatorUrl}/wallet/v1/intents/deposit`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${activeApiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ token, amount: minimalUnits }),
+        });
+
+        if (!resp.ok) {
+          const errBody = await resp.text().catch(() => "");
+          throw new Error(errBody || `Deposit failed: HTTP ${resp.status}`);
+        }
+
+        result = await resp.json().catch(() => null);
+        if (result?.status === "failed") {
+          throw new Error("Deposit transaction failed on-chain");
+        }
+      } else if (selected.id === "NEAR") {
+        // Transfer NEAR (withdraw mode)
         const yoctoAmount = nearToYocto(amount);
-        resp = await fetch(`${coordinatorUrl}/wallet/v1/transfer`, {
+        const resp = await fetch(`${coordinatorUrl}/wallet/v1/transfer`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${activeApiKey}`,
@@ -180,6 +325,12 @@ export default function WalletSendPage() {
           },
           body: JSON.stringify({ receiver_id: recipient.trim(), amount: yoctoAmount }),
         });
+
+        if (!resp.ok) {
+          const errBody = await resp.text().catch(() => "");
+          throw new Error(errBody || `Transfer failed: HTTP ${resp.status}`);
+        }
+        result = await resp.json().catch(() => null);
       } else {
         // Withdraw Intents token (dry-run first, then execute)
         const assetId = selected.id;
@@ -212,11 +363,17 @@ export default function WalletSendPage() {
             dryResult.message || dryResult.error || "Dry-run failed",
           );
         }
-        // Multisig required is informational — the actual withdraw handles it
-        // (returns pending_approval status for signers to approve)
+        if (dryResult.estimated_fee) {
+          setEstimatedFee(dryResult.estimated_fee);
+        }
+        if (dryResult.fee_token) {
+          setEstimatedFee((prev) =>
+            prev ? `${prev} ${dryResult.fee_token}` : null,
+          );
+        }
 
         // Execute the actual withdraw
-        resp = await fetch(`${coordinatorUrl}/wallet/v1/intents/withdraw`, {
+        const resp = await fetch(`${coordinatorUrl}/wallet/v1/intents/withdraw`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${activeApiKey}`,
@@ -224,20 +381,31 @@ export default function WalletSendPage() {
           },
           body: JSON.stringify(withdrawBody),
         });
-      }
 
-      if (!resp.ok) {
-        const errBody = await resp.text().catch(() => "");
-        throw new Error(errBody || `Transfer failed: HTTP ${resp.status}`);
+        if (!resp.ok) {
+          const errBody = await resp.text().catch(() => "");
+          throw new Error(errBody || `Withdraw failed: HTTP ${resp.status}`);
+        }
+        result = await resp.json().catch(() => null);
       }
 
       // Success
-      toast(`Sent ${amount} ${selected.symbol} successfully`);
+      setTxHash((result?.transaction_hash || result?.tx_hash) as string ?? null);
+      setTxStatus("success");
+      toast(
+        mode === "deposit"
+          ? `Deposited ${amount} ${selected.symbol} to Intents`
+          : `Sent ${amount} ${selected.symbol} successfully`,
+      );
       setAmount("");
       setRecipient("");
       refetch();
+      if (mode === "deposit") baseFtQuery.refetch();
+      setTimeout(() => setTxStatus("idle"), 3000);
     } catch (err) {
+      setTxStatus("error");
       setError(err instanceof Error ? err.message : String(err));
+      setTimeout(() => setTxStatus("idle"), 3000);
     } finally {
       setSending(false);
     }
@@ -264,7 +432,7 @@ export default function WalletSendPage() {
   }, [selected, amount]);
 
   const isValid =
-    recipient.trim().length > 0 &&
+    (mode === "deposit" || recipient.trim().length > 0) &&
     amount.trim().length > 0 &&
     !isNaN(parseFloat(amount)) &&
     parseFloat(amount) > 0 &&
@@ -294,13 +462,49 @@ export default function WalletSendPage() {
     <div className="max-w-lg mx-auto px-4 pt-4 pb-24">
       {/* Header */}
       <div className="flex items-center gap-2 mb-4">
-        <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-          <ArrowUpRight className="w-4 h-4 text-emerald-400" />
+        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${mode === "deposit" ? "bg-blue-500/10" : "bg-emerald-500/10"}`}>
+          {mode === "deposit" ? (
+            <ArrowDownLeft className="w-4 h-4 text-blue-400" />
+          ) : (
+            <ArrowUpRight className="w-4 h-4 text-emerald-400" />
+          )}
         </div>
         <div>
-          <h1 className="text-lg font-semibold text-foreground">Send</h1>
-          <p className="text-xs text-muted-foreground">Transfer from your custody wallet</p>
+          <h1 className="text-lg font-semibold text-foreground">
+            {mode === "deposit" ? "Deposit" : "Send"}
+          </h1>
+          <p className="text-xs text-muted-foreground">
+            {mode === "deposit"
+              ? "Move tokens from base chain into Intents"
+              : "Transfer from your custody wallet"}
+          </p>
         </div>
+      </div>
+
+      {/* Mode selector */}
+      <div className="flex bg-muted rounded-lg p-1 mb-4">
+        <button
+          type="button"
+          onClick={() => setMode("withdraw")}
+          className={`flex-1 h-9 text-sm font-medium rounded-md transition-all ${
+            mode === "withdraw"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Withdraw
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode("deposit")}
+          className={`flex-1 h-9 text-sm font-medium rounded-md transition-all ${
+            mode === "deposit"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Deposit
+        </button>
       </div>
 
       {/* Wallet selector */}
@@ -337,6 +541,34 @@ export default function WalletSendPage() {
         </div>
       )}
 
+      {/* Deposit info banner */}
+      {mode === "deposit" && (
+        <div className="mb-4 bg-blue-500/10 border-l-4 border-blue-500 rounded-r-lg p-3">
+          <p className="text-sm text-blue-400">
+            Deposits move tokens from your NEAR account into Intents for swaps and cross-chain transfers.
+          </p>
+        </div>
+      )}
+
+      {/* Transaction status banner */}
+      {txStatus === "pending" && (
+        <div className="mb-4 bg-blue-500/10 border-l-4 border-blue-500 rounded-r-lg p-3 flex items-center gap-2">
+          <Loader2 className="w-4 h-4 text-blue-400 animate-spin" />
+          <p className="text-sm text-blue-400">
+            {mode === "deposit" ? "Deposit submitted, confirming..." : "Transaction submitted, confirming..."}
+          </p>
+        </div>
+      )}
+      {txStatus === "success" && (
+        <div className="mb-4 bg-emerald-500/10 border-l-4 border-emerald-500 rounded-r-lg p-3">
+          <p className="text-sm text-emerald-400">
+            {mode === "deposit" ? "Deposited" : "Sent"} {selected?.symbol} successfully! {txHash && (
+              <span className="font-mono text-xs opacity-70 block mt-1 break-all">{txHash}</span>
+            )}
+          </p>
+        </div>
+      )}
+
       <Card>
         <CardContent className="p-4 space-y-4">
           {/* Token selector */}
@@ -344,7 +576,7 @@ export default function WalletSendPage() {
             <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5 block">
               Token
             </Label>
-            {loading ? (
+            {isTokenLoading ? (
               <Skeleton className="h-11 w-full rounded-lg" />
             ) : (
               <div className="relative">
@@ -353,6 +585,7 @@ export default function WalletSendPage() {
                   onChange={(e) => {
                     setSelectedToken(e.target.value);
                     setAmount("");
+                    setEstimatedFee(null);
                   }}
                   className="w-full h-11 appearance-none bg-zinc-50 border border-zinc-200 rounded-lg px-3 pr-10 text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-colors"
                 >
@@ -373,23 +606,25 @@ export default function WalletSendPage() {
             )}
           </div>
 
-          {/* Recipient */}
-          <div>
-            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5 block">
-              Recipient
-            </Label>
-            <Input
-              type="text"
-              placeholder={
-                selectedToken === "NEAR"
-                  ? "NEAR account or hex address"
-                  : "Destination address"
-              }
-              value={recipient}
-              onChange={(e) => setRecipient(e.target.value)}
-              className="h-11 text-sm"
-            />
-          </div>
+          {/* Recipient (withdraw mode only) */}
+          {mode === "withdraw" && (
+            <div>
+              <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5 block">
+                Recipient
+              </Label>
+              <Input
+                type="text"
+                placeholder={
+                  selectedToken === "NEAR"
+                    ? "NEAR account or hex address"
+                    : "Destination address"
+                }
+                value={recipient}
+                onChange={(e) => setRecipient(e.target.value)}
+                className="h-11 text-sm"
+              />
+            </div>
+          )}
 
           {/* Amount */}
           <div>
@@ -407,13 +642,21 @@ export default function WalletSendPage() {
                 inputMode="decimal"
                 placeholder="0.00"
                 value={amount}
-                onChange={(e) => setAmount(e.target.value)}
+                onChange={(e) => {
+                  setAmount(e.target.value);
+                  setError(null);
+                  setEstimatedFee(null);
+                }}
                 className="h-11 text-sm pr-16"
               />
               <button
                 type="button"
-                onClick={handleMax}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-semibold text-emerald-500 hover:text-emerald-400 px-2 py-1 rounded-md hover:bg-emerald-500/10 transition-colors"
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleMax();
+                }}
+                onMouseDown={(e) => e.preventDefault()}
+                className="absolute right-2 top-1/2 -translate-y-1/2 z-10 text-xs font-semibold text-emerald-500 hover:text-emerald-400 px-2 py-1 rounded-md hover:bg-emerald-500/10 transition-colors cursor-pointer"
               >
                 Max
               </button>
@@ -430,6 +673,14 @@ export default function WalletSendPage() {
             )}
           </div>
 
+          {/* Fee estimation */}
+          {estimatedFee && (
+            <div className="flex items-center justify-between text-xs text-muted-foreground py-1">
+              <span>Estimated fee</span>
+              <span className="font-mono">{estimatedFee}</span>
+            </div>
+          )}
+
           {/* Error */}
           {error && (
             <div className="bg-red-500/10 border-l-4 border-red-500 rounded-r-lg p-3">
@@ -439,19 +690,23 @@ export default function WalletSendPage() {
 
           {/* Submit */}
           <Button
-            onClick={handleSend}
+            onClick={handleSubmit}
             disabled={!isValid || sending}
             className="w-full h-12 text-sm font-semibold"
           >
             {sending ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Sending...
+                {mode === "deposit" ? "Depositing..." : "Sending..."}
               </>
             ) : (
               <>
-                <SendHorizontal className="w-4 h-4 mr-2" />
-                Send {selected?.symbol}
+                {mode === "deposit" ? (
+                  <ArrowDownLeft className="w-4 h-4 mr-2" />
+                ) : (
+                  <SendHorizontal className="w-4 h-4 mr-2" />
+                )}
+                {mode === "deposit" ? `Deposit ${selected?.symbol}` : `Send ${selected?.symbol}`}
               </>
             )}
           </Button>
