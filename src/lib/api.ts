@@ -406,6 +406,23 @@ export async function createApiKey(
 }
 
 /**
+ * Register a new wallet — POST /register (anonymous, no auth required).
+ * Returns api_key, near_account_id, and handoff_url.
+ */
+export interface RegisterWalletResponse {
+  wallet_id: string;
+  api_key: string;
+  near_account_id: string;
+  handoff_url: string;
+}
+
+export async function registerWallet(network?: NetworkType): Promise<RegisterWalletResponse> {
+  const baseUrl = getCoordinatorApiUrl(network);
+  const response = await axios.post(`${baseUrl}/register`);
+  return response.data;
+}
+
+/**
  * Attestation data types
  */
 export interface AttestationResponse {

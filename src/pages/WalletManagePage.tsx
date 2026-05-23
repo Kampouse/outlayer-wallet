@@ -5,7 +5,7 @@ import { useNearWallet } from "@/contexts/NearWalletContext";
 import WalletConnectionModal from "@/components/WalletConnectionModal";
 import WalletBalancesSection from "@/components/wallet/WalletBalancesSection";
 import CopyableAddress from "@/components/CopyableAddress";
-import { getCoordinatorApiUrl } from "@/lib/api";
+import { getCoordinatorApiUrl, registerWallet } from "@/lib/api";
 import { actionCreators } from "@near-js/transactions";
 import {
   saveWalletKey,
@@ -295,6 +295,28 @@ export default function WalletManagePage() {
               <div className="flex flex-col items-center gap-3">
                 <Button onClick={() => setShowWalletModal(true)} size="lg">
                   Connect NEAR Wallet
+                </Button>
+                <Button
+                  onClick={async () => {
+                    setSubmitting(true);
+                    setError(null);
+                    try {
+                      const res = await registerWallet(network);
+                      const pk = `ed25519:${res.near_account_id}`;
+                      saveWalletKey(pk, res.api_key, "registered wallet");
+                      setSavedKeys((prev: Record<string, string>) => ({ ...prev, [pk]: res.api_key }));
+                      setSuccess("Wallet created! Your API key has been saved.");
+                    } catch (e: any) {
+                      setError(e?.response?.data?.error || e?.message || "Failed to create wallet");
+                    } finally {
+                      setSubmitting(false);
+                    }
+                  }}
+                  size="lg"
+                  variant="outline"
+                  disabled={submitting}
+                >
+                  {submitting ? "Creating..." : "Create Wallet"}
                 </Button>
                 <span className="text-xs text-zinc-400">or save an API key below</span>
                 <button
