@@ -357,6 +357,44 @@ export default function WalletManagePage() {
         </div>
       )}
 
+      {/* Action buttons — always visible when wallets exist */}
+      <div className="flex gap-2 mb-4">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={async () => {
+            setSubmitting(true);
+            setError(null);
+            try {
+              const res = await registerWallet(network);
+              const pk = `ed25519:${res.near_account_id}`;
+              saveWalletKey(pk, res.api_key, "registered wallet");
+              setSavedKeys((prev: Record<string, string>) => ({ ...prev, [pk]: res.api_key }));
+              setSuccess("Wallet created! Your API key has been saved.");
+            } catch (e: any) {
+              setError(e?.response?.data?.error || e?.message || "Failed to create wallet");
+            } finally {
+              setSubmitting(false);
+            }
+          }}
+          disabled={submitting}
+        >
+          {submitting ? "Creating..." : "+ New Wallet"}
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => {
+            const key = prompt("Paste your OutLayer API key (wk_...):");
+            if (key?.trim()) {
+              window.location.href = `${window.location.pathname}?key=${encodeURIComponent(key.trim())}`;
+            }
+          }}
+        >
+          Import API Key
+        </Button>
+      </div>
+
       {/* API key wallet (from ?key= param) — new wallet without policy yet */}
       {apiKeyWallet &&
         !wallets.some(
