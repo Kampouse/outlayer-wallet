@@ -267,24 +267,67 @@ function WalletHandoffContent() {
   if (!apiKey) {
     return (
       <div className="max-w-2xl mx-auto py-12 px-4">
-        <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-4">Wallet Handoff</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">Wallet Handoff</h1>
+        <p className="text-muted-foreground mb-6">
+          Take control of your AI agent&apos;s wallet by setting a spending policy.
+        </p>
         <Card>
           <CardContent className="p-8 text-center">
-            <p className="text-muted-foreground mb-4">
-              This page is used to take control of an AI agent wallet.
+            <div className="w-14 h-14 rounded-2xl bg-zinc-100 flex items-center justify-center mx-auto mb-4">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-zinc-400">
+                <rect x="2" y="5" width="20" height="14" rx="3" />
+                <path d="M2 10h20" />
+              </svg>
+            </div>
+            <h2 className="text-sm font-semibold text-zinc-900 mb-1">No wallet key provided</h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              Create a new wallet or paste an existing API key.
             </p>
-            <p className="text-sm text-muted-foreground">
-              Your agent should have given you a handoff URL like:<br />
-              <code className="text-xs bg-muted px-2 py-1 rounded mt-1 inline-block">
-                /wallet?key=wk_...
-              </code>
-            </p>
-            <div className="mt-6">
-              <Link to="/wallet/manage"
-                className="text-foreground hover:underline font-medium"
+            <div className="flex flex-col items-center gap-3">
+              <Button
+                size="lg"
+                onClick={async () => {
+                  setSubmitting(true);
+                  setError(null);
+                  try {
+                    const baseUrl = getCoordinatorApiUrl(network);
+                    const serverKey = import.meta.env.VITE_OUTLAYER_SERVER_KEY;
+                    const resp = await fetch(`${baseUrl}/register`, {
+                      method: 'POST',
+                      headers: serverKey ? { Authorization: `Bearer ${serverKey}` } : {},
+                    });
+                    if (!resp.ok) throw new Error(`Register failed: ${resp.status}`);
+                    const data = await resp.json();
+                    // Redirect with the new key
+                    navigate(`/handoff?key=${encodeURIComponent(data.api_key)}`);
+                  } catch (e: any) {
+                    setError(e?.message || 'Failed to create wallet');
+                  } finally {
+                    setSubmitting(false);
+                  }
+                }}
+                disabled={submitting}
               >
-                Or manage existing wallets &rarr;
-              </Link>
+                {submitting ? 'Creating...' : 'Create New Wallet'}
+              </Button>
+              <span className="text-xs text-zinc-400">or</span>
+              <Button
+                size="lg"
+                variant="outline"
+                onClick={() => {
+                  const key = prompt('Paste your OutLayer API key (wk_...):');
+                  if (key?.trim()) {
+                    navigate(`/handoff?key=${encodeURIComponent(key.trim())}`);
+                  }
+                }}
+              >
+                Import API Key
+              </Button>
+              <div className="mt-4">
+                <Link to="/wallet/manage" className="text-sm text-muted-foreground hover:underline">
+                  Manage existing wallets →
+                </Link>
+              </div>
             </div>
           </CardContent>
         </Card>

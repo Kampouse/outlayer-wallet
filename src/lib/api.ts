@@ -418,7 +418,10 @@ export interface RegisterWalletResponse {
 
 export async function registerWallet(network?: NetworkType): Promise<RegisterWalletResponse> {
   const baseUrl = getCoordinatorApiUrl(network);
-  const response = await axios.post(`${baseUrl}/register`);
+  const serverKey = import.meta.env.VITE_OUTLAYER_SERVER_KEY;
+  const response = await axios.post(`${baseUrl}/register`, {}, {
+    headers: serverKey ? { Authorization: `Bearer ${serverKey}` } : {},
+  });
   return response.data;
 }
 
