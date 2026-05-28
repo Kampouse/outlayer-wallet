@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useLocation, Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNearWallet } from "@/contexts/NearWalletContext";
@@ -12,6 +12,7 @@ import {
   getAllWalletKeys,
   removeWalletKey,
 } from "@/lib/wallet-keys";
+import type { StoredKey } from "@/lib/wallet-keys";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -24,18 +25,18 @@ import {
 } from "@/components/ui/dialog";
 import {
   ArrowDownToLine,
+  ChevronLeft,
+  ChevronRight,
   Copy,
   Eye,
   EyeOff,
   Key,
   Link2,
-  MoreHorizontal,
   Plus,
   ShieldCheck,
   Snowflake,
   Trash2,
   Unlink,
-  X,
 } from "lucide-react";
 
 interface WalletPolicy {
@@ -43,6 +44,18 @@ interface WalletPolicy {
   owner: string;
   frozen: boolean;
   updated_at: number;
+}
+
+interface WalletItem {
+  id: string;
+  pubkey: string;
+  address: string;
+  label: string;
+  apiKey: string | null;
+  frozen: boolean;
+  isGoogle: boolean;
+  hasPolicy: boolean;
+  updatedAt: number | null;
 }
 
 export default function WalletManagePage() {
@@ -75,35 +88,7 @@ export default function WalletManagePage() {
   const [submitting, setSubmitting] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [importKey, setImportKey] = useState("");
-
-  const handleImportKey = async () => {
-    const key = importKey.trim();
-    if (!key) return;
-    setSubmitting(true);
-    setError(null);
-    try {
-      const coordinatorUrl = getCoordinatorApiUrl(network);
-      const resp = await fetch(`${coordinatorUrl}/wallet/v1/address?chain=near`, {
-        headers: { Authorization: `Bearer ${key}` },
-      });
-      if (!resp.ok) {
-        setError(`Invalid API key: HTTP ${resp.status}`);
-        return;
-      }
-      const data = await resp.json();
-      const pk = `ed25519:${data.address}`;
-      saveWalletKey(pk, key, 'imported');
-      setSavedEntries(getAllWalletKeys());
-      setSuccess('API key saved!');
-      setImportModalOpen(false);
-      setImportKey("");
-      setTimeout(() => setSuccess(null), 2000);
-    } catch (e: any) {
-      setError(e?.message || 'Failed to import key');
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  const [selectedIdx, setSelectedIdx] = useState(0);
 
   // API key wallet (from ?key= query param)
   const [apiKeyWallet, setApiKeyWallet] = useState<{
@@ -112,19 +97,15 @@ export default function WalletManagePage() {
   } | null>(null);
 
   // Saved API keys from localStorage
-  const [savedEntries, setSavedEntries] = useState<Record<string, import("@/lib/wallet-keys").StoredKey>>({});
-  const [showKeyInput, setShowKeyInput] = useState<string | null>(null);
-  const [keyInput, setKeyInput] = useState("");
+  const [savedEntries, setSavedEntries] = useState<Record<string, StoredKey>>({});
   const [revealedKeys, setRevealedKeys] = useState<Set<string>>(new Set());
 
-  // Load saved keys on mount AND whenever connection state changes
   useEffect(() => {
     setSavedEntries(getAllWalletKeys());
   }, [isConnected, accountId, authMethod, googleUser, googleApiKey]);
 
   const coordinatorUrl = getCoordinatorApiUrl(network);
 
-  // Load API key wallet from ?key= param
   useEffect(() => {
     const keyParam = searchParams.get("key");
     if (keyParam?.startsWith("wk_")) {
@@ -163,75 +144,146 @@ export default function WalletManagePage() {
   });
   const wallets = walletsData ?? [];
 
+  // ─── Merge all wallets into unified list ────────────────────────
+  const allWallets = useMemo<WalletItem[]>(() => {
+    const items: WalletItem[] = [];
+    const seen = new Set<string>();
+
+    // On-chain wallets first
+    for (const w of wallets) {
+      const addr = w.wallet_pubkey.split(":").slice(1).join(":") || w.wallet_pubkey;
+      seen.add(w.wallet_pubkey);
+      items.push({
+        id: w.wallet_pubkey,
+        pubkey: w.wallet_pubkey,
+        address: addr,
+        label: savedEntries[w.wallet_pubkey]?.source === "google" ? "Google Wallet" : "Wallet 1",
+        apiKey: savedEntries[w.wallet_pubkey]?.apiKey || searchParams.get("key") || null,
+        frozen: w.frozen,
+        isGoogle: savedEntries[w.wallet_pubkey]?.source === "google",
+        hasPolicy: true,
+        updatedAt: w.updated_at,
+      });
+    }
+
+    // API key wallet from ?key= param
+    if (apiKeyWallet && !seen.has(`ed25519:${apiKeyWallet.address}`)) {
+      const pk = `ed25519:${apiKeyWallet.address}`;
+      seen.add(pk);
+      items.push({
+        id: pk,
+        pubkey: pk,
+        address: apiKeyWallet.address,
+        label: "New Wallet",
+        apiKey: searchParams.get("key"),
+        frozen: false,
+        isGoogle: false,
+        hasPolicy: false,
+        updatedAt: null,
+      });
+    }
+
+    // Saved keys without on-chain policy
+    for (const pk of Object.keys(savedEntries)) {
+      if (seen.has(pk)) continue;
+      seen.add(pk);
+      items.push({
+        id: pk,
+        pubkey: pk,
+        address: pk.replace(/^ed25519:/, ""),
+        label: savedEntries[pk]?.source === "google" ? "Google Wallet" : "Wallet",
+        apiKey: savedEntries[pk]?.apiKey || null,
+        frozen: false,
+        isGoogle: savedEntries[pk]?.source === "google",
+        hasPolicy: false,
+        updatedAt: null,
+      });
+    }
+
+    // Number them nicely
+    items.forEach((item, i) => {
+      if (item.label === "Wallet") item.label = `Wallet ${i + 1}`;
+    });
+
+    return items;
+  }, [wallets, savedEntries, apiKeyWallet, searchParams]);
+
+  // Clamp selected index
+  useEffect(() => {
+    if (selectedIdx >= allWallets.length) setSelectedIdx(Math.max(0, allWallets.length - 1));
+  }, [allWallets.length, selectedIdx]);
+
+  const currentWallet = allWallets[selectedIdx] ?? null;
+
+  // ─── Actions ──────────────────────────────────────────────────────
   const handleFreeze = async (walletPubkey: string) => {
     if (!signAndSendTransaction || !contractId) return;
-    setSubmitting(true);
-    setError(null);
+    setSubmitting(true); setError(null);
     try {
-      const action = actionCreators.freezeWallet(walletPubkey);
-      await signAndSendTransaction({
-        receiverId: contractId,
-        actions: [action],
-      });
+      await signAndSendTransaction({ receiverId: contractId, actions: [actionCreators.freezeWallet(walletPubkey)] });
       setSuccess("Wallet frozen");
       queryClient.invalidateQueries({ queryKey: ["wallet-policies"] });
       setTimeout(() => setSuccess(null), 2000);
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setSubmitting(false);
-    }
+    } catch (err) { setError((err as Error).message); }
+    finally { setSubmitting(false); }
   };
 
   const handleUnfreeze = async (walletPubkey: string) => {
     if (!signAndSendTransaction || !contractId) return;
-    setSubmitting(true);
-    setError(null);
+    setSubmitting(true); setError(null);
     try {
-      const action = actionCreators.unfreezeWallet(walletPubkey);
-      await signAndSendTransaction({
-        receiverId: contractId,
-        actions: [action],
-      });
-      setSuccess(`Wallet unfrozen`);
+      await signAndSendTransaction({ receiverId: contractId, actions: [actionCreators.unfreezeWallet(walletPubkey)] });
+      setSuccess("Wallet unfrozen");
       queryClient.invalidateQueries({ queryKey: ["wallet-policies"] });
       setTimeout(() => setSuccess(null), 2000);
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setSubmitting(false);
-    }
+    } catch (err) { setError((err as Error).message); }
+    finally { setSubmitting(false); }
   };
 
-  const getWalletApiKey = (walletPubkey: string): string | null => {
-    return savedEntries[walletPubkey]?.apiKey || searchParams.get("key") || null;
+  const handleImportKey = async () => {
+    const key = importKey.trim();
+    if (!key) return;
+    setSubmitting(true); setError(null);
+    try {
+      const resp = await fetch(`${coordinatorUrl}/wallet/v1/address?chain=near`, {
+        headers: { Authorization: `Bearer ${key}` },
+      });
+      if (!resp.ok) { setError(`Invalid API key: HTTP ${resp.status}`); return; }
+      const data = await resp.json();
+      const pk = `ed25519:${data.address}`;
+      saveWalletKey(pk, key, "imported");
+      setSavedEntries(getAllWalletKeys());
+      setSuccess("API key saved!");
+      setImportModalOpen(false); setImportKey("");
+      setTimeout(() => setSuccess(null), 2000);
+    } catch (e: any) { setError(e?.message || "Failed to import key"); }
+    finally { setSubmitting(false); }
   };
 
-  const formatTimestamp = (nanos: number) => {
-    return new Date(nanos / 1_000_000).toLocaleString();
+  const handleCreateWallet = async () => {
+    setSubmitting(true); setError(null);
+    try {
+      const res = await registerWallet(network);
+      const pk = `ed25519:${res.near_account_id}`;
+      saveWalletKey(pk, res.api_key, "registered wallet");
+      setSavedEntries((prev) => ({ ...prev, [pk]: { apiKey: res.api_key, savedAt: new Date().toISOString(), source: "manual" as const } }));
+      setSuccess("Wallet created!");
+      setTimeout(() => setSuccess(null), 2000);
+    } catch (e: any) {
+      setError(e?.response?.data?.error || e?.message || "Failed to create wallet");
+    } finally { setSubmitting(false); }
   };
 
   function toggleReveal(pk: string) {
-    setRevealedKeys((prev) => {
-      const next = new Set(prev);
-      next.has(pk) ? next.delete(pk) : next.add(pk);
-      return next;
-    });
+    setRevealedKeys((prev) => { const n = new Set(prev); n.has(pk) ? n.delete(pk) : n.add(pk); return n; });
   }
-
   function copyKey(key: string) {
     navigator.clipboard.writeText(key);
-    setSuccess("Copied!");
-    setTimeout(() => setSuccess(null), 1500);
+    setSuccess("Copied!"); setTimeout(() => setSuccess(null), 1500);
   }
-
   function removeKey(pk: string) {
     removeWalletKey(pk);
-    setSavedEntries((prev) => {
-      const n = { ...prev };
-      delete n[pk];
-      return n;
-    });
+    setSavedEntries((prev) => { const n = { ...prev }; delete n[pk]; return n; });
   }
 
   function ImportDialog() {
@@ -240,26 +292,20 @@ export default function WalletManagePage() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Import API Key</DialogTitle>
-            <DialogDescription>
-              Paste your OutLayer API key to add an existing wallet.
-            </DialogDescription>
+            <DialogDescription>Paste your OutLayer API key to add an existing wallet.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <input
-              type="text"
-              placeholder="wk_..."
-              value={importKey}
+              type="text" placeholder="wk_..." value={importKey}
               onChange={(e) => setImportKey(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') handleImportKey(); }}
+              onKeyDown={(e) => { if (e.key === "Enter") handleImportKey(); }}
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               autoFocus
             />
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => { setImportModalOpen(false); setImportKey(""); }}>
-                Cancel
-              </Button>
+              <Button variant="outline" onClick={() => { setImportModalOpen(false); setImportKey(""); }}>Cancel</Button>
               <Button onClick={handleImportKey} disabled={submitting || !importKey.trim()}>
-                {submitting ? 'Importing...' : 'Import'}
+                {submitting ? "Importing..." : "Import"}
               </Button>
             </div>
           </div>
@@ -268,39 +314,22 @@ export default function WalletManagePage() {
     );
   }
 
-  // ─── Disconnected state (no NEAR, no Google) ─────────────────────
+  // ─── Disconnected state ─────────────────────────────────────────
   if (!isConnected) {
     return (
       <div className="max-w-lg mx-auto px-4 pt-6">
-        {error && (
-          <div className="mb-4 bg-red-500/10 border-l-4 border-red-500 rounded-r-lg p-3">
-            <p className="text-sm text-red-400">{error}</p>
-          </div>
-        )}
+        {error && <Flash kind="error">{error}</Flash>}
 
-        {Object.keys(savedEntries).length > 0 ? (
-          <div className="space-y-3">
-            {Object.keys(savedEntries).map((pubkey) => (
-              <WalletCard
-                key={pubkey}
-                pubkey={pubkey}
-                apiKey={savedEntries[pubkey]?.apiKey || ""}
-                isGoogle={savedEntries[pubkey]?.source === "google"}
-                revealed={revealedKeys.has(pubkey)}
-                onToggleReveal={() => toggleReveal(pubkey)}
-                onCopyKey={() => copyKey(savedEntries[pubkey]?.apiKey || "")}
-                onRemoveKey={() => removeKey(pubkey)}
-              />
-            ))}
-            <div className="flex gap-2 pt-2">
-              <Button size="sm" variant="outline" onClick={requestLogin} className="flex-1">
-                Connect NEAR
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => setImportModalOpen(true)} className="flex-1">
-                <Plus size={14} /> Import
-              </Button>
-            </div>
-          </div>
+        {allWallets.length > 0 ? (
+          <SingleWalletView
+            wallets={allWallets}
+            selectedIdx={selectedIdx}
+            onSelect={setSelectedIdx}
+            revealedKeys={revealedKeys}
+            onToggleReveal={toggleReveal}
+            onCopyKey={copyKey}
+            onRemoveKey={removeKey}
+          />
         ) : (
           <Card>
             <CardContent className="py-12 text-center">
@@ -312,16 +341,9 @@ export default function WalletManagePage() {
                 Sign in with Google or connect a NEAR wallet to get started.
               </p>
               <div className="flex flex-col items-center gap-3">
-                <Button onClick={requestLogin} size="lg" className="w-full max-w-xs">
-                  Sign in with Google
-                </Button>
-                <Button onClick={requestLogin} size="lg" variant="outline" className="w-full max-w-xs">
-                  Connect NEAR Wallet
-                </Button>
-                <button
-                  onClick={() => setImportModalOpen(true)}
-                  className="text-sm text-zinc-500 hover:text-zinc-900 mt-2"
-                >
+                <Button onClick={requestLogin} size="lg" className="w-full max-w-xs">Sign in with Google</Button>
+                <Button onClick={requestLogin} size="lg" variant="outline" className="w-full max-w-xs">Connect NEAR Wallet</Button>
+                <button onClick={() => setImportModalOpen(true)} className="text-sm text-zinc-500 hover:text-zinc-900 mt-2">
                   or import an API key
                 </button>
               </div>
@@ -329,312 +351,93 @@ export default function WalletManagePage() {
           </Card>
         )}
 
+        <div className="flex gap-2 mt-4">
+          <Button size="sm" variant="outline" onClick={requestLogin} className="flex-1">Connect NEAR</Button>
+          <Button size="sm" variant="outline" onClick={() => setImportModalOpen(true)} className="flex-1">
+            <Plus size={14} /> Import
+          </Button>
+        </div>
+
         <WalletConnectionModal isOpen={loginModalOpen} onClose={closeLoginModal} />
         <ImportDialog />
       </div>
     );
   }
 
-  // ─── Connected state ──────────────────────────────────────────────
+  // ─── Connected state ────────────────────────────────────────────
   return (
     <div className="max-w-lg mx-auto px-4 pt-4">
-      {/* Flash messages */}
-      {error && (
-        <div className="mb-3 bg-red-500/10 border-l-4 border-red-500 rounded-r-lg p-3">
-          <p className="text-sm text-red-400">{error}</p>
-        </div>
-      )}
-      {success && (
-        <div className="mb-3 bg-emerald-500/10 border-l-4 border-emerald-500 rounded-r-lg p-3">
-          <p className="text-sm text-emerald-400">{success}</p>
-        </div>
-      )}
+      {error && <Flash kind="error">{error}</Flash>}
+      {success && <Flash kind="success">{success}</Flash>}
 
       {/* Action bar */}
       <div className="flex gap-2 mb-4">
         {googleUser && googleWalletExists === false && (
-          <Button
-            size="sm"
-            onClick={async () => {
-              setSubmitting(true);
-              setError(null);
-              try {
-                await createGoogleWallet();
-                setSuccess("Wallet created!");
-                setSavedEntries(getAllWalletKeys());
-              } catch (e: any) {
-                setError(e?.message || "Failed to create wallet");
-              } finally {
-                setSubmitting(false);
-              }
-            }}
-            disabled={submitting || googleAuthLoading}
-            className="flex-1"
-          >
+          <Button size="sm" onClick={async () => {
+            setSubmitting(true); setError(null);
+            try { await createGoogleWallet(); setSuccess("Wallet created!"); setSavedEntries(getAllWalletKeys()); }
+            catch (e: any) { setError(e?.message || "Failed to create wallet"); }
+            finally { setSubmitting(false); }
+          }} disabled={submitting || googleAuthLoading} className="flex-1">
             {submitting ? "Creating..." : "Create Wallet"}
           </Button>
         )}
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={async () => {
-            setSubmitting(true);
-            setError(null);
-            try {
-              const res = await registerWallet(network);
-              const pk = `ed25519:${res.near_account_id}`;
-              saveWalletKey(pk, res.api_key, "registered wallet");
-              setSavedEntries((prev) => ({ ...prev, [pk]: { apiKey: res.api_key, savedAt: new Date().toISOString(), source: "manual" as const } }));
-              setSuccess("Wallet created!");
-            } catch (e: any) {
-              setError(e?.response?.data?.error || e?.message || "Failed to create wallet");
-            } finally {
-              setSubmitting(false);
-            }
-          }}
-          disabled={submitting}
-          className="flex-1"
-        >
+        <Button size="sm" variant="outline" onClick={handleCreateWallet} disabled={submitting} className="flex-1">
           <Plus size={14} /> New Wallet
         </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => setImportModalOpen(true)}
-        >
+        <Button size="sm" variant="outline" onClick={() => setImportModalOpen(true)}>
           <ArrowDownToLine size={14} />
         </Button>
       </div>
 
-      {/* API key wallet from ?key= param */}
-      {apiKeyWallet &&
-        !wallets.some((w) => w.wallet_pubkey === `ed25519:${apiKeyWallet.address}`) && (
-          <Card className="mb-3 border-dashed border-2 border-zinc-200">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">New Wallet</span>
-                    <Badge variant="outline" className="text-[10px]">No Policy</Badge>
-                  </div>
-                  <CopyableAddress
-                    address={apiKeyWallet.address}
-                    href={`https://near.rocks/account/${apiKeyWallet.address}`}
-                    as="a"
-                  />
-                </div>
-                <Link to={`/handoff?key=${searchParams.get("key")}`}>
-                  <Button size="sm">Set Policy</Button>
-                </Link>
+      {/* Wallet view */}
+      {allWallets.length > 0 ? (
+        <SingleWalletView
+          wallets={allWallets}
+          selectedIdx={selectedIdx}
+          onSelect={setSelectedIdx}
+          revealedKeys={revealedKeys}
+          onToggleReveal={toggleReveal}
+          onCopyKey={copyKey}
+          onRemoveKey={removeKey}
+          googleUser={googleUser}
+          googleAuthLoading={googleAuthLoading}
+          submitting={submitting}
+          onFreeze={handleFreeze}
+          onUnfreeze={handleUnfreeze}
+          onLinkGoogle={async (apiKey, nearAcct) => {
+            setSubmitting(true); setError(null);
+            try { await linkWalletToGoogle(apiKey, nearAcct); setSuccess("Linked to Google!"); setSavedEntries(getAllWalletKeys()); }
+            catch (e: any) { setError(e?.message || "Failed to link"); }
+            finally { setSubmitting(false); }
+          }}
+          onUnlinkGoogle={async () => {
+            setSubmitting(true); setError(null);
+            try { await unlinkWalletFromGoogle(); setSuccess("Unlinked from Google"); setSavedEntries(getAllWalletKeys()); }
+            catch (e: any) { setError(e?.message || "Failed to unlink"); }
+            finally { setSubmitting(false); }
+          }}
+        />
+      ) : (
+        isSuccess && (
+          <Card>
+            <CardContent className="py-12 text-center">
+              <div className="w-16 h-16 rounded-2xl bg-zinc-100 flex items-center justify-center mx-auto mb-5">
+                <Key size={28} className="text-zinc-400" />
+              </div>
+              <h2 className="text-lg font-semibold text-zinc-900 mb-1">No wallets found</h2>
+              <p className="text-zinc-500 text-sm mb-6 max-w-xs mx-auto">Create a new wallet or import an existing API key.</p>
+              <div className="flex flex-col items-center gap-3">
+                <Button onClick={handleCreateWallet} size="lg" className="w-full max-w-xs" disabled={submitting}>
+                  {submitting ? "Creating..." : "Create Wallet"}
+                </Button>
+                <Button onClick={() => setImportModalOpen(true)} size="lg" variant="outline" className="w-full max-w-xs">
+                  Import API Key
+                </Button>
               </div>
             </CardContent>
           </Card>
-        )}
-
-      {/* On-chain wallets */}
-      {wallets.length > 0 && (
-        <div className="space-y-3">
-          {wallets.map((wallet) => {
-            const walletKey = getWalletApiKey(wallet.wallet_pubkey);
-            const addr = wallet.wallet_pubkey.split(":").slice(1).join(":") || wallet.wallet_pubkey;
-            const isGoogleWallet = savedEntries[wallet.wallet_pubkey]?.source === "google";
-            return (
-              <Card key={wallet.wallet_pubkey} className={wallet.frozen ? "opacity-60" : ""}>
-                <CardContent className="p-4">
-                  {/* Header row */}
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <div className={`w-2 h-2 rounded-full ${wallet.frozen ? "bg-zinc-400" : "bg-emerald-500"}`} />
-                      <span className="text-xs text-zinc-500">
-                        {wallet.frozen ? "Frozen" : "Active"}
-                      </span>
-                      {isGoogleWallet && (
-                        <Badge variant="outline" className="text-[10px]">Google</Badge>
-                      )}
-                    </div>
-                    <span className="text-[10px] text-zinc-400">
-                      Updated {formatTimestamp(wallet.updated_at)}
-                    </span>
-                  </div>
-
-                  {/* Address */}
-                  <CopyableAddress
-                    address={addr}
-                    href={`https://near.rocks/account/${addr}`}
-                    as="a"
-                  />
-
-                  {/* Balances */}
-                  <WalletBalancesSection apiKey={walletKey} accountId={wallet.wallet_pubkey} />
-
-                  {/* Actions */}
-                  <div className="flex items-center gap-2 mt-3 pt-3 border-t border-zinc-100">
-                    {walletKey ? (
-                      <Link to={`/handoff?key=${walletKey}`}>
-                        <Button variant="outline" size="sm">
-                          <ShieldCheck size={14} /> Policy
-                        </Button>
-                      </Link>
-                    ) : (
-                      <Button variant="outline" size="sm" disabled className="opacity-40">
-                        <ShieldCheck size={14} /> Policy
-                      </Button>
-                    )}
-                    {wallet.frozen ? (
-                      <Button size="sm" variant="outline" onClick={() => handleUnfreeze(wallet.wallet_pubkey)} disabled={submitting}>
-                        Unfreeze
-                      </Button>
-                    ) : (
-                      <Button size="sm" variant="ghost" onClick={() => handleFreeze(wallet.wallet_pubkey)} disabled={submitting}>
-                        <Snowflake size={14} />
-                      </Button>
-                    )}
-                    {googleUser && !isGoogleWallet && walletKey && (
-                      <Button size="sm" variant="ghost" disabled={googleAuthLoading || submitting}
-                        onClick={async () => {
-                          setSubmitting(true);
-                          setError(null);
-                          try {
-                            const nearAcct = wallet.wallet_pubkey.replace(/^ed25519:/, '');
-                            await linkWalletToGoogle(walletKey!, nearAcct);
-                            setSuccess('Linked to Google!');
-                            setSavedEntries(getAllWalletKeys());
-                          } catch (e: any) {
-                            setError(e?.message || 'Failed to link');
-                          } finally { setSubmitting(false); }
-                        }}>
-                        <Link2 size={14} />
-                      </Button>
-                    )}
-                    {isGoogleWallet && walletKey && (
-                      <Button size="sm" variant="ghost" disabled={googleAuthLoading || submitting}
-                        onClick={async () => {
-                          setSubmitting(true);
-                          setError(null);
-                          try {
-                            await unlinkWalletFromGoogle();
-                            setSuccess('Unlinked from Google');
-                            setSavedEntries(getAllWalletKeys());
-                          } catch (e: any) {
-                            setError(e?.message || 'Failed to unlink');
-                          } finally { setSubmitting(false); }
-                        }}>
-                        <Unlink size={14} />
-                      </Button>
-                    )}
-                    {/* API key management */}
-                    {walletKey && (
-                      <ApiKeyDisplay
-                        pubkey={wallet.wallet_pubkey}
-                        apiKey={walletKey}
-                        isGoogle={isGoogleWallet}
-                        revealed={revealedKeys.has(wallet.wallet_pubkey)}
-                        onToggleReveal={() => toggleReveal(wallet.wallet_pubkey)}
-                        onCopy={() => copyKey(walletKey!)}
-                        onRemove={() => removeKey(wallet.wallet_pubkey)}
-                      />
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Saved keys without on-chain policy */}
-      {Object.keys(savedEntries)
-        .filter((pk) =>
-          !wallets.some((w) => w.wallet_pubkey === pk) &&
-          !(apiKeyWallet && `ed25519:${apiKeyWallet.address}` === pk)
         )
-        .map((pubkey) => (
-          <Card key={pubkey} className="mb-3 border-dashed border-2 border-zinc-200">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium">
-                    {savedEntries[pubkey]?.source === "google" ? "Google Wallet" : "Wallet"}
-                  </span>
-                  <Badge variant="outline" className="text-[10px]">No Policy</Badge>
-                </div>
-                <Link to={`/handoff?key=${savedEntries[pubkey]?.apiKey}`}>
-                  <Button size="sm" variant="outline">Set Policy</Button>
-                </Link>
-              </div>
-              <CopyableAddress
-                address={pubkey.replace(/^ed25519:/, "")}
-                href={`https://near.rocks/account/${pubkey.replace(/^ed25519:/, "")}`}
-                as="a"
-              />
-              <WalletBalancesSection apiKey={savedEntries[pubkey]?.apiKey} accountId={pubkey} />
-              <div className="mt-3 pt-3 border-t border-zinc-100">
-                <ApiKeyDisplay
-                  pubkey={pubkey}
-                  apiKey={savedEntries[pubkey]?.apiKey || ""}
-                  isGoogle={savedEntries[pubkey]?.source === "google"}
-                  revealed={revealedKeys.has(pubkey)}
-                  onToggleReveal={() => toggleReveal(pubkey)}
-                  onCopy={() => copyKey(savedEntries[pubkey]?.apiKey || "")}
-                  onRemove={() => removeKey(pubkey)}
-                />
-              </div>
-              {googleUser && savedEntries[pubkey]?.source !== "google" && (
-                <div className="mt-2">
-                  <Button size="sm" variant="outline" disabled={googleAuthLoading || submitting}
-                    onClick={async () => {
-                      setSubmitting(true);
-                      setError(null);
-                      try {
-                        const nearAcct = pubkey.replace(/^ed25519:/, '');
-                        await linkWalletToGoogle(savedEntries[pubkey]?.apiKey || '', nearAcct);
-                        setSuccess('Linked to Google!');
-                        setSavedEntries(getAllWalletKeys());
-                      } catch (e: any) {
-                        setError(e?.message || 'Failed to link');
-                      } finally { setSubmitting(false); }
-                    }}>
-                    <Link2 size={14} /> Sync with Google
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        ))}
-
-      {/* Empty state when connected but no wallets */}
-      {isSuccess && wallets.length === 0 && !apiKeyWallet && Object.keys(savedEntries).length === 0 && (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-zinc-100 flex items-center justify-center mx-auto mb-5">
-              <Key size={28} className="text-zinc-400" />
-            </div>
-            <h2 className="text-lg font-semibold text-zinc-900 mb-1">No wallets found</h2>
-            <p className="text-zinc-500 text-sm mb-6 max-w-xs mx-auto">
-              Create a new wallet or import an existing API key.
-            </p>
-            <div className="flex flex-col items-center gap-3">
-              <Button onClick={async () => {
-                setSubmitting(true);
-                setError(null);
-                try {
-                  const res = await registerWallet(network);
-                  const pk = `ed25519:${res.near_account_id}`;
-                  saveWalletKey(pk, res.api_key, "registered wallet");
-                  setSavedEntries((prev) => ({ ...prev, [pk]: { apiKey: res.api_key, savedAt: new Date().toISOString(), source: "manual" as const } }));
-                  setSuccess("Wallet created!");
-                } catch (e: any) {
-                  setError(e?.response?.data?.error || e?.message || "Failed");
-                } finally { setSubmitting(false); }
-              }} size="lg" className="w-full max-w-xs" disabled={submitting}>
-                {submitting ? "Creating..." : "Create Wallet"}
-              </Button>
-              <Button onClick={() => setImportModalOpen(true)} size="lg" variant="outline" className="w-full max-w-xs">
-                Import API Key
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
       )}
 
       <ImportDialog />
@@ -642,65 +445,178 @@ export default function WalletManagePage() {
   );
 }
 
-// ─── Sub-components ────────────────────────────────────────────────
+// ─── Single Wallet View (carousel-style) ────────────────────────────
 
-function ApiKeyDisplay({
-  pubkey, apiKey, isGoogle, revealed, onToggleReveal, onCopy, onRemove,
+function SingleWalletView({
+  wallets, selectedIdx, onSelect, revealedKeys, onToggleReveal, onCopyKey, onRemoveKey,
+  googleUser, googleAuthLoading, submitting, onFreeze, onUnfreeze, onLinkGoogle, onUnlinkGoogle,
 }: {
-  pubkey: string; apiKey: string; isGoogle: boolean; revealed: boolean;
-  onToggleReveal: () => void; onCopy: () => void; onRemove: () => void;
+  wallets: WalletItem[];
+  selectedIdx: number;
+  onSelect: (idx: number) => void;
+  revealedKeys: Set<string>;
+  onToggleReveal: (pk: string) => void;
+  onCopyKey: (key: string) => void;
+  onRemoveKey: (pk: string) => void;
+  googleUser?: any;
+  googleAuthLoading?: boolean;
+  submitting?: boolean;
+  onFreeze?: (pk: string) => void;
+  onUnfreeze?: (pk: string) => void;
+  onLinkGoogle?: (apiKey: string, nearAcct: string) => void;
+  onUnlinkGoogle?: () => void;
 }) {
+  const w = wallets[selectedIdx];
+  if (!w) return null;
+
+  const revealed = revealedKeys.has(w.pubkey);
+  const showNav = wallets.length > 1;
+
   return (
-    <div className="flex items-center gap-1.5 ml-auto">
-      <code className="text-[10px] font-mono bg-zinc-100 px-1.5 py-0.5 rounded text-zinc-500 select-all">
-        {revealed ? apiKey : (apiKey ? apiKey.substring(0, 6) + "..." + apiKey.slice(-4) : "••••")}
-      </code>
-      <button onClick={onToggleReveal} className="text-zinc-400 hover:text-zinc-600 p-0.5">
-        {revealed ? <EyeOff size={12} /> : <Eye size={12} />}
-      </button>
-      <button onClick={onCopy} className="text-zinc-400 hover:text-zinc-600 p-0.5">
-        <Copy size={12} />
-      </button>
-      <button onClick={onRemove} className="text-zinc-400 hover:text-red-500 p-0.5">
-        <Trash2 size={12} />
-      </button>
+    <div>
+      {/* Wallet picker tabs */}
+      {showNav && (
+        <div className="flex items-center gap-1 mb-4 overflow-x-auto no-scrollbar">
+          {wallets.map((item, i) => (
+            <button
+              key={item.id}
+              onClick={() => onSelect(i)}
+              className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                i === selectedIdx
+                  ? "bg-zinc-900 text-white"
+                  : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+              }`}
+            >
+              <div className="flex items-center gap-1.5">
+                <div className={`w-1.5 h-1.5 rounded-full ${item.frozen ? "bg-zinc-400" : i === selectedIdx ? "bg-emerald-400" : "bg-emerald-500"}`} />
+                {item.label}
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Single wallet card */}
+      <Card className={w.frozen ? "opacity-60" : ""}>
+        <CardContent className="p-5">
+          {/* Status bar */}
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <div className={`w-2 h-2 rounded-full ${w.frozen ? "bg-zinc-400" : "bg-emerald-500"}`} />
+              <span className="text-xs text-zinc-500">{w.frozen ? "Frozen" : "Active"}</span>
+              {w.isGoogle && <Badge variant="outline" className="text-[10px]">Google</Badge>}
+              {!w.hasPolicy && <Badge variant="outline" className="text-[10px]">No Policy</Badge>}
+            </div>
+            {w.updatedAt && (
+              <span className="text-[10px] text-zinc-400">
+                {new Date(w.updatedAt / 1_000_000).toLocaleDateString()}
+              </span>
+            )}
+          </div>
+
+          {/* Address */}
+          <CopyableAddress
+            address={w.address}
+            href={`https://near.rocks/account/${w.address}`}
+            as="a"
+          />
+
+          {/* Balances */}
+          <div className="mt-4">
+            <WalletBalancesSection apiKey={w.apiKey} accountId={w.pubkey} />
+          </div>
+
+          {/* API Key row */}
+          {w.apiKey && (
+            <div className="mt-4 pt-3 border-t border-zinc-100 flex items-center gap-2">
+              <Key size={12} className="text-zinc-400 shrink-0" />
+              <code className="text-[11px] font-mono bg-zinc-100 px-2 py-0.5 rounded text-zinc-500 select-all flex-1 min-w-0 truncate">
+                {revealed ? w.apiKey : w.apiKey.substring(0, 6) + "..." + w.apiKey.slice(-4)}
+              </code>
+              <button onClick={() => onToggleReveal(w.pubkey)} className="text-zinc-400 hover:text-zinc-600 p-1 shrink-0">
+                {revealed ? <EyeOff size={14} /> : <Eye size={14} />}
+              </button>
+              <button onClick={() => onCopyKey(w.apiKey!)} className="text-zinc-400 hover:text-zinc-600 p-1 shrink-0">
+                <Copy size={14} />
+              </button>
+              <button onClick={() => onRemoveKey(w.pubkey)} className="text-zinc-400 hover:text-red-500 p-1 shrink-0">
+                <Trash2 size={14} />
+              </button>
+            </div>
+          )}
+
+          {/* Action buttons */}
+          <div className="flex items-center gap-2 mt-4 pt-3 border-t border-zinc-100 flex-wrap">
+            {w.apiKey ? (
+              <Link to={`/handoff?key=${w.apiKey}`}>
+                <Button variant="outline" size="sm"><ShieldCheck size={14} /> Policy</Button>
+              </Link>
+            ) : (
+              <Button variant="outline" size="sm" disabled className="opacity-40">
+                <ShieldCheck size={14} /> Policy
+              </Button>
+            )}
+            {w.hasPolicy && onFreeze && onUnfreeze && (
+              w.frozen ? (
+                <Button size="sm" variant="outline" onClick={() => onUnfreeze(w.pubkey)} disabled={submitting}>
+                  Unfreeze
+                </Button>
+              ) : (
+                <Button size="sm" variant="ghost" onClick={() => onFreeze(w.pubkey)} disabled={submitting}>
+                  <Snowflake size={14} /> Freeze
+                </Button>
+              )
+            )}
+            {googleUser && !w.isGoogle && w.apiKey && onLinkGoogle && (
+              <Button size="sm" variant="ghost" disabled={googleAuthLoading || submitting}
+                onClick={() => onLinkGoogle(w.apiKey!, w.address)}>
+                <Link2 size={14} /> Sync
+              </Button>
+            )}
+            {w.isGoogle && w.apiKey && onUnlinkGoogle && (
+              <Button size="sm" variant="ghost" disabled={googleAuthLoading || submitting} onClick={onUnlinkGoogle}>
+                <Unlink size={14} /> Unlink
+              </Button>
+            )}
+            {!w.apiKey && (
+              <span className="text-[11px] text-zinc-400">Save an API key to manage this wallet</span>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Swipe arrows for mobile */}
+      {showNav && (
+        <div className="flex items-center justify-between mt-2 px-2">
+          <button
+            onClick={() => onSelect(Math.max(0, selectedIdx - 1))}
+            disabled={selectedIdx === 0}
+            className="text-zinc-400 hover:text-zinc-600 disabled:opacity-20 p-1"
+          >
+            <ChevronLeft size={20} />
+          </button>
+          <span className="text-xs text-zinc-400">
+            {selectedIdx + 1} / {wallets.length}
+          </span>
+          <button
+            onClick={() => onSelect(Math.min(wallets.length - 1, selectedIdx + 1))}
+            disabled={selectedIdx === wallets.length - 1}
+            className="text-zinc-400 hover:text-zinc-600 disabled:opacity-20 p-1"
+          >
+            <ChevronRight size={20} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 
-function WalletCard({
-  pubkey, apiKey, isGoogle, revealed, onToggleReveal, onCopyKey, onRemoveKey,
-}: {
-  pubkey: string; apiKey: string; isGoogle: boolean; revealed: boolean;
-  onToggleReveal: () => void; onCopyKey: () => void; onRemoveKey: () => void;
-}) {
+// ─── Flash message ──────────────────────────────────────────────────
+
+function Flash({ kind, children }: { kind: "error" | "success"; children: React.ReactNode }) {
   return (
-    <Card className="border-dashed border-2 border-zinc-200">
-      <CardContent className="p-4">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="text-sm font-medium">
-            {isGoogle ? "Google Wallet" : "Wallet"}
-          </span>
-          <Badge variant="outline" className="text-[10px]">No Policy</Badge>
-        </div>
-        <CopyableAddress
-          address={pubkey.replace(/^ed25519:/, "")}
-          href={`https://near.rocks/account/${pubkey.replace(/^ed25519:/, "")}`}
-          as="a"
-        />
-        <WalletBalancesSection apiKey={apiKey} accountId={pubkey} />
-        <div className="mt-3 pt-3 border-t border-zinc-100">
-          <ApiKeyDisplay
-            pubkey={pubkey}
-            apiKey={apiKey}
-            isGoogle={isGoogle}
-            revealed={revealed}
-            onToggleReveal={onToggleReveal}
-            onCopy={onCopyKey}
-            onRemove={onRemoveKey}
-          />
-        </div>
-      </CardContent>
-    </Card>
+    <div className={`mb-3 border-l-4 rounded-r-lg p-3 ${kind === "error" ? "bg-red-500/10 border-red-500" : "bg-emerald-500/10 border-emerald-500"}`}>
+      <p className={`text-sm ${kind === "error" ? "text-red-400" : "text-emerald-400"}`}>{children}</p>
+    </div>
   );
 }
