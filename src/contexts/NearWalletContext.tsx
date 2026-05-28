@@ -393,8 +393,8 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
         nearAccountId: nearAccount,
       });
 
-      // Sync wallet labels (push local → remote) — idToken is ephemeral, use it now
-      syncLabels(idToken).catch(() => {});
+      // Sync wallet labels (push local → remote) — uses cached google_sub
+      syncLabels().catch(() => {});
     } finally {
       setGoogleAuthLoading(false);
     }
@@ -535,26 +535,25 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const handleSyncWalletLabels = useCallback(async (): Promise<import("@/lib/api").WalletLabel[]> => {
-    if (!googleUser) return [];
+    if (!googleUser?.sub) return [];
     try {
-      const idToken = await handleGetGoogleIdToken();
-      return await fetchWalletLabels(idToken);
+      return await fetchWalletLabels(undefined, googleUser.sub);
     } catch {
       return [];
     }
-  }, [googleUser, handleGetGoogleIdToken]);
+  }, [googleUser]);
 
   const handleSetRemoteWalletLabel = useCallback(async (label: string, walletIndex: number) => {
-    if (!googleUser) return;
-    const idToken = await handleGetGoogleIdToken();
-    await setWalletLabel(idToken, label, walletIndex);
-  }, [googleUser, handleGetGoogleIdToken]);
+    if (!googleUser?.sub) return;
+    await setWalletLabel(undefined, label, walletIndex, googleUser.sub);
+  }, [googleUser]);
 
-  /** Push local wallet labels to remote WASM storage (call when idToken is fresh) */
-  const syncLabels = useCallback(async (idToken: string) => {
+  /** Sync labels using cached google_sub — no Google popup needed */
+  const syncLabels = useCallback(async () => {
+    if (!googleUser?.sub) return;
     try {
       // 1. Pull remote labels first
-      const remote = await fetchWalletLabels(idToken);
+      const remote = await fetchWalletLabels(undefined, googleUser.sub);
       const entries = getAllWalletKeys();
       const pks = Object.keys(entries);
 
@@ -576,11 +575,11 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
       for (let i = 0; i < mergedPks.length; i++) {
         const label = merged[mergedPks[i]]?.label;
         if (label) {
-          await setWalletLabel(idToken, label, i);
+          await setWalletLabel(undefined, label, i, googleUser.sub);
         }
       }
     } catch { /* best effort */ }
-  }, []);
+  }, [googleUser]);
 
   // -------------------------------------------------------------------------
   // Network switching

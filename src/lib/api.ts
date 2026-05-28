@@ -502,21 +502,23 @@ export interface WalletLabel {
   label: string;
 }
 
-export async function fetchWalletLabels(idToken: string): Promise<WalletLabel[]> {
+export async function fetchWalletLabels(idToken?: string, googleSub?: string): Promise<WalletLabel[]> {
   const WALLET_API_URL = import.meta.env.VITE_WALLET_API_URL || 'https://wallet-api-production-5909.up.railway.app';
-  const response = await axios.post(`${WALLET_API_URL}/api/wallet/labels`, { id_token: idToken });
+  const body: any = {};
+  if (idToken) body.id_token = idToken;
+  if (googleSub) body.google_sub = googleSub;
+  const response = await axios.post(`${WALLET_API_URL}/api/wallet/labels`, body);
   const data = response.data;
   if (data.error) throw new Error(data.error);
   return data.labels || [];
 }
 
-export async function setWalletLabel(idToken: string, label: string, walletIndex: number = 0): Promise<{ status: string }> {
+export async function setWalletLabel(idToken?: string, label?: string, walletIndex: number = 0, googleSub?: string): Promise<{ status: string }> {
   const WALLET_API_URL = import.meta.env.VITE_WALLET_API_URL || 'https://wallet-api-production-5909.up.railway.app';
-  const response = await axios.post(`${WALLET_API_URL}/api/wallet/set-label`, {
-    id_token: idToken,
-    label,
-    wallet_index: walletIndex,
-  });
+  const body: any = { label, wallet_index: walletIndex };
+  if (idToken) body.id_token = idToken;
+  if (googleSub) body.google_sub = googleSub;
+  const response = await axios.post(`${WALLET_API_URL}/api/wallet/set-label`, body);
   const data = response.data;
   if (data.error) throw new Error(data.error);
   return data;
