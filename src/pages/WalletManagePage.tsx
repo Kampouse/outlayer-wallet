@@ -144,7 +144,7 @@ export default function WalletManagePage() {
   }, [searchParams, coordinatorUrl]);
 
   // Fetch on-chain wallet policies
-  const { data: wallets = [], isSuccess } = useQuery({
+  const { data: walletsData, isSuccess } = useQuery({
     queryKey: ["wallet-policies", accountId, isConnected],
     queryFn: async () => {
       if (!isConnected || !viewMethod) return [];
@@ -161,6 +161,7 @@ export default function WalletManagePage() {
     },
     enabled: isConnected && !!accountId && !!viewMethod,
   });
+  const wallets = walletsData ?? [];
 
   const handleFreeze = async (walletPubkey: string) => {
     if (!signAndSendTransaction || !contractId) return;
