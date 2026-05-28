@@ -5,7 +5,7 @@ import { useNearWallet } from "@/contexts/NearWalletContext";
 import WalletConnectionModal from "@/components/WalletConnectionModal";
 import WalletBalancesSection from "@/components/wallet/WalletBalancesSection";
 import CopyableAddress from "@/components/CopyableAddress";
-import { getCoordinatorApiUrl, registerWallet } from "@/lib/api";
+import { getCoordinatorApiUrl, registerWallet, setWalletLabel } from "@/lib/api";
 import type { WalletLabel } from "@/lib/api";
 import { actionCreators } from "@near-js/transactions";
 import {
@@ -107,7 +107,34 @@ export default function WalletManagePage() {
 
   useEffect(() => {
     setSavedEntries(getAllWalletKeys());
-  }, [isConnected, accountId, authMethod, googleUser, googleApiKey]);
+  }, []);
+
+  // Auto-sync wallets from remote on mount (Google auth)
+  useEffect(() => {
+    if (googleUser?.sub) {
+      (async () => {
+        try {
+          const WALLET_API_URL = import.meta.env.VITE_WALLET_API_URL || 'https://wallet-api.kj95hgdgnn.workers.dev';
+          const resp = await fetch(`${WALLET_API_URL}/api/wallet/list`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ google_sub: googleUser.sub }),
+          });
+          const data = await resp.json();
+          if (data.wallets && Array.isArray(data.wallets)) {
+            for (const w of data.wallets) {
+              if (w.near_account_id && w.api_key) {
+                const pk = `ed25519:${w.near_account_id}`;
+                const existing = getAllWalletKeys()[pk];
+                saveWalletKey(pk, w.api_key, w.label || existing?.label, existing?.source || "google", existing?.googleEmail || googleUser.email);
+              }
+            }
+            setSavedEntries(getAllWalletKeys());
+          }
+        } catch { /* best effort */ }
+      })();
+    }
+  }, [googleUser]);
 
   const coordinatorUrl = getCoordinatorApiUrl(network);
 
@@ -295,9 +322,21 @@ export default function WalletManagePage() {
     setSavedEntries((prev) => { const n = { ...prev }; delete n[pk]; return n; });
   }
 
-  function renameWallet(pk: string, name: string) {
+  async function renameWallet(pk: string, name: string) {
+    // Save locally first (instant feedback)
     renameWalletKey(pk, name);
     setSavedEntries(getAllWalletKeys());
+
+    // Persist to backend if Google-linked
+    if (googleUser?.sub) {
+      try {
+        // Find the on-chain wallet index for this pubkey
+        const idx = wallets.findIndex(w => w.wallet_pubkey === pk);
+        if (idx >= 0) {
+          await setWalletLabel(undefined, name, idx, googleUser.sub);
+        }
+      } catch { /* non-blocking — label saved locally at least */ }
+    }
   }
 
   // Sync labels from WASM on mount (Google auth)
@@ -530,24 +569,42 @@ function SingleWalletView({
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2 min-w-0">
               {editing ? (
-                <input
-                  type="text"
-                  value={editVal}
-                  onChange={(e) => setEditVal(e.target.value)}
-                  onBlur={() => {
-                    if (onRename && editVal.trim()) onRename(w.pubkey, editVal.trim());
-                    setEditing(false);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && onRename && editVal.trim()) {
-                      onRename(w.pubkey, editVal.trim());
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={editVal}
+                    onChange={(e) => setEditVal(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        if (onRename && editVal.trim()) onRename(w.pubkey, editVal.trim());
+                        setEditing(false);
+                      }
+                      if (e.key === "Escape") setEditing(false);
+                    }}
+                    autoFocus
+                    className="text-sm font-semibold bg-transparent border-b border-zinc-300 outline-none flex-1 min-w-0"
+                  />
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      if (onRename && editVal.trim()) onRename(w.pubkey, editVal.trim());
                       setEditing(false);
-                    }
-                    if (e.key === "Escape") setEditing(false);
-                  }}
-                  autoFocus
-                  className="text-sm font-semibold bg-transparent border-b border-zinc-300 outline-none w-28"
-                />
+                    }}
+                    className="text-xs text-emerald-600 font-medium px-3 py-1.5 rounded-md bg-emerald-50 shrink-0 active:bg-emerald-100"
+                  >
+                    Save
+                  </button>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => setEditing(false)}
+                    className="text-xs text-zinc-400 font-medium px-2 py-1.5 shrink-0"
+                  >
+                    ✕
+                  </button>
+                </div>
               ) : (
                 <button
                   onClick={() => { setEditVal(w.label); setEditing(true); }}
@@ -625,7 +682,7 @@ function SingleWalletView({
             {googleUser && !w.isGoogle && w.apiKey && onLinkGoogle && (
               <Button size="sm" variant="ghost" disabled={googleAuthLoading || submitting}
                 onClick={() => onLinkGoogle(w.apiKey!, w.address)}>
-                <Link2 size={14} /> Sync
+                <Link2 size={14} /> Link to Google
               </Button>
             )}
             {w.isGoogle && w.apiKey && onUnlinkGoogle && (

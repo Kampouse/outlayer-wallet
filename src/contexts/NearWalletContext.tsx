@@ -364,9 +364,34 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
       let nearAccount: string;
 
       if (check.exists && check.api_key) {
-        // Wallet exists — restore
+        // Wallet exists — restore primary wallet
         apiKey = check.api_key;
         nearAccount = check.near_account_id || '';
+
+        // Also restore ALL linked wallets from /api/wallet/list
+        try {
+          const WALLET_API_URL = import.meta.env.VITE_WALLET_API_URL || 'https://wallet-api.kj95hgdgnn.workers.dev';
+          const listResp = await fetch(`${WALLET_API_URL}/api/wallet/list`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id_token: idToken }),
+          });
+          const listData = await listResp.json();
+          if (listData.wallets && Array.isArray(listData.wallets)) {
+            for (const w of listData.wallets) {
+              if (w.near_account_id && w.api_key) {
+                const pk = `ed25519:${w.near_account_id}`;
+                saveWalletKey(pk, w.api_key, w.label || undefined, "google", profile.email);
+              }
+            }
+            // Use the primary wallet (index 0) as the active one
+            const primary = listData.wallets.find((w: any) => w.index === 0);
+            if (primary) {
+              apiKey = primary.api_key;
+              nearAccount = primary.near_account_id;
+            }
+          }
+        } catch { /* best effort — primary wallet still works */ }
       } else {
         // No wallet — auto-create
         const result = await registerWalletWithGoogle(idToken);
@@ -557,34 +582,71 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
     await setWalletLabel(undefined, label, walletIndex, googleUser.sub);
   }, [googleUser]);
 
-  /** Sync labels using cached google_sub — no Google popup needed */
+  /** Sync all wallets and labels from remote → local using /api/wallet/list (WASM action 8) */
   const syncLabels = useCallback(async () => {
     if (!googleUser?.sub) return;
     try {
-      // 1. Pull remote labels first
-      const remote = await fetchWalletLabels(undefined, googleUser.sub);
-      const entries = getAllWalletKeys();
-      const pks = Object.keys(entries);
+      // 1. Fetch ALL wallets from remote (action 8 returns index, api_key, near_account_id, label)
+      const WALLET_API_URL = import.meta.env.VITE_WALLET_API_URL || 'https://wallet-api.kj95hgdgnn.workers.dev';
+      const listResp = await fetch(`${WALLET_API_URL}/api/wallet/list`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ google_sub: googleUser.sub }),
+      });
+      const listData = await listResp.json();
 
-      // Merge: remote labels → localStorage (if no local label)
-      for (const lbl of remote) {
-        if (lbl.index < pks.length && pks[lbl.index]) {
-          const pk = pks[lbl.index];
-          if (lbl.label && !entries[pk]?.label) {
-            renameWalletKey(pk, lbl.label);
+      if (listData.wallets && Array.isArray(listData.wallets)) {
+        for (const w of listData.wallets) {
+          if (w.near_account_id && w.api_key) {
+            const pk = `ed25519:${w.near_account_id}`;
+            const existing = getAllWalletKeys()[pk];
+            saveWalletKey(pk, w.api_key, w.label || existing?.label, existing?.source || "google", existing?.googleEmail || googleUser.email);
           }
         }
       }
 
-      // Re-read after merge
-      const merged = getAllWalletKeys();
-      const mergedPks = Object.keys(merged);
+      // 2. Also pull labels from dedicated endpoint as fallback
+      const remote = await fetchWalletLabels(undefined, googleUser.sub);
+      const entries = getAllWalletKeys();
 
-      // 2. Push all local labels → remote
-      for (let i = 0; i < mergedPks.length; i++) {
-        const label = merged[mergedPks[i]]?.label;
-        if (label) {
-          await setWalletLabel(undefined, label, i, googleUser.sub);
+      // Build a map of near_account_id → pk from localStorage for matching
+      const acctToPk: Record<string, string> = {};
+      for (const pk of Object.keys(entries)) {
+        const addr = pk.replace(/^ed25519:/, '');
+        acctToPk[addr] = pk;
+      }
+
+      // Merge: remote labels → localStorage (by WASM index → pubkey via near_account_id from list)
+      if (listData.wallets) {
+        const walletByIndex: Record<number, string> = {};
+        for (const w of listData.wallets) {
+          walletByIndex[w.index] = w.near_account_id;
+        }
+        for (const lbl of remote) {
+          const acct = walletByIndex[lbl.index];
+          if (acct) {
+            const pk = acctToPk[acct] || `ed25519:${acct}`;
+            if (lbl.label && !entries[pk]?.label) {
+              renameWalletKey(pk, lbl.label);
+            }
+          }
+        }
+      }
+
+      // 3. Push all local labels → remote (match by near_account_id to find WASM index)
+      const merged = getAllWalletKeys();
+      if (listData.wallets) {
+        const acctToIndex: Record<string, number> = {};
+        for (const w of listData.wallets) {
+          acctToIndex[w.near_account_id] = w.index;
+        }
+        for (const pk of Object.keys(merged)) {
+          const addr = pk.replace(/^ed25519:/, '');
+          const idx = acctToIndex[addr];
+          const label = merged[pk]?.label;
+          if (idx !== undefined && label) {
+            await setWalletLabel(undefined, label, idx, googleUser.sub);
+          }
         }
       }
     } catch { /* best effort */ }

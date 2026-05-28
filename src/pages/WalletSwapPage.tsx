@@ -129,6 +129,28 @@ export default function WalletSwapPage() {
   const tokenIn = tokenOptions.find((t) => t.id === tokenInId);
   const tokenOut = tokenOptions.find((t) => t.id === tokenOutId);
 
+  // Estimated output based on token prices
+  const estimatedOut = useMemo(() => {
+    if (!tokenIn || !tokenOut || !amount.trim()) return null;
+    const parsed = parseFloat(amount);
+    if (isNaN(parsed) || parsed <= 0) return null;
+    if (tokenIn.price == null || tokenOut.price == null || tokenIn.price <= 0 || tokenOut.price <= 0) return null;
+    const usdValue = parsed * tokenIn.price;
+    const outAmount = usdValue / tokenOut.price;
+    // Format with appropriate precision
+    if (outAmount >= 1) return outAmount.toFixed(2);
+    if (outAmount >= 0.0001) return outAmount.toFixed(4);
+    return outAmount.toFixed(8);
+  }, [tokenIn, tokenOut, amount]);
+
+  // USD value of input amount
+  const inputValueUsd = useMemo(() => {
+    if (!tokenIn || !amount.trim()) return null;
+    const parsed = parseFloat(amount);
+    if (isNaN(parsed) || parsed <= 0 || tokenIn.price == null) return null;
+    return parsed * tokenIn.price;
+  }, [tokenIn, amount]);
+
   const displayBalanceIn = useMemo(() => {
     if (!tokenIn) return "0";
     if (tokenIn.id === "near") {
@@ -441,7 +463,29 @@ export default function WalletSwapPage() {
                 </button>
               )}
             </div>
+            {inputValueUsd != null && (
+              <p className="text-xs text-muted-foreground mt-1">≈ {formatPrice(inputValueUsd)}</p>
+            )}
           </div>
+
+          {/* Estimated output */}
+          {estimatedOut && tokenOut && (
+            <div className="bg-zinc-50 border border-zinc-100 rounded-lg p-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">You receive (est.)</span>
+                {inputValueUsd != null && (
+                  <span className="text-xs text-muted-foreground">{formatPrice(inputValueUsd)}</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2 mt-1">
+                <TokenIcon symbol={tokenOut.symbol} size={20} />
+                <span className="text-base font-semibold text-foreground">
+                  ~{estimatedOut} {tokenOut.symbol}
+                </span>
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-1">Based on market prices. Final amount may differ.</p>
+            </div>
+          )}
 
           {/* Error */}
           {error && (

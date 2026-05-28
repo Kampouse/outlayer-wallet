@@ -278,6 +278,19 @@ async function resolveGoogleSub(body: any, env: Bindings): Promise<{ sub: string
   throw new Error("Missing id_token")
 }
 
+async function resolveGoogleSubRelaxed(body: any, env: Bindings): Promise<{ sub: string; email?: string }> {
+  if (body.id_token) {
+    if (!env.GOOGLE_CLIENT_ID) throw new Error("Server misconfigured: missing GOOGLE_CLIENT_ID")
+    try {
+      return await verifyGoogleIdToken(body.id_token, env.GOOGLE_CLIENT_ID)
+    } catch {
+      return await verifyGoogleAccessToken(body.id_token, env.GOOGLE_CLIENT_ID)
+    }
+  }
+  if (body.google_sub) return { sub: body.google_sub }
+  throw new Error("Missing id_token or google_sub")
+}
+
 // ── WASM Helpers ──────────────────────────────────────────────────────────
 
 async function callWasm(actionNum: number, googleSub: string, env: Bindings): Promise<any> {
@@ -295,6 +308,11 @@ async function callWasmWithInput(actionNum: number, input: Record<string, any>, 
     },
     body: JSON.stringify({ input: { action_num: actionNum, ...input } }),
   })
+
+  if (!resp.ok) {
+    const text = await resp.text()
+    throw new Error(`OutLayer API ${resp.status}: ${text}`)
+  }
 
   const result: any = await resp.json()
   if (result.status === "failed") throw new Error(result.error || "WASM execution failed")
@@ -327,13 +345,11 @@ app.post("/api/wallet_auth", async (c) => {
       return c.json({ status: "error", message: output.message }, 400)
     }
 
-    const encryptedApiKey = output.api_key ? await encryptApiKey(output.api_key, c.env) : null
-
     status = 200
     auditLog(c, googleSub, status, Date.now() - start)
     return c.json({
       status: output.status,
-      api_key: encryptedApiKey,
+      api_key: output.api_key || null,
       near_account_id: output.near_account_id || null,
     })
   } catch (err: any) {
@@ -364,13 +380,11 @@ app.post("/api/wallet/recover", async (c) => {
       return c.json({ status: "error", message: output.message }, 404)
     }
 
-    const encryptedApiKey = output.api_key ? await encryptApiKey(output.api_key, c.env) : null
-
     status = 200
     auditLog(c, googleSub, status, Date.now() - start)
     return c.json({
       status: output.status,
-      api_key: encryptedApiKey,
+      api_key: output.api_key || null,
       near_account_id: output.near_account_id || null,
     })
   } catch (err: any) {
@@ -389,16 +403,43 @@ app.post("/api/wallet/check", async (c) => {
     googleSub = sub
 
     const output = await callWasm(3, sub, c.env)
-    const encryptedApiKey = output.api_key ? await encryptApiKey(output.api_key, c.env) : null
 
     status = 200
     auditLog(c, googleSub, status, Date.now() - start)
     return c.json({
       status: output.status,
       exists: output.exists ?? false,
-      api_key: encryptedApiKey,
+      api_key: output.api_key || null,
       near_account_id: output.near_account_id || null,
     })
+  } catch (err: any) {
+    auditLog(c, googleSub, status, Date.now() - start)
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+app.post("/api/wallet/list", async (c) => {
+  const start = Date.now()
+  let googleSub: string | undefined
+  let status = 500
+  try {
+    const body = getBody(c) || await c.req.json()
+    const { sub } = await resolveGoogleSubRelaxed(body, c.env)
+    googleSub = sub
+
+    const output = await callWasm(8, sub, c.env)
+
+    // Map wallet entries (plain keys for coordinator compatibility)
+    const wallets = (output.wallets || []).map((w: any) => ({
+      index: w.index,
+      api_key: w.api_key || null,
+      near_account_id: w.near_account_id || "",
+      label: w.label || "",
+    }))
+
+    status = 200
+    auditLog(c, googleSub, status, Date.now() - start)
+    return c.json({ status: "ok", wallets })
   } catch (err: any) {
     auditLog(c, googleSub, status, Date.now() - start)
     return c.json({ error: err.message }, 500)
