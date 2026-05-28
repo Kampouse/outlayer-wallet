@@ -2,7 +2,12 @@
  * Browser-local wallet API key storage.
  *
  * Keys are stored ONLY in the browser (localStorage).
- * The server never stores plaintext API keys — only SHA256 hashes.
+ * The backend encrypts API keys at rest (AES-GCM, base64-encoded) before
+ * returning them to the client. The frontend stores whatever the backend
+ * returns — no client-side encryption/decryption is needed. When sending
+ * an api_key back to the server (e.g. for link actions), the server
+ * handles decryption.
+ *
  * Users should back up their keys independently.
  */
 
@@ -100,12 +105,13 @@ export async function computeKeyHash(key: string): Promise<string> {
 
 /** Validate wallet API key format. Returns error message or null if valid. */
 export function validateWalletKeyFormat(key: string): string | null {
-  if (!key.startsWith("wk_")) return 'Key must start with "wk_"';
-  if (key.length !== 67)
-    return `Key must be 67 characters (wk_ + 64 hex), got ${key.length}`;
-  if (!/^wk_[0-9a-f]{64}$/.test(key))
-    return "Key must be wk_ followed by 64 lowercase hex characters";
-  return null;
+  if (!key || typeof key !== "string") return "Key is required";
+  // Accept legacy plaintext keys (wk_ + 64 hex chars)
+  if (/^wk_[0-9a-f]{64}$/.test(key)) return null;
+  // Accept encrypted keys (base64-encoded blobs from the backend)
+  // Base64 characters: A-Z, a-z, 0-9, +, /, optionally padded with =
+  if (/^[A-Za-z0-9+/]+=*$/.test(key) && key.length >= 16) return null;
+  return "Key must be a valid wk_ hex key or an encrypted (base64) key";
 }
 
 /** Generate a random wallet API key */

@@ -75,18 +75,27 @@ interface GoogleSession {
   picture: string;
   apiKey: string;
   nearAccountId: string;
+  savedAt: number; // epoch ms — used for 24-hour session expiry
 }
 
-function saveGoogleSession(session: GoogleSession) {
+const SESSION_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+function saveGoogleSession(session: Omit<GoogleSession, 'savedAt'>) {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(GOOGLE_SESSION_KEY, JSON.stringify(session));
+  localStorage.setItem(GOOGLE_SESSION_KEY, JSON.stringify({ ...session, savedAt: Date.now() }));
 }
 
 function loadGoogleSession(): GoogleSession | null {
   if (typeof window === 'undefined') return null;
   try {
     const raw = localStorage.getItem(GOOGLE_SESSION_KEY);
-    return raw ? JSON.parse(raw) : null;
+    if (!raw) return null;
+    const session: GoogleSession = JSON.parse(raw);
+    if (!session.savedAt || Date.now() - session.savedAt > SESSION_TTL_MS) {
+      clearGoogleSession();
+      return null;
+    }
+    return session;
   } catch {
     return null;
   }
