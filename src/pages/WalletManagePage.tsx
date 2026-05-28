@@ -15,6 +15,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 interface WalletPolicy {
   wallet_pubkey: string;
@@ -31,15 +38,55 @@ export default function WalletManagePage() {
     contractId,
     viewMethod,
     signAndSendTransaction,
+    authMethod,
+    googleUser,
+    googleApiKey,
+    googleWalletExists,
+    createGoogleWallet,
+    linkWalletToGoogle,
+    unlinkWalletFromGoogle,
+    googleAuthLoading,
+    loginModalOpen,
+    requestLogin,
+    closeLoginModal,
   } = useNearWallet();
   const coordinatorUrl = getCoordinatorApiUrl(network);
   const searchParams = new URLSearchParams(useLocation().search);
   const queryClient = useQueryClient();
 
-  const [showWalletModal, setShowWalletModal] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importKey, setImportKey] = useState("");
+
+  const handleImportKey = async () => {
+    const key = importKey.trim();
+    if (!key) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const resp = await fetch(`${coordinatorUrl}/wallet/v1/address?chain=near`, {
+        headers: { Authorization: `Bearer ${key}` },
+      });
+      if (!resp.ok) {
+        setError(`Invalid API key: HTTP ${resp.status}`);
+        return;
+      }
+      const data = await resp.json();
+      const pk = `ed25519:${data.address}`;
+      saveWalletKey(pk, key, 'imported');
+      setSavedEntries(getAllWalletKeys());
+      setSuccess('API key saved!');
+      setImportModalOpen(false);
+      setImportKey("");
+      setTimeout(() => setSuccess(null), 2000);
+    } catch (e: any) {
+      setError(e?.message || 'Failed to import key');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   // API key wallet (from ?key=wk_... query param)
   const [apiKeyWallet, setApiKeyWallet] = useState<{
@@ -48,20 +95,15 @@ export default function WalletManagePage() {
   } | null>(null);
 
   // Saved API keys from localStorage
-  const [savedKeys, setSavedKeys] = useState<Record<string, string>>({});
+  const [savedEntries, setSavedEntries] = useState<Record<string, import("@/lib/wallet-keys").StoredKey>>({});
   const [showKeyInput, setShowKeyInput] = useState<string | null>(null);
   const [keyInput, setKeyInput] = useState("");
   const [revealedKeys, setRevealedKeys] = useState<Set<string>>(new Set());
 
-  // Load saved keys on mount
+  // Load saved keys on mount AND whenever connection state changes (Google auth may add new keys)
   useEffect(() => {
-    const all = getAllWalletKeys();
-    const map: Record<string, string> = {};
-    for (const [pk, entry] of Object.entries(all)) {
-      map[pk] = entry.apiKey;
-    }
-    setSavedKeys(map);
-  }, []);
+    setSavedEntries(getAllWalletKeys());
+  }, [isConnected, googleApiKey]);
 
   // Also save key from URL param if we know the wallet pubkey
   useEffect(() => {
@@ -69,7 +111,7 @@ export default function WalletManagePage() {
     if (apiKey && apiKeyWallet) {
       const pk = `ed25519:${apiKeyWallet.address}`;
       saveWalletKey(pk, apiKey);
-      setSavedKeys((prev) => ({ ...prev, [pk]: apiKey }));
+      setSavedEntries((prev) => ({ ...prev, [pk]: { ...(prev[pk] || {}), apiKey, savedAt: new Date().toISOString() } }));
     }
   }, [apiKeyWallet, searchParams]);
 
@@ -174,7 +216,7 @@ export default function WalletManagePage() {
 
   /** Get the API key for a wallet — from saved keys or URL param */
   const getWalletApiKey = (walletPubkey: string): string | null => {
-    return savedKeys[walletPubkey] || searchParams.get("key") || null;
+    return savedEntries[walletPubkey]?.apiKey || searchParams.get("key") || null;
   };
 
   const formatTimestamp = (nanos: number) => {
@@ -182,7 +224,7 @@ export default function WalletManagePage() {
   };
 
   /** Simple inline API key display: Local: [masked/key] [show/hide] [copy] [remove] */
-  const renderApiKeyRow = (pk: string, apiKey: string) => (
+  const renderApiKeyRow = (pk: string, apiKey: string, isGoogle?: boolean) => (
     <div className="flex flex-wrap items-center gap-2">
       <span className="text-xs text-zinc-400">Local:</span>
       <code className="text-xs font-mono bg-zinc-100 px-2 py-0.5 rounded select-all text-zinc-600">
@@ -212,10 +254,13 @@ export default function WalletManagePage() {
       >
         copy
       </button>
+      {isGoogle ? (
+        <span className="text-xs text-zinc-400 italic">sign in with Google to recover</span>
+      ) : null}
       <button
         onClick={() => {
           removeWalletKey(pk);
-          setSavedKeys((prev) => {
+          setSavedEntries((prev) => {
             const n = { ...prev };
             delete n[pk];
             return n;
@@ -223,7 +268,7 @@ export default function WalletManagePage() {
         }}
         className="text-xs text-red-500 hover:text-red-400 px-1"
       >
-        remove
+        {isGoogle ? "remove from device" : "remove"}
       </button>
     </div>
   );
@@ -242,15 +287,15 @@ export default function WalletManagePage() {
         )}
 
         {/* Saved API key wallets — visible even without NEAR connection */}
-        {Object.keys(savedKeys).length > 0 ? (
-          Object.keys(savedKeys).map((pubkey) => (
+        {Object.keys(savedEntries).length > 0 ? (
+          Object.keys(savedEntries).map((pubkey) => (
             <Card key={pubkey} className="mb-4 border-2 border-dashed border-zinc-300">
               <CardContent className="p-4 sm:p-6">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <div>
                     <div className="flex items-center space-x-2">
                       <span className="text-sm font-medium text-zinc-900">
-                        Intent Wallet
+                        {savedEntries[pubkey]?.source === "google" ? "Google Wallet" : "Intent Wallet"}
                       </span>
                       <Badge variant="outline">No Policy</Badge>
                     </div>
@@ -261,7 +306,7 @@ export default function WalletManagePage() {
                     />
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <Link to={`/handoff?key=${savedKeys[pubkey]}`}>
+                    <Link to={`/handoff?key=${savedEntries[pubkey]?.apiKey}`}>
                       <Button size="sm">Set Policy</Button>
                     </Link>
                   </div>
@@ -272,10 +317,10 @@ export default function WalletManagePage() {
                   <div className="mb-2">
                     <span className="text-xs font-semibold text-zinc-600">API Key</span>
                   </div>
-                  {renderApiKeyRow(pubkey, savedKeys[pubkey])}
+                  {renderApiKeyRow(pubkey, savedEntries[pubkey]?.apiKey || "", savedEntries[pubkey]?.source === "google")}
                 </div>
 
-                <WalletBalancesSection apiKey={savedKeys[pubkey]} accountId={pubkey} />
+                <WalletBalancesSection apiKey={savedEntries[pubkey]?.apiKey} accountId={pubkey} />
               </CardContent>
             </Card>
           ))
@@ -290,42 +335,53 @@ export default function WalletManagePage() {
               </div>
               <h2 className="text-sm font-semibold text-zinc-900 mb-1">No wallets yet</h2>
               <p className="text-zinc-500 text-sm mb-6 max-w-xs mx-auto">
-                Connect your NEAR wallet to manage on-chain policies, or save an API key to view an intent wallet.
+                Sign in with Google to create or recover your wallet, or connect a NEAR wallet.
               </p>
               <div className="flex flex-col items-center gap-3">
-                <Button onClick={() => setShowWalletModal(true)} size="lg">
+                <Button onClick={requestLogin} size="lg">
                   Connect NEAR Wallet
                 </Button>
-                <Button
-                  onClick={async () => {
-                    setSubmitting(true);
-                    setError(null);
-                    try {
-                      const res = await registerWallet(network);
-                      const pk = `ed25519:${res.near_account_id}`;
-                      saveWalletKey(pk, res.api_key, "registered wallet");
-                      setSavedKeys((prev: Record<string, string>) => ({ ...prev, [pk]: res.api_key }));
-                      setSuccess("Wallet created! Your API key has been saved.");
-                    } catch (e: any) {
-                      setError(e?.response?.data?.error || e?.message || "Failed to create wallet");
-                    } finally {
-                      setSubmitting(false);
-                    }
-                  }}
-                  size="lg"
-                  variant="outline"
-                  disabled={submitting}
-                >
-                  {submitting ? "Creating..." : "Create Wallet"}
-                </Button>
+                {/* Google user signed in but no wallet yet → show Create */}
+                {googleUser && googleWalletExists === false && (
+                  <Button
+                    onClick={async () => {
+                      setSubmitting(true);
+                      setError(null);
+                      try {
+                        await createGoogleWallet();
+                        setSuccess("Wallet created!");
+                        setSavedEntries(getAllWalletKeys());
+                      } catch (e: any) {
+                        setError(e?.message || "Failed to create wallet");
+                      } finally {
+                        setSubmitting(false);
+                      }
+                    }}
+                    size="lg"
+                    variant="outline"
+                    disabled={submitting || googleAuthLoading}
+                  >
+                    {submitting ? "Creating..." : "Create Wallet"}
+                  </Button>
+                )}
+                {/* Google user already has wallet → disabled */}
+                {googleUser && googleWalletExists === true && (
+                  <p className="text-xs text-emerald-600 font-medium">
+                    ✓ Wallet already linked to your Google account
+                  </p>
+                )}
+                {!googleUser && (
+                  <Button
+                    onClick={requestLogin}
+                    size="lg"
+                    variant="outline"
+                  >
+                    Sign in with Google
+                  </Button>
+                )}
                 <span className="text-xs text-zinc-400">or save an API key below</span>
                 <button
-                  onClick={() => {
-                    const key = prompt("Paste your OutLayer API key (wk_...):");
-                    if (key?.trim()) {
-                      window.location.href = `${window.location.pathname}?key=${encodeURIComponent(key.trim())}`;
-                    }
-                  }}
+                  onClick={() => setImportModalOpen(true)}
                   className="text-sm text-zinc-900 hover:underline font-medium"
                 >
                   + Add API Key
@@ -336,9 +392,10 @@ export default function WalletManagePage() {
         )}
 
         <WalletConnectionModal
-          isOpen={showWalletModal}
-          onClose={() => setShowWalletModal(false)}
+          isOpen={loginModalOpen}
+          onClose={closeLoginModal}
         />
+
       </div>
     );
   }
@@ -369,7 +426,7 @@ export default function WalletManagePage() {
               const res = await registerWallet(network);
               const pk = `ed25519:${res.near_account_id}`;
               saveWalletKey(pk, res.api_key, "registered wallet");
-              setSavedKeys((prev: Record<string, string>) => ({ ...prev, [pk]: res.api_key }));
+              setSavedEntries((prev) => ({ ...prev, [pk]: { apiKey: res.api_key, savedAt: new Date().toISOString(), source: "manual" as const } }));
               setSuccess("Wallet created! Your API key has been saved.");
             } catch (e: any) {
               setError(e?.response?.data?.error || e?.message || "Failed to create wallet");
@@ -384,12 +441,7 @@ export default function WalletManagePage() {
         <Button
           size="sm"
           variant="outline"
-          onClick={() => {
-            const key = prompt("Paste your OutLayer API key (wk_...):");
-            if (key?.trim()) {
-              window.location.href = `${window.location.pathname}?key=${encodeURIComponent(key.trim())}`;
-            }
-          }}
+          onClick={() => setImportModalOpen(true)}
         >
           Import API Key
         </Button>
@@ -432,7 +484,7 @@ export default function WalletManagePage() {
         )}
 
       {/* Saved API key wallets that have no on-chain policy (intent-only, etc.) */}
-      {Object.keys(savedKeys)
+      {Object.keys(savedEntries)
         .filter(
           (pk) =>
             !wallets.some((w) => w.wallet_pubkey === pk) &&
@@ -445,7 +497,7 @@ export default function WalletManagePage() {
                 <div>
                   <div className="flex items-center space-x-2">
                     <span className="text-sm font-medium text-zinc-900">
-                      Intent Wallet
+                      {savedEntries[pubkey]?.source === "google" ? "Google Wallet" : "Intent Wallet"}
                     </span>
                     <Badge variant="outline">No Policy</Badge>
                   </div>
@@ -458,9 +510,32 @@ export default function WalletManagePage() {
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                    <Link to={`/handoff?key=${savedKeys[pubkey]}`}>
+                    <Link to={`/handoff?key=${savedEntries[pubkey]?.apiKey}`}>
                       <Button size="sm">Set Policy</Button>
                   </Link>
+                  {googleUser && savedEntries[pubkey]?.source !== "google" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={googleAuthLoading}
+                      onClick={async () => {
+                        setSubmitting(true);
+                        setError(null);
+                        try {
+                          const nearAcct = pubkey.replace(/^ed25519:/, '');
+                          await linkWalletToGoogle(savedEntries[pubkey]?.apiKey || '', nearAcct);
+                          setSuccess('Wallet linked to Google!');
+                          setSavedEntries(getAllWalletKeys());
+                        } catch (e: any) {
+                          setError(e?.message || 'Failed to link wallet');
+                        } finally {
+                          setSubmitting(false);
+                        }
+                      }}
+                    >
+                      {submitting ? 'Linking...' : 'Sync with Google'}
+                    </Button>
+                  )}
                 </div>
               </div>
 
@@ -469,16 +544,16 @@ export default function WalletManagePage() {
                 <div className="mb-2">
                   <span className="text-xs font-semibold text-zinc-600">API Key</span>
                 </div>
-                {renderApiKeyRow(pubkey, savedKeys[pubkey])}
+                {renderApiKeyRow(pubkey, savedEntries[pubkey]?.apiKey || "", savedEntries[pubkey]?.source === "google")}
               </div>
 
               {/* Balances (NEAR + Intents tokens) */}
-              <WalletBalancesSection apiKey={savedKeys[pubkey]} accountId={pubkey} />
+              <WalletBalancesSection apiKey={savedEntries[pubkey]?.apiKey} accountId={pubkey} />
             </CardContent>
           </Card>
         ))}
 
-      {isSuccess && wallets.length === 0 && !apiKeyWallet && Object.keys(savedKeys).length === 0 ? (
+      {isSuccess && wallets.length === 0 && !apiKeyWallet && Object.keys(savedEntries).length === 0 ? (
         <Card>
           <CardContent className="p-8 text-center">
             <div className="w-14 h-14 rounded-2xl bg-zinc-100 flex items-center justify-center mx-auto mb-4">
@@ -535,6 +610,51 @@ export default function WalletManagePage() {
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
+                      {walletKey && savedEntries[wallet.wallet_pubkey]?.source === "google" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={googleAuthLoading || submitting}
+                          onClick={async () => {
+                            setSubmitting(true);
+                            setError(null);
+                            try {
+                              await unlinkWalletFromGoogle();
+                              setSuccess('Wallet unlinked from Google!');
+                              setSavedEntries(getAllWalletKeys());
+                            } catch (e: any) {
+                              setError(e?.message || 'Failed to unlink wallet');
+                            } finally {
+                              setSubmitting(false);
+                            }
+                          }}
+                        >
+                          {submitting ? 'Unlinking...' : 'Unlink Google'}
+                        </Button>
+                      )}
+                      {googleUser && walletKey && savedEntries[wallet.wallet_pubkey]?.source !== "google" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={googleAuthLoading || submitting}
+                          onClick={async () => {
+                            setSubmitting(true);
+                            setError(null);
+                            try {
+                              const nearAcct = wallet.wallet_pubkey.replace(/^ed25519:/, '');
+                              await linkWalletToGoogle(walletKey!, nearAcct);
+                              setSuccess('Wallet linked to Google!');
+                              setSavedEntries(getAllWalletKeys());
+                            } catch (e: any) {
+                              setError(e?.message || 'Failed to link wallet');
+                            } finally {
+                              setSubmitting(false);
+                            }
+                          }}
+                        >
+                          {submitting ? 'Linking...' : 'Sync with Google'}
+                        </Button>
+                      )}
                       {walletKey ? (
                         <Link
                           to={`/handoff?key=${walletKey}`}
@@ -579,10 +699,10 @@ export default function WalletManagePage() {
 
                     {(() => {
                       const pk = wallet.wallet_pubkey;
-                      const localKey = savedKeys[pk];
+                      const localKey = savedEntries[pk]?.apiKey;
 
                       if (localKey) {
-                        return renderApiKeyRow(pk, localKey);
+                        return renderApiKeyRow(pk, localKey, savedEntries[pk]?.source === "google");
                       }
 
                       // No key saved — show inline input
@@ -596,7 +716,7 @@ export default function WalletManagePage() {
                             onKeyDown={(e) => {
                               if (e.key === "Enter" && keyInput.trim()) {
                                 saveWalletKey(pk, keyInput.trim());
-                                setSavedKeys((prev) => ({
+                                setSavedEntries((prev) => ({
                                   ...prev,
                                   [pk]: keyInput.trim(),
                                 }));
@@ -612,7 +732,7 @@ export default function WalletManagePage() {
                             onClick={() => {
                               if (keyInput.trim()) {
                                 saveWalletKey(pk, keyInput.trim());
-                                setSavedKeys((prev) => ({
+                                setSavedEntries((prev) => ({
                                   ...prev,
                                   [pk]: keyInput.trim(),
                                 }));
@@ -661,6 +781,36 @@ export default function WalletManagePage() {
           })}
         </div>
       )}
+
+      <Dialog open={importModalOpen} onOpenChange={setImportModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Import API Key</DialogTitle>
+            <DialogDescription>
+              Paste your OutLayer API key to add an existing wallet.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <input
+              type="text"
+              placeholder="wk_..."
+              value={importKey}
+              onChange={(e) => setImportKey(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleImportKey(); }}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              autoFocus
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => { setImportModalOpen(false); setImportKey(""); }}>
+                Cancel
+              </Button>
+              <Button onClick={handleImportKey} disabled={submitting || !importKey.trim()}>
+                {submitting ? 'Importing...' : 'Import'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

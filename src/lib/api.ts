@@ -426,8 +426,78 @@ export async function registerWallet(network?: NetworkType): Promise<RegisterWal
 }
 
 /**
- * Attestation data types
+ * Register or recover a custody wallet tied to a Google account.
+ * Calls our CF Function which routes through OutLayer wallet_auth.
+ * Uses OutLayer storage for cross-device recovery.
  */
+export interface WalletAuthResponse {
+  status: string;
+  api_key: string;
+  near_account_id?: string;
+  message?: string;
+}
+
+export async function registerWalletWithGoogle(idToken: string): Promise<WalletAuthResponse> {
+  const WALLET_API_URL = import.meta.env.VITE_WALLET_API_URL || 'https://wallet-api-production-5909.up.railway.app';
+  const response = await axios.post(`${WALLET_API_URL}/api/wallet_auth`, { id_token: idToken });
+  const data = response.data;
+
+  if (data.error) {
+    throw new Error(data.error);
+  }
+  if (data.status !== 'ok') {
+    throw new Error(data.message || 'Wallet auth failed');
+  }
+  return data;
+}
+
+export interface WalletCheckResponse {
+  status: string;
+  exists: boolean;
+  api_key: string | null;
+  near_account_id: string | null;
+}
+
+export async function checkGoogleWallet(idToken: string): Promise<WalletCheckResponse> {
+  const WALLET_API_URL = import.meta.env.VITE_WALLET_API_URL || 'https://wallet-api-production-5909.up.railway.app';
+  const response = await axios.post(`${WALLET_API_URL}/api/wallet/check`, { id_token: idToken });
+  const data = response.data;
+
+  if (data.error) {
+    throw new Error(data.error);
+  }
+  return data;
+}
+
+export async function linkWalletToGoogle(idToken: string, apiKey: string, nearAccountId: string): Promise<{ status: string; linked: boolean }> {
+  const WALLET_API_URL = import.meta.env.VITE_WALLET_API_URL || 'https://wallet-api-production-5909.up.railway.app';
+  const response = await axios.post(`${WALLET_API_URL}/api/wallet/link`, {
+    id_token: idToken,
+    api_key: apiKey,
+    near_account_id: nearAccountId,
+  });
+  const data = response.data;
+
+  if (data.error) {
+    throw new Error(data.error);
+  }
+  return data;
+}
+
+export async function unlinkWalletFromGoogle(idToken: string): Promise<{ status: string; unlinked: boolean }> {
+  const WALLET_API_URL = import.meta.env.VITE_WALLET_API_URL || 'https://wallet-api-production-5909.up.railway.app';
+  const response = await axios.post(`${WALLET_API_URL}/api/wallet/unlink`, {
+    id_token: idToken,
+  });
+  const data = response.data;
+
+  if (data.error) {
+    throw new Error(data.error);
+  }
+  return data;
+}
+
+/** Attestation data types */
 export interface AttestationResponse {
   id: number;
   task_id: number;

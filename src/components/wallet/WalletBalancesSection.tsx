@@ -131,9 +131,6 @@ export default function WalletBalancesSection({
         </div>
       )}
 
-      {error && <p className="text-xs text-red-500 mb-1">{error}</p>}
-
-      {/* NEAR on-chain balance */}
       {near ? (
         <div className="flex items-center justify-between py-1">
           <span className="text-xs text-zinc-500">NEAR</span>
@@ -141,7 +138,12 @@ export default function WalletBalancesSection({
             {formatNear(near.balance)}
           </span>
         </div>
-      ) : null}
+      ) : (
+        <div className="flex items-center justify-between py-1">
+          <span className="text-xs text-zinc-500">NEAR</span>
+          <span className="text-xs font-mono font-medium text-zinc-800">0</span>
+        </div>
+      )}
 
       {/* Intents balances */}
       <div className="mt-1.5 pt-1.5 border-t border-zinc-100">
@@ -169,7 +171,10 @@ export default function WalletBalancesSection({
         )}
 
         {!intentsLoading && tokens.length === 0 && (
-          <p className="text-xs text-zinc-400">No intents balances</p>
+          <div className="flex items-center justify-between py-0.5">
+            <span className="text-xs text-zinc-500">USDC</span>
+            <span className="text-xs font-mono font-medium text-zinc-800">0</span>
+          </div>
         )}
       </div>
     </div>

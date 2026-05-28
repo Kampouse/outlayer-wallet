@@ -3,7 +3,7 @@ import { useNearWallet } from '@/contexts/NearWalletContext'
 import ThemeToggle from './ThemeToggle'
 
 export default function MobileHeader() {
-  const { accountId, isConnected, network } = useNearWallet()
+  const { accountId, isConnected, authMethod, disconnect, requestLogin } = useNearWallet()
 
   const name = isConnected && accountId
     ? accountId.length > 20
@@ -22,21 +22,39 @@ export default function MobileHeader() {
               <path d="M10 6.5L12.5 8L10 9.5V6.5Z" fill="currentColor" className="text-primary-foreground"/>
             </svg>
           </div>
-          {name ? (
-            <span className="text-sm font-medium text-foreground truncate">{name}</span>
+          {name && authMethod === 'near' ? (
+            <span className="text-sm font-medium text-foreground truncate">
+              {name}
+            </span>
           ) : (
             <span className="text-sm font-semibold text-foreground tracking-tight">Outlayer</span>
           )}
         </Link>
         <div className="flex items-center gap-1.5">
           <ThemeToggle />
-          <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-            network === 'testnet'
-              ? 'bg-amber-500/15 text-amber-400 border border-amber-500/25'
-              : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/25'
-          }`}>
-            {network === 'testnet' ? 'Testnet' : 'Mainnet'}
-          </span>
+          {isConnected ? (
+            <>
+              {authMethod === 'near' && (
+                <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
+                  NEAR
+                </span>
+              )}
+              <button
+                onClick={disconnect}
+                className="ml-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                title="Disconnect"
+              >
+                Logout
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={requestLogin}
+              className="text-xs font-medium px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+            >
+              Login
+            </button>
+          )}
         </div>
       </div>
     </header>

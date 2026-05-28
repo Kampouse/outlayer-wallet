@@ -1,5 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback, ReactNode } from 'react';
 import { NearConnector } from '@hot-labs/near-connect';
+import { googleSignIn, decodeJwt, loadGoogleGIS, type GoogleUserProfile } from '@/lib/google-auth';
+import { registerWalletWithGoogle, checkGoogleWallet, linkWalletToGoogle, unlinkWalletFromGoogle } from '@/lib/api';
+import { saveWalletKey } from '@/lib/wallet-keys';
 
 export type NetworkType = 'testnet' | 'mainnet';
 
@@ -21,6 +24,83 @@ export interface StablecoinConfig {
   symbol: string;
 }
 
+// ---------------------------------------------------------------------------
+// Google key storage helpers
+// ---------------------------------------------------------------------------
+
+const GOOGLE_KEYS_STORAGE_KEY = 'outlayer:google_keys';
+const GOOGLE_SESSION_KEY = 'outlayer:google_session';
+
+interface StoredGoogleKey {
+  apiKey: string;
+  nearAccountId: string;
+  email: string;
+  name: string;
+  picture: string;
+  savedAt: string;
+}
+
+type GoogleKeyStore = Record<string, StoredGoogleKey>; // googleSub → StoredGoogleKey
+
+function loadGoogleKeyStore(): GoogleKeyStore {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(GOOGLE_KEYS_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveGoogleKeyStore(store: GoogleKeyStore) {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(GOOGLE_KEYS_STORAGE_KEY, JSON.stringify(store));
+}
+
+function getGoogleKeyForSub(sub: string): StoredGoogleKey | null {
+  const store = loadGoogleKeyStore();
+  return store[sub] || null;
+}
+
+function saveGoogleKeyForSub(sub: string, data: StoredGoogleKey) {
+  const store = loadGoogleKeyStore();
+  store[sub] = data;
+  saveGoogleKeyStore(store);
+}
+
+interface GoogleSession {
+  sub: string;
+  email: string;
+  name: string;
+  picture: string;
+  apiKey: string;
+  nearAccountId: string;
+}
+
+function saveGoogleSession(session: GoogleSession) {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(GOOGLE_SESSION_KEY, JSON.stringify(session));
+}
+
+function loadGoogleSession(): GoogleSession | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(GOOGLE_SESSION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function clearGoogleSession() {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem(GOOGLE_SESSION_KEY);
+}
+
+// ---------------------------------------------------------------------------
+// Context type
+// ---------------------------------------------------------------------------
+
 interface NearWalletContextType {
   accountId: string | null;
   isConnected: boolean;
@@ -37,6 +117,20 @@ interface NearWalletContextType {
   signAndSendTransaction: (params: any) => Promise<any>;
   signMessage: (params: SignMessageParams) => Promise<SignedMessage | null>;
   viewMethod: (params: { contractId: string; method: string; args?: Record<string, unknown> }) => Promise<unknown>;
+  // Google auth
+  authMethod: 'near' | 'google' | null;
+  googleUser: GoogleUserProfile | null;
+  googleApiKey: string | null;
+  googleWalletExists: boolean | null; // null = not checked yet
+  connectWithGoogle: () => Promise<void>;
+  createGoogleWallet: () => Promise<void>;
+  linkWalletToGoogle: (apiKey: string, nearAccountId: string) => Promise<void>;
+  unlinkWalletFromGoogle: () => Promise<void>;
+  googleAuthLoading: boolean;
+  getApiKey: () => string | null;
+  loginModalOpen: boolean;
+  requestLogin: () => void;
+  closeLoginModal: () => void;
 }
 
 const NearWalletContext = createContext<NearWalletContextType | undefined>(undefined);
@@ -74,16 +168,53 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
   };
 
   const [network, setNetwork] = useState<NetworkType>(getInitialNetwork);
-  // Read cached accountId synchronously from localStorage — no flash
-  const [accountId, setAccountId] = useState<string | null>(() => {
+
+  // NEAR wallet state — read cached accountId synchronously from localStorage
+  const [nearAccountId, setNearAccountId] = useState<string | null>(() => {
     if (typeof window === 'undefined') return null;
     return localStorage.getItem('outlayer:cachedAccountId');
   });
+
+  // Google auth state — restore session from localStorage on mount
+  const [googleUser, setGoogleUser] = useState<GoogleUserProfile | null>(null);
+  const [googleApiKey, setGoogleApiKey] = useState<string | null>(null);
+  const [googleAccountId, setGoogleAccountId] = useState<string | null>(null);
+  const [googleAuthLoading, setGoogleAuthLoading] = useState(false);
+  const [googleWalletExists, setGoogleWalletExists] = useState<boolean | null>(null);
+  const [pendingIdToken, setPendingIdToken] = useState<string | null>(null);
+
   const [isWalletReady, setIsWalletReady] = useState(false);
   const [shouldReopenModal, setShouldReopenModal] = useState(false);
 
   const connectorRef = useRef<NearConnector | null>(null);
   const config = getNetworkConfig(network);
+
+  // Determine auth method: Google takes priority if active
+  const authMethod: 'near' | 'google' | null = googleApiKey
+    ? 'google'
+    : nearAccountId
+      ? 'near'
+      : null;
+
+  // Unified accountId — Google users get their nearAccountId from registerWallet
+  const accountId = googleApiKey ? googleAccountId : nearAccountId;
+
+  const isConnected = !!accountId;
+
+  // Restore Google session from localStorage on mount
+  useEffect(() => {
+    const session = loadGoogleSession();
+    if (session) {
+      setGoogleUser({
+        sub: session.sub,
+        email: session.email,
+        name: session.name,
+        picture: session.picture,
+      });
+      setGoogleApiKey(session.apiKey);
+      setGoogleAccountId(session.nearAccountId);
+    }
+  }, []);
 
   // Check if we should reopen modal after page reload
   useEffect(() => {
@@ -102,7 +233,7 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Initialize connector and restore session
+  // Initialize connector and restore NEAR session
   useEffect(() => {
     setIsWalletReady(false);
 
@@ -118,16 +249,16 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
       .then(({ accounts }) => {
         if (accounts.length > 0) {
           const id = accounts[0].accountId;
-          setAccountId(id);
+          setNearAccountId(id);
           localStorage.setItem('outlayer:cachedAccountId', id);
         } else {
-          setAccountId(null);
+          setNearAccountId(null);
           localStorage.removeItem('outlayer:cachedAccountId');
         }
       })
       .catch(() => {
         // No existing session — clear cache
-        setAccountId(null);
+        setNearAccountId(null);
         localStorage.removeItem('outlayer:cachedAccountId');
       })
       .finally(() => {
@@ -138,13 +269,14 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
     const handleSignIn = ({ accounts }: { accounts: Array<{ accountId: string }> }) => {
       if (accounts.length > 0) {
         const id = accounts[0].accountId;
-        setAccountId(id);
+        setNearAccountId(id);
         localStorage.setItem('outlayer:cachedAccountId', id);
+        setLoginModalOpen(false);
       }
     };
 
     const handleSignOut = () => {
-      setAccountId(null);
+      setNearAccountId(null);
       localStorage.removeItem('outlayer:cachedAccountId');
     };
 
@@ -157,6 +289,10 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
     };
   }, [network]);
 
+  // -------------------------------------------------------------------------
+  // NEAR wallet connect (unchanged)
+  // -------------------------------------------------------------------------
+
   const connect = useCallback(() => {
     if (!connectorRef.current) return;
     connectorRef.current.connect().catch(() => {
@@ -164,16 +300,225 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  // -------------------------------------------------------------------------
+  // Disconnect — handles both NEAR and Google
+  // -------------------------------------------------------------------------
+
+  const [loginModalOpen, setLoginModalOpen] = useState(false);
+  const requestLogin = useCallback(() => setLoginModalOpen(true), []);
+  const closeLoginModal = useCallback(() => setLoginModalOpen(false), []);
+
   const disconnect = useCallback(async () => {
-    if (!connectorRef.current) return;
-    try {
-      await connectorRef.current.disconnect();
-    } catch {
-      // Already disconnected
+    // Clear Google auth
+    if (googleApiKey) {
+      setGoogleUser(null);
+      setGoogleApiKey(null);
+      setGoogleAccountId(null);
+      clearGoogleSession();
     }
-    setAccountId(null);
+
+    // Clear NEAR auth
+    if (connectorRef.current && nearAccountId) {
+      try {
+        await connectorRef.current.disconnect();
+      } catch {
+        // Already disconnected
+      }
+    }
+    setNearAccountId(null);
     localStorage.removeItem('outlayer:cachedAccountId');
+  }, [googleApiKey, nearAccountId]);
+
+  // -------------------------------------------------------------------------
+  // Google Sign-In — "Sync with Google" (checks + auto-creates if needed)
+  // -------------------------------------------------------------------------
+
+  const connectWithGoogle = useCallback(async () => {
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    if (!clientId) {
+      throw new Error('Google Client ID not configured');
+    }
+
+    setGoogleAuthLoading(true);
+
+    try {
+      // Step 1: Authenticate with Google
+      const { profile, idToken } = await googleSignIn(clientId);
+
+      // Step 2: Check if wallet already exists (action_num=3, read-only)
+      const check = await checkGoogleWallet(idToken);
+
+      let apiKey: string;
+      let nearAccount: string;
+
+      if (check.exists && check.api_key) {
+        // Wallet exists — restore
+        apiKey = check.api_key;
+        nearAccount = check.near_account_id || '';
+      } else {
+        // No wallet — auto-create
+        const result = await registerWalletWithGoogle(idToken);
+        apiKey = result.api_key;
+        nearAccount = result.near_account_id || '';
+      }
+
+      // Save everything
+      saveGoogleKeyForSub(profile.sub, {
+        apiKey,
+        nearAccountId: nearAccount,
+        email: profile.email,
+        name: profile.name,
+        picture: profile.picture,
+        savedAt: new Date().toISOString(),
+      });
+
+      const pk = `ed25519:${nearAccount}`;
+      saveWalletKey(pk, apiKey, `Google: ${profile.email}`, "google", profile.email);
+
+      setGoogleUser(profile);
+      setGoogleApiKey(apiKey);
+      setGoogleAccountId(nearAccount);
+      setGoogleWalletExists(true);
+      setPendingIdToken(null);
+
+      saveGoogleSession({
+        sub: profile.sub,
+        email: profile.email,
+        name: profile.name,
+        picture: profile.picture,
+        apiKey,
+        nearAccountId: nearAccount,
+      });
+    } finally {
+      setGoogleAuthLoading(false);
+    }
   }, []);
+
+  // -------------------------------------------------------------------------
+  // Create Google Wallet (only called when user clicks "Create Wallet")
+  // -------------------------------------------------------------------------
+
+  const createGoogleWallet = useCallback(async () => {
+    if (!pendingIdToken || !googleUser) {
+      throw new Error('Sign in with Google first');
+    }
+
+    setGoogleAuthLoading(true);
+
+    try {
+      const result = await registerWalletWithGoogle(pendingIdToken);
+      const apiKey = result.api_key;
+      const nearAccount = result.near_account_id || '';
+
+      saveGoogleKeyForSub(googleUser.sub, {
+        apiKey,
+        nearAccountId: nearAccount,
+        email: googleUser.email,
+        name: googleUser.name,
+        picture: googleUser.picture,
+        savedAt: new Date().toISOString(),
+      });
+
+      const pk = `ed25519:${nearAccount}`;
+      saveWalletKey(pk, apiKey, `Google: ${googleUser.email}`, "google", googleUser.email);
+
+      setGoogleApiKey(apiKey);
+      setGoogleAccountId(nearAccount);
+      setGoogleWalletExists(true);
+      setPendingIdToken(null);
+
+      saveGoogleSession({
+        sub: googleUser.sub,
+        email: googleUser.email,
+        name: googleUser.name,
+        picture: googleUser.picture,
+        apiKey,
+        nearAccountId: nearAccount,
+      });
+    } finally {
+      setGoogleAuthLoading(false);
+    }
+  }, [pendingIdToken, googleUser]);
+
+  // -------------------------------------------------------------------------
+  // Link existing wallet to Google account
+  // -------------------------------------------------------------------------
+
+  const handleLinkWalletToGoogle = useCallback(async (apiKey: string, nearAccountId: string) => {
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    if (!clientId) throw new Error('Google Client ID not configured');
+
+    setGoogleAuthLoading(true);
+    try {
+      const { profile, idToken } = await googleSignIn(clientId);
+      await linkWalletToGoogle(idToken, apiKey, nearAccountId);
+
+      // Save Google session with the linked wallet
+      saveGoogleKeyForSub(profile.sub, {
+        apiKey,
+        nearAccountId,
+        email: profile.email,
+        name: profile.name,
+        picture: profile.picture,
+        savedAt: new Date().toISOString(),
+      });
+
+      const pk = `ed25519:${nearAccountId}`;
+      saveWalletKey(pk, apiKey, `Google: ${profile.email}`, "google", profile.email);
+
+      setGoogleUser(profile);
+      setGoogleApiKey(apiKey);
+      setGoogleAccountId(nearAccountId);
+      setGoogleWalletExists(true);
+
+      saveGoogleSession({
+        sub: profile.sub,
+        email: profile.email,
+        name: profile.name,
+        picture: profile.picture,
+        apiKey,
+        nearAccountId,
+      });
+    } finally {
+      setGoogleAuthLoading(false);
+    }
+  }, []);
+
+  const handleUnlinkWalletFromGoogle = useCallback(async () => {
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    if (!clientId) throw new Error('Google Client ID not configured');
+
+    setGoogleAuthLoading(true);
+    try {
+      const { idToken } = await googleSignIn(clientId);
+      await unlinkWalletFromGoogle(idToken);
+
+      setGoogleUser(null);
+      setGoogleApiKey(null);
+      setGoogleAccountId(null);
+      setGoogleWalletExists(false);
+      clearGoogleSession();
+    } finally {
+      setGoogleAuthLoading(false);
+    }
+  }, []);
+
+  // -------------------------------------------------------------------------
+  // getApiKey — returns the current API key regardless of auth method
+  // -------------------------------------------------------------------------
+
+  const getApiKey = useCallback((): string | null => {
+    // Google auth users have a direct API key
+    if (googleApiKey) return googleApiKey;
+
+    // For NEAR wallet users, we need to find their key from wallet-keys store
+    // This requires knowing the wallet's public key — callers should handle this
+    return null;
+  }, [googleApiKey]);
+
+  // -------------------------------------------------------------------------
+  // Network switching
+  // -------------------------------------------------------------------------
 
   const switchNetwork = useCallback(async (newNetwork: NetworkType) => {
     // Store selected network in localStorage
@@ -182,18 +527,22 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('near-wallet-selector:reopenModal', 'true');
 
     // Disconnect current wallet before switching
-    if (connectorRef.current && accountId) {
+    if (connectorRef.current && nearAccountId) {
       try {
         await connectorRef.current.disconnect();
       } catch {
         // Already disconnected
       }
-      setAccountId(null);
+      setNearAccountId(null);
     }
 
     // Set new network — useEffect will reinitialize connector
     setNetwork(newNetwork);
-  }, [accountId]);
+  }, [nearAccountId]);
+
+  // -------------------------------------------------------------------------
+  // Transaction helpers (NEAR wallet only)
+  // -------------------------------------------------------------------------
 
   const signAndSendTransaction = useCallback(async (params: any) => {
     const connector = connectorRef.current;
@@ -204,7 +553,7 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
 
   const signMessage = useCallback(async (params: SignMessageParams): Promise<SignedMessage | null> => {
     const connector = connectorRef.current;
-    if (!connector || !accountId) throw new Error('Wallet not connected');
+    if (!connector || !nearAccountId) throw new Error('Wallet not connected');
 
     try {
       const wallet = await connector.wallet();
@@ -214,7 +563,7 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
         recipient: params.recipient,
         nonce: Buffer.from(params.nonce, 'base64'),
         network: network,
-        signerId: accountId,
+        signerId: nearAccountId,
       });
 
       return {
@@ -226,7 +575,7 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
       console.error('Error signing message:', error);
       throw error;
     }
-  }, [accountId, network]);
+  }, [nearAccountId, network]);
 
   const viewMethod = useCallback(async (params: { contractId: string; method: string; args?: Record<string, unknown> }) => {
     const response = await fetch(config.rpcUrl, {
@@ -265,7 +614,7 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
     <NearWalletContext.Provider
       value={{
         accountId,
-        isConnected: !!accountId,
+        isConnected,
         isWalletReady,
         network,
         contractId: config.contractId,
@@ -279,6 +628,20 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
         signAndSendTransaction,
         signMessage,
         viewMethod,
+        // Google auth
+        authMethod,
+        googleUser,
+        googleApiKey,
+        googleWalletExists,
+        connectWithGoogle,
+        createGoogleWallet,
+        linkWalletToGoogle: handleLinkWalletToGoogle,
+        unlinkWalletFromGoogle: handleUnlinkWalletFromGoogle,
+        googleAuthLoading,
+        getApiKey,
+        loginModalOpen,
+        requestLogin,
+        closeLoginModal,
       }}
     >
       {children}

@@ -12,6 +12,8 @@ export interface StoredKey {
   apiKey: string;
   savedAt: string;
   label?: string;
+  source?: "google" | "manual";
+  googleEmail?: string;
 }
 
 type KeyStore = Record<string, StoredKey>; // walletPubkey → StoredKey
@@ -36,9 +38,11 @@ export function saveWalletKey(
   walletPubkey: string,
   apiKey: string,
   label?: string,
+  source?: "google" | "manual",
+  googleEmail?: string,
 ) {
   const store = load();
-  store[walletPubkey] = { apiKey, savedAt: new Date().toISOString(), label };
+  store[walletPubkey] = { apiKey, savedAt: new Date().toISOString(), label, source, googleEmail };
   save(store);
 }
 

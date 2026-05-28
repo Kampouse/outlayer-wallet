@@ -1,0 +1,11 @@
+name = "outlayer-wallet-api"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+[assets]
+directory = "../dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+[vars]
+# PAYMENT_KEY set via: wrangler secret put PAYMENT_KEY

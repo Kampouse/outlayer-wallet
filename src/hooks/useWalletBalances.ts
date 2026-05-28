@@ -64,26 +64,26 @@ export function useWalletBalances(
     queryFn: async () => {
       if (!accountId || allTokens.length === 0) return [];
 
+      let balances: string[];
       try {
         const tokenIds = allTokens.map((t) => t.defuse_asset_id);
-        const balances = await fetchIntentsBalancesBatch(accountId, tokenIds);
-
-        // Pair balances with catalog metadata (including price), filter to non-zero
-        return allTokens
-          .map((token, i) => ({
-            symbol: token.symbol,
-            decimals: token.decimals,
-            balance: balances[i] ?? "0",
-            defuse_asset_id: token.defuse_asset_id,
-            chains: token.chains,
-            price: token.price,
-          }))
-          .filter((t) => t.balance !== "0") as TokenBalance[];
-      } catch (err) {
-        throw new Error(
-          `Intents balance query failed: ${err instanceof Error ? err.message : String(err)}`,
-        );
+        balances = await fetchIntentsBalancesBatch(accountId, tokenIds);
+      } catch {
+        // Server error — show zeros instead of crashing
+        balances = allTokens.map(() => "0");
       }
+
+      // Pair balances with catalog metadata (including price), filter to non-zero
+      return allTokens
+        .map((token, i) => ({
+          symbol: token.symbol,
+          decimals: token.decimals,
+          balance: balances[i] ?? "0",
+          defuse_asset_id: token.defuse_asset_id,
+          chains: token.chains,
+          price: token.price,
+        }))
+        .filter((t) => t.balance !== "0") as TokenBalance[];
     },
     enabled: !!accountId && allTokens.length > 0,
     staleTime: 0,
