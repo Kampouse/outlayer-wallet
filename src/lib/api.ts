@@ -438,7 +438,7 @@ export interface WalletAuthResponse {
 }
 
 export async function registerWalletWithGoogle(idToken: string): Promise<WalletAuthResponse> {
-  const WALLET_API_URL = import.meta.env.VITE_WALLET_API_URL || 'https://wallet-api-production-5909.up.railway.app';
+  const WALLET_API_URL = import.meta.env.VITE_WALLET_API_URL || 'https://wallet-api.kj95hgdgnn.workers.dev';
   const response = await axios.post(`${WALLET_API_URL}/api/wallet_auth`, { id_token: idToken });
   const data = response.data;
 
@@ -459,7 +459,7 @@ export interface WalletCheckResponse {
 }
 
 export async function checkGoogleWallet(idToken: string): Promise<WalletCheckResponse> {
-  const WALLET_API_URL = import.meta.env.VITE_WALLET_API_URL || 'https://wallet-api-production-5909.up.railway.app';
+  const WALLET_API_URL = import.meta.env.VITE_WALLET_API_URL || 'https://wallet-api.kj95hgdgnn.workers.dev';
   const response = await axios.post(`${WALLET_API_URL}/api/wallet/check`, { id_token: idToken });
   const data = response.data;
 
@@ -470,7 +470,7 @@ export async function checkGoogleWallet(idToken: string): Promise<WalletCheckRes
 }
 
 export async function linkWalletToGoogle(idToken: string, apiKey: string, nearAccountId: string): Promise<{ status: string; linked: boolean }> {
-  const WALLET_API_URL = import.meta.env.VITE_WALLET_API_URL || 'https://wallet-api-production-5909.up.railway.app';
+  const WALLET_API_URL = import.meta.env.VITE_WALLET_API_URL || 'https://wallet-api.kj95hgdgnn.workers.dev';
   const response = await axios.post(`${WALLET_API_URL}/api/wallet/link`, {
     id_token: idToken,
     api_key: apiKey,
@@ -485,7 +485,7 @@ export async function linkWalletToGoogle(idToken: string, apiKey: string, nearAc
 }
 
 export async function unlinkWalletFromGoogle(idToken: string): Promise<{ status: string; unlinked: boolean }> {
-  const WALLET_API_URL = import.meta.env.VITE_WALLET_API_URL || 'https://wallet-api-production-5909.up.railway.app';
+  const WALLET_API_URL = import.meta.env.VITE_WALLET_API_URL || 'https://wallet-api.kj95hgdgnn.workers.dev';
   const response = await axios.post(`${WALLET_API_URL}/api/wallet/unlink`, {
     id_token: idToken,
   });
@@ -503,7 +503,7 @@ export interface WalletLabel {
 }
 
 export async function fetchWalletLabels(idToken?: string, googleSub?: string): Promise<WalletLabel[]> {
-  const WALLET_API_URL = import.meta.env.VITE_WALLET_API_URL || 'https://wallet-api-production-5909.up.railway.app';
+  const WALLET_API_URL = import.meta.env.VITE_WALLET_API_URL || 'https://wallet-api.kj95hgdgnn.workers.dev';
   const body: any = {};
   if (idToken) body.id_token = idToken;
   if (googleSub) body.google_sub = googleSub;
@@ -514,7 +514,7 @@ export async function fetchWalletLabels(idToken?: string, googleSub?: string): P
 }
 
 export async function setWalletLabel(idToken?: string, label?: string, walletIndex: number = 0, googleSub?: string): Promise<{ status: string }> {
-  const WALLET_API_URL = import.meta.env.VITE_WALLET_API_URL || 'https://wallet-api-production-5909.up.railway.app';
+  const WALLET_API_URL = import.meta.env.VITE_WALLET_API_URL || 'https://wallet-api.kj95hgdgnn.workers.dev';
   const body: any = { label, wallet_index: walletIndex };
   if (idToken) body.id_token = idToken;
   if (googleSub) body.google_sub = googleSub;

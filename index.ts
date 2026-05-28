@@ -1,8 +1,15 @@
-import { Hono } from "hono@4"
+import { Hono } from "hono"
 import { cors } from "hono/cors"
-import { OAuth2Client } from "google-auth-library"
 
-const app = new Hono()
+type Bindings = {
+  GOOGLE_CLIENT_ID: string
+  PAYMENT_KEY: string
+  ENCRYPTION_KEY: string
+  DEPLOY_SECRET: string
+  WALLET_DOMAIN?: string
+}
+
+const app = new Hono<{ Bindings: Bindings }>()
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -10,42 +17,33 @@ const OUTLAYER_API = "https://api.outlayer.fastnear.com"
 const OUTLAYER_PROJECT = "outlayer.kampouse.near"
 const OUTLAYER_WORKER = "wallet-auth"
 
-// Google OAuth client — CLIENT_ID set via env var
-const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID)
-
 // ── 1. Restricted CORS ────────────────────────────────────────────────────
 
-const ALLOWED_ORIGINS = [
-  "https://outlayer-wallet.pages.dev",
-  process.env.WALLET_DOMAIN ? `https://${process.env.WALLET_DOMAIN}` : "https://wallet.outlayer.xyz",
-  "http://localhost:5173",
-].filter(Boolean)
+app.use("/api/*", async (c, next) => {
+  const allowedOrigins = [
+    "https://outlayer-wallet.pages.dev",
+    c.env.WALLET_DOMAIN ? `https://${c.env.WALLET_DOMAIN}` : "https://wallet.outlayer.xyz",
+    "http://localhost:5173",
+  ].filter(Boolean)
 
-app.use("/api/*", cors({
-  origin: ALLOWED_ORIGINS,
-  allowMethods: ["GET", "POST", "OPTIONS"],
-  allowHeaders: ["Content-Type", "Authorization"],
-  maxAge: 86400,
-  credentials: true,
-}))
+  return cors({
+    origin: allowedOrigins,
+    allowMethods: ["GET", "POST", "OPTIONS"],
+    allowHeaders: ["Content-Type", "Authorization"],
+    maxAge: 86400,
+    credentials: true,
+  })(c, next)
+})
 
-// ── 2. Rate Limiting ──────────────────────────────────────────────────────
+// ── 2. Rate Limiting (in-memory, per-isolate) ─────────────────────────────
 
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
-const RATE_LIMIT_WINDOW = 60_000 // 1 minute
+const RATE_LIMIT_WINDOW = 60_000
 const RATE_LIMIT_MAX = 30
 
-// Cleanup expired entries every 2 minutes
-setInterval(() => {
-  const now = Date.now()
-  for (const [key, entry] of rateLimitMap) {
-    if (now > entry.resetAt) rateLimitMap.delete(key)
-  }
-}, 120_000)
-
 app.use("/api/*", async (c, next) => {
-  const ip = c.req.header("x-forwarded-for")?.split(",")[0]?.trim()
-    || c.req.header("cf-connecting-ip")
+  const ip = c.req.header("cf-connecting-ip")
+    || c.req.header("x-forwarded-for")?.split(",")[0]?.trim()
     || "unknown"
   const now = Date.now()
 
@@ -55,6 +53,13 @@ app.use("/api/*", async (c, next) => {
     rateLimitMap.set(ip, entry)
   }
   entry.count++
+
+  // Lazy cleanup: evict expired entries when map grows
+  if (rateLimitMap.size > 1000) {
+    for (const [k, v] of rateLimitMap) {
+      if (now > v.resetAt) rateLimitMap.delete(k)
+    }
+  }
 
   if (entry.count > RATE_LIMIT_MAX) {
     return c.json({ error: "Rate limit exceeded" }, 429)
@@ -88,17 +93,14 @@ function sanitize<T = any>(obj: any): T {
     const result: Record<string, any> = {}
     for (const [key, value] of Object.entries(obj)) {
       let sanitized = sanitize(value)
-      // Enforce string length limits
       if (typeof sanitized === "string" && key in STRING_LIMITS) {
         sanitized = (sanitized as string).slice(0, STRING_LIMITS[key])
       }
       result[key] = sanitized
     }
-    // Validate api_key format when present (skip if encrypted — base64 blob)
     if (result.api_key && typeof result.api_key === "string" && result.api_key.startsWith("wk_") && !API_KEY_RE.test(result.api_key)) {
       throw new Error("Invalid api_key format")
     }
-    // Validate near_account_id format when present
     if (result.near_account_id && typeof result.near_account_id === "string" && !NEAR_ACCOUNT_RE.test(result.near_account_id)) {
       throw new Error("Invalid near_account_id format")
     }
@@ -108,16 +110,14 @@ function sanitize<T = any>(obj: any): T {
 }
 
 app.use("/api/*", async (c, next) => {
-  // Only sanitize for methods that typically have bodies
   const method = c.req.method.toUpperCase()
   if (method === "POST" || method === "PUT" || method === "PATCH") {
     try {
       const raw = await c.req.json()
       const cleaned = sanitize(raw)
-      // Store sanitized body for route handlers
       c.set("sanitizedBody" as any, cleaned)
     } catch {
-      // If body parsing fails, let the route handler deal with it
+      // let route handler deal with it
     }
   }
   await next()
@@ -131,53 +131,37 @@ app.use("*", async (c, next) => {
   c.header("X-Frame-Options", "DENY")
   c.header("X-XSS-Protection", "1; mode=block")
   c.header("Referrer-Policy", "strict-origin-when-cross-origin")
-  c.header(
-    "Content-Security-Policy",
-    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'"
-  )
+  c.header("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'")
   c.header("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
   c.header("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
 })
 
 // ── 5. Audit Logging ──────────────────────────────────────────────────────
 
-// We'll wrap each route to capture timing + status. Use a helper.
 function auditLog(c: any, googleSub: string | undefined, status: number, durationMs: number) {
-  const entry = {
+  console.log(JSON.stringify({
     timestamp: new Date().toISOString(),
     method: c.req.method,
     path: new URL(c.req.url).pathname,
-    ip: c.req.header("x-forwarded-for")?.split(",")[0]?.trim()
-      || c.req.header("cf-connecting-ip")
-      || "unknown",
+    ip: c.req.header("cf-connecting-ip") || c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || "unknown",
     google_sub: googleSub ? googleSub.slice(0, 8) + "…" : undefined,
     status,
     duration_ms: Math.round(durationMs),
-  }
-  console.log(JSON.stringify(entry))
+  }))
 }
 
-// ── 6. API Key Encryption at Rest ─────────────────────────────────────────
-// Encrypt at the API boundary:
-//   - When WASM returns an api_key → encrypt before sending to client
-//   - When client sends an api_key → decrypt before passing to WASM
-// WASM always sees plaintext. Browser only sees encrypted blobs.
+// ── 6. API Key Encryption ─────────────────────────────────────────────────
 
 let _encryptionKey: CryptoKey | null = null
 
-async function getEncryptionKey(): Promise<CryptoKey> {
+async function getEncryptionKey(env: Bindings): Promise<CryptoKey> {
   if (_encryptionKey) return _encryptionKey
-  const hexKey = process.env.ENCRYPTION_KEY
+  const hexKey = env.ENCRYPTION_KEY
   if (!hexKey || hexKey.length !== 64) {
     throw new Error("Server misconfigured: ENCRYPTION_KEY must be 32-byte hex string (64 chars)")
   }
-  // Convert hex to raw bytes for HKDF salt material
   const keyBytes = new Uint8Array(hexKey.match(/.{2}/g)!.map((b) => parseInt(b, 16)))
-  // Import as raw key material for HKDF
-  const baseKey = await crypto.subtle.importKey("raw", keyBytes, { name: "HKDF" }, false, [
-    "deriveKey",
-  ])
-  // Derive AES-256-GCM key via HKDF
+  const baseKey = await crypto.subtle.importKey("raw", keyBytes, { name: "HKDF" }, false, ["deriveKey"])
   _encryptionKey = await crypto.subtle.deriveKey(
     {
       name: "HKDF",
@@ -193,20 +177,19 @@ async function getEncryptionKey(): Promise<CryptoKey> {
   return _encryptionKey
 }
 
-async function encryptApiKey(plaintext: string): Promise<string> {
-  const key = await getEncryptionKey()
-  const iv = crypto.getRandomValues(new Uint8Array(12)) // 96-bit IV for AES-GCM
+async function encryptApiKey(plaintext: string, env: Bindings): Promise<string> {
+  const key = await getEncryptionKey(env)
+  const iv = crypto.getRandomValues(new Uint8Array(12))
   const encoded = new TextEncoder().encode(plaintext)
   const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, encoded)
-  // Concatenate iv + ciphertext and base64-encode
   const combined = new Uint8Array(iv.length + ciphertext.byteLength)
   combined.set(iv, 0)
   combined.set(new Uint8Array(ciphertext), iv.length)
   return btoa(String.fromCharCode(...combined))
 }
 
-async function decryptApiKey(encrypted: string): Promise<string> {
-  const key = await getEncryptionKey()
+async function decryptApiKey(encrypted: string, env: Bindings): Promise<string> {
+  const key = await getEncryptionKey(env)
   const combined = Uint8Array.from(atob(encrypted), (ch) => ch.charCodeAt(0))
   const iv = combined.slice(0, 12)
   const ciphertext = combined.slice(12)
@@ -214,39 +197,82 @@ async function decryptApiKey(encrypted: string): Promise<string> {
   return new TextDecoder().decode(decrypted)
 }
 
-// ── Google Auth Helpers ───────────────────────────────────────────────────
+// ── Google Auth (manual JWT verification — no google-auth-library) ─────────
 
-/** Verify a Google ID token, return the verified payload. */
-async function verifyGoogleToken(idToken: string): Promise<{ sub: string; email?: string; name?: string }> {
-  const ticket = await googleClient.verifyIdToken({
-    idToken,
-    audience: process.env.GOOGLE_CLIENT_ID,
-  })
-  const payload = ticket.getPayload()
-  if (!payload?.sub) throw new Error("Invalid token: no sub claim")
-  return { sub: payload.sub, email: payload.email, name: payload.name }
+/** Fetch Google's public JWK set (cached for 1 hour) */
+let _googleCerts: { keys: JsonWebKey[]; fetchedAt: number } | null = null
+
+async function getGoogleCerts(): Promise<{ keys: JsonWebKey[] }> {
+  if (_googleCerts && Date.now() - _googleCerts.fetchedAt < 3600_000) {
+    return { keys: _googleCerts.keys }
+  }
+  const resp = await fetch("https://www.googleapis.com/oauth2/v3/certs")
+  if (!resp.ok) throw new Error("Failed to fetch Google certs")
+  const data = await resp.json() as any
+  _googleCerts = { keys: data.keys, fetchedAt: Date.now() }
+  return { keys: data.keys }
+}
+
+/** Decode JWT without verification (for header + payload) */
+function decodeJwtPart(str: string): any {
+  const padded = str.replace(/-/g, "+").replace(/_/g, "/")
+  const binary = atob(padded)
+  return JSON.parse(binary)
+}
+
+/** Verify a Google ID token manually using crypto.subtle */
+async function verifyGoogleIdToken(idToken: string, clientId: string): Promise<{ sub: string; email?: string }> {
+  const parts = idToken.split(".")
+  if (parts.length !== 3) throw new Error("Invalid token format")
+
+  const header = decodeJwtPart(parts[0])
+  const payload = decodeJwtPart(parts[1])
+
+  // Verify audience
+  if (payload.aud !== clientId) throw new Error("Token audience mismatch")
+  // Verify expiry
+  if (payload.exp && Date.now() / 1000 > payload.exp) throw new Error("Token expired")
+  // Verify issuer
+  if (payload.iss !== "accounts.google.com" && payload.iss !== "https://accounts.google.com") {
+    throw new Error("Invalid token issuer")
+  }
+  if (!payload.sub) throw new Error("Invalid token: no sub claim")
+
+  // Verify signature
+  const certs = await getGoogleCerts()
+  const cert = certs.keys.find((k: any) => k.kid === header.kid)
+  if (!cert) throw new Error("No matching Google cert found")
+
+  const algorithm = { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }
+  const publicKey = await crypto.subtle.importKey("jwk", cert, algorithm, false, ["verify"])
+
+  const signatureInput = new TextEncoder().encode(parts[0] + "." + parts[1])
+  const signatureBytes = Uint8Array.from(atob(parts[2].replace(/-/g, "+").replace(/_/g, "/")), (ch) => ch.charCodeAt(0))
+
+  const valid = await crypto.subtle.verify(algorithm, publicKey, signatureBytes, signatureInput)
+  if (!valid) throw new Error("Invalid token signature")
+
+  return { sub: payload.sub, email: payload.email }
 }
 
 /** Verify a Google access token via tokeninfo endpoint */
-async function verifyGoogleAccessToken(accessToken: string): Promise<{ sub: string; email?: string; name?: string }> {
+async function verifyGoogleAccessToken(accessToken: string, clientId: string): Promise<{ sub: string; email?: string }> {
   const resp = await fetch(`https://oauth2.googleapis.com/tokeninfo?access_token=${accessToken}`)
   if (!resp.ok) throw new Error("Invalid access token")
-  const data = await resp.json()
-  if (data.aud !== process.env.GOOGLE_CLIENT_ID) throw new Error("Token audience mismatch")
+  const data = await resp.json() as any
+  if (data.aud !== clientId) throw new Error("Token audience mismatch")
   if (!data.sub) throw new Error("Invalid token: no sub claim")
-  return { sub: data.sub, email: data.email, name: data.name }
+  return { sub: data.sub, email: data.email }
 }
 
-/** Verify id_token/access_token or dev fallback */
-async function resolveGoogleSub(body: any): Promise<{ sub: string; email?: string }> {
+/** Verify id_token/access_token */
+async function resolveGoogleSub(body: any, env: Bindings): Promise<{ sub: string; email?: string }> {
   if (body.id_token) {
-    if (!process.env.GOOGLE_CLIENT_ID) throw new Error("Server misconfigured: missing GOOGLE_CLIENT_ID")
+    if (!env.GOOGLE_CLIENT_ID) throw new Error("Server misconfigured: missing GOOGLE_CLIENT_ID")
     try {
-      const verified = await verifyGoogleToken(body.id_token)
-      return { sub: verified.sub, email: verified.email }
+      return await verifyGoogleIdToken(body.id_token, env.GOOGLE_CLIENT_ID)
     } catch {
-      const verified = await verifyGoogleAccessToken(body.id_token)
-      return { sub: verified.sub, email: verified.email }
+      return await verifyGoogleAccessToken(body.id_token, env.GOOGLE_CLIENT_ID)
     }
   }
   throw new Error("Missing id_token")
@@ -254,38 +280,30 @@ async function resolveGoogleSub(body: any): Promise<{ sub: string; email?: strin
 
 // ── WASM Helpers ──────────────────────────────────────────────────────────
 
-async function callWasm(actionNum: number, googleSub: string): Promise<any> {
-  return callWasmWithInput(actionNum, { google_sub: googleSub })
+async function callWasm(actionNum: number, googleSub: string, env: Bindings): Promise<any> {
+  return callWasmWithInput(actionNum, { google_sub: googleSub }, env)
 }
 
-async function callWasmWithInput(actionNum: number, input: Record<string, any>): Promise<any> {
-  const paymentKey = process.env.PAYMENT_KEY
-  if (!paymentKey) throw new Error("Server misconfigured: missing PAYMENT_KEY")
+async function callWasmWithInput(actionNum: number, input: Record<string, any>, env: Bindings): Promise<any> {
+  if (!env.PAYMENT_KEY) throw new Error("Server misconfigured: missing PAYMENT_KEY")
 
   const resp = await fetch(`${OUTLAYER_API}/call/${OUTLAYER_PROJECT}/${OUTLAYER_WORKER}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-Payment-Key": paymentKey,
+      "X-Payment-Key": env.PAYMENT_KEY,
     },
-    body: JSON.stringify({
-      input: { action_num: actionNum, ...input },
-    }),
+    body: JSON.stringify({ input: { action_num: actionNum, ...input } }),
   })
 
   const result: any = await resp.json()
-
-  if (result.status === "failed") {
-    throw new Error(result.error || "WASM execution failed")
-  }
+  if (result.status === "failed") throw new Error(result.error || "WASM execution failed")
 
   const output = typeof result.output === "string" ? JSON.parse(result.output) : result.output
   if (!output) throw new Error("No output from WASM execution")
-
   return output
 }
 
-// Helper to get sanitized body from middleware
 function getBody<T = any>(c: any): T {
   return c.get("sanitizedBody") as T
 }
@@ -298,10 +316,10 @@ app.post("/api/wallet_auth", async (c) => {
   let status = 500
   try {
     const body = getBody(c) || await c.req.json()
-    const { sub, email } = await resolveGoogleSub(body)
+    const { sub } = await resolveGoogleSub(body, c.env)
     googleSub = sub
 
-    const output = await callWasm(1, sub)
+    const output = await callWasm(1, sub, c.env)
 
     if (output.status === "error") {
       status = 400
@@ -309,11 +327,7 @@ app.post("/api/wallet_auth", async (c) => {
       return c.json({ status: "error", message: output.message }, 400)
     }
 
-    // Encrypt api_key before returning to client
-    let encryptedApiKey: string | null = null
-    if (output.api_key) {
-      encryptedApiKey = await encryptApiKey(output.api_key)
-    }
+    const encryptedApiKey = output.api_key ? await encryptApiKey(output.api_key, c.env) : null
 
     status = 200
     auditLog(c, googleSub, status, Date.now() - start)
@@ -323,7 +337,7 @@ app.post("/api/wallet_auth", async (c) => {
       near_account_id: output.near_account_id || null,
     })
   } catch (err: any) {
-    if (err.message?.includes("Invalid token") || err.message?.includes("Token used too late")) {
+    if (err.message?.includes("Invalid token") || err.message?.includes("Token used too late") || err.message?.includes("Token expired")) {
       status = 401
       auditLog(c, googleSub, status, Date.now() - start)
       return c.json({ error: "Authentication failed: " + err.message }, 401)
@@ -339,10 +353,10 @@ app.post("/api/wallet/recover", async (c) => {
   let status = 500
   try {
     const body = getBody(c) || await c.req.json()
-    const { sub } = await resolveGoogleSub(body)
+    const { sub } = await resolveGoogleSub(body, c.env)
     googleSub = sub
 
-    const output = await callWasm(1, sub)
+    const output = await callWasm(1, sub, c.env)
 
     if (output.status === "error") {
       status = 404
@@ -350,11 +364,7 @@ app.post("/api/wallet/recover", async (c) => {
       return c.json({ status: "error", message: output.message }, 404)
     }
 
-    // Encrypt api_key before returning to client
-    let encryptedApiKey: string | null = null
-    if (output.api_key) {
-      encryptedApiKey = await encryptApiKey(output.api_key)
-    }
+    const encryptedApiKey = output.api_key ? await encryptApiKey(output.api_key, c.env) : null
 
     status = 200
     auditLog(c, googleSub, status, Date.now() - start)
@@ -375,16 +385,11 @@ app.post("/api/wallet/check", async (c) => {
   let status = 500
   try {
     const body = getBody(c) || await c.req.json()
-    const { sub } = await resolveGoogleSub(body)
+    const { sub } = await resolveGoogleSub(body, c.env)
     googleSub = sub
 
-    const output = await callWasm(3, sub)
-
-    // Encrypt api_key before returning to client
-    let encryptedApiKey: string | null = null
-    if (output.api_key) {
-      encryptedApiKey = await encryptApiKey(output.api_key)
-    }
+    const output = await callWasm(3, sub, c.env)
+    const encryptedApiKey = output.api_key ? await encryptApiKey(output.api_key, c.env) : null
 
     status = 200
     auditLog(c, googleSub, status, Date.now() - start)
@@ -406,7 +411,7 @@ app.post("/api/wallet/link", async (c) => {
   let status = 500
   try {
     const body = getBody(c) || await c.req.json()
-    const { sub } = await resolveGoogleSub(body)
+    const { sub } = await resolveGoogleSub(body, c.env)
     googleSub = sub
     let apiKey = body.api_key
     const nearAccountId = body.near_account_id
@@ -420,9 +425,8 @@ app.post("/api/wallet/link", async (c) => {
     // Client sends encrypted api_key → decrypt before passing to WASM
     let plaintextApiKey: string
     try {
-      plaintextApiKey = await decryptApiKey(apiKey)
+      plaintextApiKey = await decryptApiKey(apiKey, c.env)
     } catch {
-      // If decryption fails, it might be a raw key (legacy). Validate format.
       if (!API_KEY_RE.test(apiKey)) {
         status = 400
         auditLog(c, googleSub, status, Date.now() - start)
@@ -435,7 +439,7 @@ app.post("/api/wallet/link", async (c) => {
       google_sub: sub,
       api_key: plaintextApiKey,
       near_account_id: nearAccountId,
-    })
+    }, c.env)
 
     status = 200
     auditLog(c, googleSub, status, Date.now() - start)
@@ -452,10 +456,10 @@ app.post("/api/wallet/unlink", async (c) => {
   let status = 500
   try {
     const body = getBody(c) || await c.req.json()
-    const { sub } = await resolveGoogleSub(body)
+    const { sub } = await resolveGoogleSub(body, c.env)
     googleSub = sub
 
-    const output = await callWasm(5, sub)
+    const output = await callWasm(5, sub, c.env)
 
     status = 200
     auditLog(c, googleSub, status, Date.now() - start)
@@ -472,10 +476,10 @@ app.post("/api/wallet/deposit-address", async (c) => {
   let status = 500
   try {
     const body = getBody(c) || await c.req.json()
-    const { sub } = await resolveGoogleSub(body)
+    const { sub } = await resolveGoogleSub(body, c.env)
     googleSub = sub
 
-    const output = await callWasm(1, sub)
+    const output = await callWasm(1, sub, c.env)
 
     if (!output.near_account_id && !output.api_key) {
       status = 404
@@ -485,10 +489,7 @@ app.post("/api/wallet/deposit-address", async (c) => {
 
     status = 200
     auditLog(c, googleSub, status, Date.now() - start)
-    return c.json({
-      status: "ok",
-      address: output.near_account_id || null,
-    })
+    return c.json({ status: "ok", address: output.near_account_id || null })
   } catch (err: any) {
     auditLog(c, googleSub, status, Date.now() - start)
     return c.json({ error: err.message }, 500)
@@ -501,10 +502,10 @@ app.post("/api/wallet/balance", async (c) => {
   let status = 500
   try {
     const body = getBody(c) || await c.req.json()
-    const { sub } = await resolveGoogleSub(body)
+    const { sub } = await resolveGoogleSub(body, c.env)
     googleSub = sub
 
-    const output = await callWasm(2, sub)
+    const output = await callWasm(2, sub, c.env)
 
     if (output.status === "error") {
       status = 400
@@ -532,16 +533,14 @@ app.post("/api/deploy-wasm", async (c) => {
   const start = Date.now()
   let status = 500
 
-  // Require DEPLOY_SECRET via Authorization header
-  const deploySecret = process.env.DEPLOY_SECRET
-  if (!deploySecret) {
+  if (!c.env.DEPLOY_SECRET) {
     status = 503
     auditLog(c, undefined, status, Date.now() - start)
     return c.json({ error: "Deploy endpoint not configured" }, 503)
   }
 
   const authHeader = c.req.header("Authorization")
-  if (!authHeader || authHeader !== `Bearer ${deploySecret}`) {
+  if (!authHeader || authHeader !== `Bearer ${c.env.DEPLOY_SECRET}`) {
     status = 401
     auditLog(c, undefined, status, Date.now() - start)
     return c.json({ error: "Unauthorized" }, 401)
@@ -560,7 +559,6 @@ app.post("/api/deploy-wasm", async (c) => {
     const hashArray = Array.from(new Uint8Array(hashBuffer))
     const checksum = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("")
 
-    // Upload to FastFS
     const uploadResp = await fetch(`https://fs.fastnear.com/upload/wallet_cex.wasm?checksum=${checksum}`, {
       method: "PUT",
       body: wasmBytes,
@@ -572,7 +570,6 @@ app.post("/api/deploy-wasm", async (c) => {
       return c.json({ error: `FastFS upload failed: ${text}` }, 502)
     }
 
-    // Deploy on OutLayer
     const deployResp = await fetch(`${OUTLAYER_API}/${OUTLAYER_PROJECT}/wallet-auth/deploy`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -597,7 +594,7 @@ app.post("/api/wallet/set-label", async (c) => {
     const body = getBody(c) || await c.req.json()
     let sub = body.google_sub
     if (!sub) {
-      const resolved = await resolveGoogleSub(body)
+      const resolved = await resolveGoogleSub(body, c.env)
       sub = resolved.sub
     }
     googleSub = sub
@@ -611,11 +608,7 @@ app.post("/api/wallet/set-label", async (c) => {
       return c.json({ error: "Missing label" }, 400)
     }
 
-    const output = await callWasmWithInput(6, {
-      google_sub: sub,
-      label,
-      wallet_index: walletIndex,
-    })
+    const output = await callWasmWithInput(6, { google_sub: sub, label, wallet_index: walletIndex }, c.env)
 
     status = 200
     auditLog(c, googleSub, status, Date.now() - start)
@@ -634,12 +627,12 @@ app.post("/api/wallet/labels", async (c) => {
     const body = getBody(c) || await c.req.json()
     let sub = body.google_sub
     if (!sub) {
-      const resolved = await resolveGoogleSub(body)
+      const resolved = await resolveGoogleSub(body, c.env)
       sub = resolved.sub
     }
     googleSub = sub
 
-    const output = await callWasm(7, sub)
+    const output = await callWasm(7, sub, c.env)
 
     status = 200
     auditLog(c, googleSub, status, Date.now() - start)
@@ -650,14 +643,8 @@ app.post("/api/wallet/labels", async (c) => {
   }
 })
 
-app.get("/api/test", async (c) => {
-  auditLog(c, undefined, 200, 0)
-  return c.json({ hello: "world" })
-})
+app.get("/api/test", (c) => c.json({ hello: "world" }))
 
 app.all("*", (c) => c.json({ error: "Not found" }, 404))
 
-export default {
-  port: process.env.PORT || 3000,
-  fetch: app.fetch,
-}
+export default app
