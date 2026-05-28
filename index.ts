@@ -48,11 +48,7 @@ async function resolveGoogleSub(body: any): Promise<{ sub: string; email?: strin
       return { sub: verified.sub, email: verified.email }
     }
   }
-  // Accept google_sub directly for label operations (safe: no auth-sensitive data)
-  if (body.google_sub) {
-    return { sub: body.google_sub }
-  }
-  throw new Error("Missing id_token or google_sub")
+  throw new Error("Missing id_token")
 }
 
 /** Call the WASM wallet-auth worker on production OutLayer (with persistent storage) */
@@ -269,7 +265,13 @@ app.post("/api/deploy-wasm", async (c) => {
 app.post("/api/wallet/set-label", async (c) => {
   try {
     const body = await c.req.json()
-    const { sub } = await resolveGoogleSub(body)
+    // Labels are non-sensitive: accept google_sub directly or verify id_token
+    let sub = body.google_sub
+    if (!sub) {
+      const resolved = await resolveGoogleSub(body)
+      sub = resolved.sub
+    }
+
     const label = body.label
     const walletIndex = body.wallet_index ?? 0
 
@@ -290,7 +292,12 @@ app.post("/api/wallet/set-label", async (c) => {
 app.post("/api/wallet/labels", async (c) => {
   try {
     const body = await c.req.json()
-    const { sub } = await resolveGoogleSub(body)
+    // Labels are non-sensitive: accept google_sub directly or verify id_token
+    let sub = body.google_sub
+    if (!sub) {
+      const resolved = await resolveGoogleSub(body)
+      sub = resolved.sub
+    }
 
     const output = await callWasm(7, sub)
 
