@@ -652,7 +652,7 @@ function ApiKeyDisplay({
   return (
     <div className="flex items-center gap-1.5 ml-auto">
       <code className="text-[10px] font-mono bg-zinc-100 px-1.5 py-0.5 rounded text-zinc-500 select-all">
-        {revealed ? apiKey : apiKey.substring(0, 6) + "..." + apiKey.slice(-4)}
+        {revealed ? apiKey : (apiKey ? apiKey.substring(0, 6) + "..." + apiKey.slice(-4) : "••••")}
       </code>
       <button onClick={onToggleReveal} className="text-zinc-400 hover:text-zinc-600 p-0.5">
         {revealed ? <EyeOff size={12} /> : <Eye size={12} />}

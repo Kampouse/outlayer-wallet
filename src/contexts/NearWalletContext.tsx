@@ -247,7 +247,7 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
     // Try to restore existing session
     connector.getConnectedWallet()
       .then(({ accounts }) => {
-        if (accounts.length > 0) {
+        if (accounts?.length > 0) {
           const id = accounts[0].accountId;
           setNearAccountId(id);
           localStorage.setItem('outlayer:cachedAccountId', id);
@@ -267,7 +267,7 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
 
     // Listen for sign-in events
     const handleSignIn = ({ accounts }: { accounts: Array<{ accountId: string }> }) => {
-      if (accounts.length > 0) {
+      if (accounts?.length > 0) {
         const id = accounts[0].accountId;
         setNearAccountId(id);
         localStorage.setItem('outlayer:cachedAccountId', id);
