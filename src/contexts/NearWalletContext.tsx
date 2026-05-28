@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef, useCallb
 import { NearConnector } from '@hot-labs/near-connect';
 import { googleSignIn, decodeJwt, loadGoogleGIS, type GoogleUserProfile } from '@/lib/google-auth';
 import { registerWalletWithGoogle, checkGoogleWallet, linkWalletToGoogle, unlinkWalletFromGoogle, fetchWalletLabels, setWalletLabel } from '@/lib/api';
-import { saveWalletKey } from '@/lib/wallet-keys';
+import { saveWalletKey, getAllWalletKeys, renameWalletKey } from '@/lib/wallet-keys';
 
 export type NetworkType = 'testnet' | 'mainnet';
 
@@ -392,6 +392,9 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
         apiKey,
         nearAccountId: nearAccount,
       });
+
+      // Sync wallet labels (push local → remote) — idToken is ephemeral, use it now
+      syncLabels(idToken).catch(() => {});
     } finally {
       setGoogleAuthLoading(false);
     }
@@ -546,6 +549,20 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
     const idToken = await handleGetGoogleIdToken();
     await setWalletLabel(idToken, label, walletIndex);
   }, [googleUser, handleGetGoogleIdToken]);
+
+  /** Push local wallet labels to remote WASM storage (call when idToken is fresh) */
+  const syncLabels = useCallback(async (idToken: string) => {
+    try {
+      const entries = getAllWalletKeys();
+      const pks = Object.keys(entries);
+      for (let i = 0; i < pks.length; i++) {
+        const label = entries[pks[i]]?.label;
+        if (label) {
+          await setWalletLabel(idToken, label, i);
+        }
+      }
+    } catch { /* best effort */ }
+  }, []);
 
   // -------------------------------------------------------------------------
   // Network switching

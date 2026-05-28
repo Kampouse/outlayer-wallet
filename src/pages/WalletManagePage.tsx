@@ -298,11 +298,6 @@ export default function WalletManagePage() {
   function renameWallet(pk: string, name: string) {
     renameWalletKey(pk, name);
     setSavedEntries(getAllWalletKeys());
-    // Fire-and-forget sync to WASM storage (Google auth only)
-    if (googleUser) {
-      const idx = allWallets.findIndex(w => w.pubkey === pk);
-      if (idx >= 0) setRemoteWalletLabel(name, idx).catch(() => {});
-    }
   }
 
   // Sync labels from WASM on mount (Google auth)
