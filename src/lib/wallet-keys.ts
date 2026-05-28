@@ -66,6 +66,15 @@ export function removeWalletKey(walletPubkey: string) {
   save(store);
 }
 
+/** Rename a saved key */
+export function renameWalletKey(walletPubkey: string, name: string) {
+  const store = load();
+  if (store[walletPubkey]) {
+    store[walletPubkey].label = name || undefined;
+    save(store);
+  }
+}
+
 /** Find API key by matching any of the given wallet pubkeys */
 export function findKeyForWallets(walletPubkeys: string[]): string | null {
   const store = load();

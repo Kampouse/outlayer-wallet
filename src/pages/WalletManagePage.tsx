@@ -11,6 +11,7 @@ import {
   saveWalletKey,
   getAllWalletKeys,
   removeWalletKey,
+  renameWalletKey,
 } from "@/lib/wallet-keys";
 import type { StoredKey } from "@/lib/wallet-keys";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,7 @@ import {
   EyeOff,
   Key,
   Link2,
+  Pencil,
   Plus,
   ShieldCheck,
   Snowflake,
@@ -153,14 +155,15 @@ export default function WalletManagePage() {
     for (const w of wallets) {
       const addr = w.wallet_pubkey.split(":").slice(1).join(":") || w.wallet_pubkey;
       seen.add(w.wallet_pubkey);
+      const saved = savedEntries[w.wallet_pubkey];
       items.push({
         id: w.wallet_pubkey,
         pubkey: w.wallet_pubkey,
         address: addr,
-        label: savedEntries[w.wallet_pubkey]?.source === "google" ? "Google Wallet" : "Wallet 1",
-        apiKey: savedEntries[w.wallet_pubkey]?.apiKey || searchParams.get("key") || null,
+        label: saved?.label || (saved?.source === "google" ? "Google Wallet" : null),
+        apiKey: saved?.apiKey || searchParams.get("key") || null,
         frozen: w.frozen,
-        isGoogle: savedEntries[w.wallet_pubkey]?.source === "google",
+        isGoogle: saved?.source === "google",
         hasPolicy: true,
         updatedAt: w.updated_at,
       });
@@ -187,22 +190,25 @@ export default function WalletManagePage() {
     for (const pk of Object.keys(savedEntries)) {
       if (seen.has(pk)) continue;
       seen.add(pk);
+      const saved = savedEntries[pk];
       items.push({
         id: pk,
         pubkey: pk,
         address: pk.replace(/^ed25519:/, ""),
-        label: savedEntries[pk]?.source === "google" ? "Google Wallet" : "Wallet",
-        apiKey: savedEntries[pk]?.apiKey || null,
+        label: saved?.label || (saved?.source === "google" ? "Google Wallet" : null),
+        apiKey: saved?.apiKey || null,
         frozen: false,
-        isGoogle: savedEntries[pk]?.source === "google",
+        isGoogle: saved?.source === "google",
         hasPolicy: false,
         updatedAt: null,
       });
     }
 
-    // Number them nicely
-    items.forEach((item, i) => {
-      if (item.label === "Wallet") item.label = `Wallet ${i + 1}`;
+    // Auto-number unlabeled wallets
+    let walletNum = 1;
+    items.forEach((item) => {
+      if (!item.label) item.label = `Wallet ${walletNum}`;
+      walletNum++;
     });
 
     return items;
@@ -286,6 +292,11 @@ export default function WalletManagePage() {
     setSavedEntries((prev) => { const n = { ...prev }; delete n[pk]; return n; });
   }
 
+  function renameWallet(pk: string, name: string) {
+    renameWalletKey(pk, name);
+    setSavedEntries(getAllWalletKeys());
+  }
+
   function ImportDialog() {
     return (
       <Dialog open={importModalOpen} onOpenChange={setImportModalOpen}>
@@ -329,6 +340,7 @@ export default function WalletManagePage() {
             onToggleReveal={toggleReveal}
             onCopyKey={copyKey}
             onRemoveKey={removeKey}
+            onRename={renameWallet}
           />
         ) : (
           <Card>
@@ -400,6 +412,7 @@ export default function WalletManagePage() {
           onToggleReveal={toggleReveal}
           onCopyKey={copyKey}
           onRemoveKey={removeKey}
+          onRename={renameWallet}
           googleUser={googleUser}
           googleAuthLoading={googleAuthLoading}
           submitting={submitting}
@@ -448,7 +461,7 @@ export default function WalletManagePage() {
 // ─── Single Wallet View (carousel-style) ────────────────────────────
 
 function SingleWalletView({
-  wallets, selectedIdx, onSelect, revealedKeys, onToggleReveal, onCopyKey, onRemoveKey,
+  wallets, selectedIdx, onSelect, revealedKeys, onToggleReveal, onCopyKey, onRemoveKey, onRename,
   googleUser, googleAuthLoading, submitting, onFreeze, onUnfreeze, onLinkGoogle, onUnlinkGoogle,
 }: {
   wallets: WalletItem[];
@@ -458,6 +471,7 @@ function SingleWalletView({
   onToggleReveal: (pk: string) => void;
   onCopyKey: (key: string) => void;
   onRemoveKey: (pk: string) => void;
+  onRename?: (pk: string, name: string) => void;
   googleUser?: any;
   googleAuthLoading?: boolean;
   submitting?: boolean;
@@ -468,6 +482,11 @@ function SingleWalletView({
 }) {
   const w = wallets[selectedIdx];
   if (!w) return null;
+
+  const [editing, setEditing] = useState(false);
+  const [editVal, setEditVal] = useState(w.label);
+
+  useEffect(() => { setEditVal(w.label); }, [w.label]);
 
   const revealed = revealedKeys.has(w.pubkey);
   const showNav = wallets.length > 1;
@@ -499,16 +518,44 @@ function SingleWalletView({
       {/* Single wallet card */}
       <Card className={w.frozen ? "opacity-60" : ""}>
         <CardContent className="p-5">
-          {/* Status bar */}
+          {/* Header: editable name + status */}
           <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${w.frozen ? "bg-zinc-400" : "bg-emerald-500"}`} />
-              <span className="text-xs text-zinc-500">{w.frozen ? "Frozen" : "Active"}</span>
-              {w.isGoogle && <Badge variant="outline" className="text-[10px]">Google</Badge>}
-              {!w.hasPolicy && <Badge variant="outline" className="text-[10px]">No Policy</Badge>}
+            <div className="flex items-center gap-2 min-w-0">
+              {editing ? (
+                <input
+                  type="text"
+                  value={editVal}
+                  onChange={(e) => setEditVal(e.target.value)}
+                  onBlur={() => {
+                    if (onRename && editVal.trim()) onRename(w.pubkey, editVal.trim());
+                    setEditing(false);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && onRename && editVal.trim()) {
+                      onRename(w.pubkey, editVal.trim());
+                      setEditing(false);
+                    }
+                    if (e.key === "Escape") setEditing(false);
+                  }}
+                  autoFocus
+                  className="text-sm font-semibold bg-transparent border-b border-zinc-300 outline-none w-28"
+                />
+              ) : (
+                <button
+                  onClick={() => { setEditVal(w.label); setEditing(true); }}
+                  className="text-sm font-semibold text-zinc-900 hover:text-zinc-600 flex items-center gap-1"
+                >
+                  {w.label}
+                  <Pencil size={11} className="text-zinc-400" />
+                </button>
+              )}
+              <div className={`w-2 h-2 rounded-full shrink-0 ${w.frozen ? "bg-zinc-400" : "bg-emerald-500"}`} />
+              <span className="text-xs text-zinc-500 shrink-0">{w.frozen ? "Frozen" : "Active"}</span>
+              {w.isGoogle && <Badge variant="outline" className="text-[10px] shrink-0">Google</Badge>}
+              {!w.hasPolicy && <Badge variant="outline" className="text-[10px] shrink-0">No Policy</Badge>}
             </div>
             {w.updatedAt && (
-              <span className="text-[10px] text-zinc-400">
+              <span className="text-[10px] text-zinc-400 shrink-0">
                 {new Date(w.updatedAt / 1_000_000).toLocaleDateString()}
               </span>
             )}
