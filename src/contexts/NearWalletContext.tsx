@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback, ReactNode } from 'react';
 import { NearConnector } from '@hot-labs/near-connect';
 import { googleSignIn, decodeJwt, loadGoogleGIS, type GoogleUserProfile } from '@/lib/google-auth';
-import { registerWalletWithGoogle, checkGoogleWallet, linkWalletToGoogle, unlinkWalletFromGoogle } from '@/lib/api';
+import { registerWalletWithGoogle, checkGoogleWallet, linkWalletToGoogle, unlinkWalletFromGoogle, fetchWalletLabels, setWalletLabel } from '@/lib/api';
 import { saveWalletKey } from '@/lib/wallet-keys';
 
 export type NetworkType = 'testnet' | 'mainnet';
@@ -128,6 +128,9 @@ interface NearWalletContextType {
   unlinkWalletFromGoogle: () => Promise<void>;
   googleAuthLoading: boolean;
   getApiKey: () => string | null;
+  getGoogleIdToken: () => Promise<string>;
+  syncWalletLabels: () => Promise<import("@/lib/api").WalletLabel[]>;
+  setRemoteWalletLabel: (label: string, walletIndex: number) => Promise<void>;
   loginModalOpen: boolean;
   requestLogin: () => void;
   closeLoginModal: () => void;
@@ -517,6 +520,34 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
   }, [googleApiKey]);
 
   // -------------------------------------------------------------------------
+  // Google label sync — get idToken, fetch/save labels via WASM
+  // -------------------------------------------------------------------------
+
+  const handleGetGoogleIdToken = useCallback(async (): Promise<string> => {
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    if (!clientId) throw new Error('Google Client ID not configured');
+    await loadGoogleGIS(clientId);
+    const { idToken } = await googleSignIn(clientId);
+    return idToken;
+  }, []);
+
+  const handleSyncWalletLabels = useCallback(async (): Promise<import("@/lib/api").WalletLabel[]> => {
+    if (!googleUser) return [];
+    try {
+      const idToken = await handleGetGoogleIdToken();
+      return await fetchWalletLabels(idToken);
+    } catch {
+      return [];
+    }
+  }, [googleUser, handleGetGoogleIdToken]);
+
+  const handleSetRemoteWalletLabel = useCallback(async (label: string, walletIndex: number) => {
+    if (!googleUser) return;
+    const idToken = await handleGetGoogleIdToken();
+    await setWalletLabel(idToken, label, walletIndex);
+  }, [googleUser, handleGetGoogleIdToken]);
+
+  // -------------------------------------------------------------------------
   // Network switching
   // -------------------------------------------------------------------------
 
@@ -639,6 +670,9 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
         unlinkWalletFromGoogle: handleUnlinkWalletFromGoogle,
         googleAuthLoading,
         getApiKey,
+        getGoogleIdToken: handleGetGoogleIdToken,
+        syncWalletLabels: handleSyncWalletLabels,
+        setRemoteWalletLabel: handleSetRemoteWalletLabel,
         loginModalOpen,
         requestLogin,
         closeLoginModal,

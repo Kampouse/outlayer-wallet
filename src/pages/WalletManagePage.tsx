@@ -6,6 +6,7 @@ import WalletConnectionModal from "@/components/WalletConnectionModal";
 import WalletBalancesSection from "@/components/wallet/WalletBalancesSection";
 import CopyableAddress from "@/components/CopyableAddress";
 import { getCoordinatorApiUrl, registerWallet } from "@/lib/api";
+import type { WalletLabel } from "@/lib/api";
 import { actionCreators } from "@near-js/transactions";
 import {
   saveWalletKey,
@@ -79,6 +80,8 @@ export default function WalletManagePage() {
     loginModalOpen,
     requestLogin,
     closeLoginModal,
+    syncWalletLabels,
+    setRemoteWalletLabel,
   } = useNearWallet();
 
   const location = useLocation();
@@ -295,7 +298,34 @@ export default function WalletManagePage() {
   function renameWallet(pk: string, name: string) {
     renameWalletKey(pk, name);
     setSavedEntries(getAllWalletKeys());
+    // Fire-and-forget sync to WASM storage (Google auth only)
+    if (googleUser) {
+      const idx = allWallets.findIndex(w => w.pubkey === pk);
+      if (idx >= 0) setRemoteWalletLabel(name, idx).catch(() => {});
+    }
   }
+
+  // Sync labels from WASM on mount (Google auth)
+  useEffect(() => {
+    if (!googleUser) return;
+    syncWalletLabels().then((labels: WalletLabel[]) => {
+      if (!labels.length) return;
+      const entries = getAllWalletKeys();
+      // Map label index → wallet pubkey by position in allWallets
+      // Since labels come from WASM indexed storage, we need to match by wallet order
+      const pks = Object.keys(entries);
+      for (const lbl of labels) {
+        if (lbl.index < pks.length) {
+          const pk = pks[lbl.index];
+          if (pk && entries[pk] && !entries[pk].label) {
+            renameWalletKey(pk, lbl.label);
+          }
+        }
+      }
+      setSavedEntries(getAllWalletKeys());
+    }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [googleUser]);
 
   function ImportDialog() {
     return (

@@ -497,6 +497,31 @@ export async function unlinkWalletFromGoogle(idToken: string): Promise<{ status:
   return data;
 }
 
+export interface WalletLabel {
+  index: number;
+  label: string;
+}
+
+export async function fetchWalletLabels(idToken: string): Promise<WalletLabel[]> {
+  const WALLET_API_URL = import.meta.env.VITE_WALLET_API_URL || 'https://wallet-api-production-5909.up.railway.app';
+  const response = await axios.post(`${WALLET_API_URL}/api/wallet/labels`, { id_token: idToken });
+  const data = response.data;
+  if (data.error) throw new Error(data.error);
+  return data.labels || [];
+}
+
+export async function setWalletLabel(idToken: string, label: string, walletIndex: number = 0): Promise<{ status: string }> {
+  const WALLET_API_URL = import.meta.env.VITE_WALLET_API_URL || 'https://wallet-api-production-5909.up.railway.app';
+  const response = await axios.post(`${WALLET_API_URL}/api/wallet/set-label`, {
+    id_token: idToken,
+    label,
+    wallet_index: walletIndex,
+  });
+  const data = response.data;
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
 /** Attestation data types */
 export interface AttestationResponse {
   id: number;
