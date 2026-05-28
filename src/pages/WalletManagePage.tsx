@@ -301,26 +301,9 @@ export default function WalletManagePage() {
   }
 
   // Sync labels from WASM on mount (Google auth)
-  useEffect(() => {
-    if (!googleUser) return;
-    syncWalletLabels().then((labels: WalletLabel[]) => {
-      if (!labels.length) return;
-      const entries = getAllWalletKeys();
-      // Map label index → wallet pubkey by position in allWallets
-      // Since labels come from WASM indexed storage, we need to match by wallet order
-      const pks = Object.keys(entries);
-      for (const lbl of labels) {
-        if (lbl.index < pks.length) {
-          const pk = pks[lbl.index];
-          if (pk && entries[pk] && !entries[pk].label) {
-            renameWalletKey(pk, lbl.label);
-          }
-        }
-      }
-      setSavedEntries(getAllWalletKeys());
-    }).catch(() => {});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [googleUser]);
+  // NOTE: label sync happens in connectWithGoogle (pull + push during login).
+  // No sync needed here — avoids extra Google popup.
+  useEffect(() => {}, []);
 
   function ImportDialog() {
     return (

@@ -553,10 +553,28 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
   /** Push local wallet labels to remote WASM storage (call when idToken is fresh) */
   const syncLabels = useCallback(async (idToken: string) => {
     try {
+      // 1. Pull remote labels first
+      const remote = await fetchWalletLabels(idToken);
       const entries = getAllWalletKeys();
       const pks = Object.keys(entries);
-      for (let i = 0; i < pks.length; i++) {
-        const label = entries[pks[i]]?.label;
+
+      // Merge: remote labels → localStorage (if no local label)
+      for (const lbl of remote) {
+        if (lbl.index < pks.length && pks[lbl.index]) {
+          const pk = pks[lbl.index];
+          if (lbl.label && !entries[pk]?.label) {
+            renameWalletKey(pk, lbl.label);
+          }
+        }
+      }
+
+      // Re-read after merge
+      const merged = getAllWalletKeys();
+      const mergedPks = Object.keys(merged);
+
+      // 2. Push all local labels → remote
+      for (let i = 0; i < mergedPks.length; i++) {
+        const label = merged[mergedPks[i]]?.label;
         if (label) {
           await setWalletLabel(idToken, label, i);
         }
