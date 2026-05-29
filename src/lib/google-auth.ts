@@ -140,7 +140,8 @@ export function googleSignIn(clientId: string): Promise<GoogleSignInResult> {
   return new Promise<GoogleSignInResult>(async (resolve, reject) => {
     try {
       await loadGoogleGIS();
-    } catch {
+    } catch (e) {
+      console.warn('Failed to load Google GIS:', e);
       reject(new Error('Could not load Google sign-in. Please check your ad blocker settings.'));
       return;
     }

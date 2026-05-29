@@ -38,6 +38,7 @@ export default function WalletBalancesSection({
     tokens,
     allTokens,
     loading,
+    fetching,
     intentsLoading,
     error,
     refetch,
@@ -83,7 +84,8 @@ export default function WalletBalancesSection({
     );
   }
 
-  if (loading && !near && !tokens.length) {
+  // Show skeleton on first load or while fetching fresh data after a wallet switch
+  if ((loading || fetching) && !near && !tokens.length) {
     return <BalanceSkeleton />;
   }
 
@@ -123,7 +125,7 @@ export default function WalletBalancesSection({
       {/* Total USD value */}
       {totalUsd > 0 && (
         <div className="flex items-center gap-1.5 mb-2 pb-2 border-b border-zinc-100">
-          <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
+          <DollarSign className="w-3.5 h-3.5 text-lime-600" />
           <span className="text-sm font-semibold text-zinc-900">
             ${totalUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>

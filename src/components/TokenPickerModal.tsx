@@ -87,7 +87,7 @@ export function TokenPickerModal({
               placeholder="Search by symbol..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full h-10 pl-10 pr-4 rounded-xl bg-muted/50 border border-border text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-colors"
+              className="w-full h-10 pl-10 pr-4 rounded-xl bg-muted/50 border border-border text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-lime-500/30 focus:border-lime-500 transition-colors"
             />
           </div>
         </div>
@@ -117,7 +117,7 @@ export function TokenPickerModal({
                   }}
                   className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm transition-colors ${
                     isSelected
-                      ? "bg-emerald-500/10"
+                      ? "bg-lime-500/10"
                       : "hover:bg-muted/50 active:bg-muted"
                   }`}
                 >
@@ -149,7 +149,7 @@ export function TokenPickerModal({
 
                   {/* Check */}
                   {isSelected && (
-                    <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+                    <Check className="w-4 h-4 text-lime-500 shrink-0" />
                   )}
                 </button>
               );
@@ -163,7 +163,7 @@ export function TokenPickerModal({
             <button
               type="button"
               onClick={() => onOpenChange(false)}
-              className="w-full flex items-center justify-center gap-2 text-sm font-medium text-emerald-600 dark:text-emerald-400"
+              className="w-full flex items-center justify-center gap-2 text-sm font-medium text-lime-600 dark:text-lime-400"
             >
               <TokenIcon symbol={selected.symbol} size={24} />
               {selected.symbol}

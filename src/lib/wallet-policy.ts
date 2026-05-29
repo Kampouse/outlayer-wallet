@@ -130,7 +130,29 @@ export function buildPolicyRules(
 // Parse policy API response back to form fields
 // ============================================================================
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
+/** Shape returned by the coordinator's GET /wallet/v1/policy endpoint */
+interface PolicyResponseData {
+  rules?: {
+    limits?: Record<string, { native?: string; '*': string } | { native?: string }>;
+    addresses?: { mode?: string; list?: string[] };
+    transaction_types?: string[];
+    allowed_tokens?: string[];
+    time_restrictions?: {
+      timezone?: string;
+      allowed_hours?: number[];
+      allowed_days?: number[];
+    };
+    rate_limit?: { max_per_hour?: number };
+  };
+  approval?: {
+    above_usd?: number | string;
+    threshold?: { required?: number | string };
+    approvers?: Array<{ id: string; role?: string }>;
+    excluded_types?: string[];
+  };
+  authorized_key_hashes?: string[];
+  webhook_url?: string;
+}
 
 export interface ParsedPolicy {
   form: PolicyForm;
@@ -149,7 +171,7 @@ export interface ParsedPolicy {
  * `currentApiKeyHash` is excluded from additional_key_hashes (it's auto-included).
  */
 export function parsePolicyResponse(
-  data: { rules?: any; approval?: any; authorized_key_hashes?: string[]; webhook_url?: string },
+  data: PolicyResponseData,
   currentApiKeyHash?: string,
 ): ParsedPolicy {
   const rules = data.rules || {};
@@ -180,7 +202,7 @@ export function parsePolicyResponse(
   if (data.approval) {
     const ap = data.approval;
     const approverLines = (ap.approvers || [])
-      .map((a: any) => `${a.id}, ${a.role || 'signer'}`)
+      .map((a: { id: string; role?: string }) => `${a.id}, ${a.role || 'signer'}`)
       .join('\n');
     approval = {
       above_usd: ap.above_usd?.toString() || '0',
@@ -199,11 +221,12 @@ export function parsePolicyResponse(
   return { form, approval, fullJson };
 }
 
-/* eslint-enable @typescript-eslint/no-explicit-any */
-
 // ============================================================================
 // Submit policy: encrypt → sign → store on-chain → invalidate cache
 // ============================================================================
+
+import type { SignAndSendTransactionParams } from '@hot-labs/near-connect';
+import type { FinalExecutionOutcome } from '@near-js/types';
 
 export interface SubmitPolicyParams {
   coordinatorUrl: string;
@@ -212,8 +235,7 @@ export interface SubmitPolicyParams {
   policyJsonText: string;
   contractId: string;
   viewMethod: (params: { contractId: string; method: string; args?: Record<string, unknown> }) => Promise<unknown>;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  signAndSendTransaction: (params: any) => Promise<any>;
+  signAndSendTransaction: (params: SignAndSendTransactionParams) => Promise<FinalExecutionOutcome>;
 }
 
 export interface SubmitPolicyResult {
@@ -227,7 +249,8 @@ export async function submitPolicy(params: SubmitPolicyParams): Promise<SubmitPo
   let policyData: Record<string, unknown>;
   try {
     policyData = JSON.parse(policyJsonText);
-  } catch {
+  } catch (e) {
+    console.warn('Failed to parse policy:', e);
     throw new Error('Invalid JSON in policy editor');
   }
 
@@ -292,7 +315,7 @@ export async function submitPolicy(params: SubmitPolicyParams): Promise<SubmitPo
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
     body: JSON.stringify({ wallet_id: walletId, policy_json: policyData }),
-  }).catch(() => {});
+  }).catch((e) => { console.warn('Failed to invalidate cache:', e); });
 
   return { walletPubkey };
 }

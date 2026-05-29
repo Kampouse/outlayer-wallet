@@ -80,10 +80,54 @@ const NEAR_ICONS = "https://near.com/static/icons/token";
 const NEAR_NETWORKS = "https://near.com/static/icons/network";
 const INTENTS_ICONS = "https://near-intents.org/static/icons/token";
 
+const CMC_BASE = "https://s2.coinmarketcap.com/static/img/coins/64x64";
+
+// Auto-generated: ChainDefuser symbol → CMC coin ID (build-time fetch from CMC API)
+// 86 of 119 ChainDefuser tokens matched. Covers tokenized-assets category.
+const CMC_SYMBOL_MAP: Record<string, number> = {
+  AAPLON: 38037, AAVE: 7278, ADA: 2010, ADI: 38185, AGGON: 38072,
+  ALEO: 32193, AMZNON: 38083, APT: 21794, ARB: 11841, ASTER: 36341,
+  AURORA: 14803, AVAX: 5805, BCH: 1831, BERA: 24647, BLACKDRAGON: 29627,
+  BNB: 1839, BOME: 29870, BRETT: 29743, BTC: 1, COW: 19269,
+  DAI: 4943, DASH: 131, DOGE: 74, ETH: 1027, EURE: 20920,
+  EVAA: 38376, FRAX: 6952, GLDON: 39276, GMX: 11857, GNO: 1659,
+  GOOGLON: 38001, HAPI: 8567, IAUON: 38041, INX: 39461, KAITO: 35763,
+  KNC: 9444, LINK: 1975, LTC: 2, MELANIA: 35347, METAON: 38065,
+  MOG: 27659, MON: 30495, MSFTON: 38086, NEAR: 6535, NPRO: 39110,
+  NVDAON: 38093, OKB: 3897, OP: 11840, PENGU: 34466, PEPE: 24478,
+  POL: 28321, PUBLIC: 37728, QQQON: 38094, RHEA: 37529, SAFE: 21585,
+  SHIB: 5994, SLVON: 38057, SOL: 5426, SPX: 28081, SPYON: 38067,
+  STRK: 22691, SUI: 20947, SWEAT: 21351, TIPON: 38068, TITN: 36271,
+  TLTON: 38031, TON: 39249, TRUMP: 35336, TRX: 1958, TSLAON: 38029,
+  TURBO: 24911, UNI: 7083, USAD: 38627, USD1: 36148, USDC: 3408,
+  USDF: 35721, USDON: 38273, USDT: 825, VVV: 35509, XAUT: 5176,
+  XBTC: 26597, XDAI: 8635, XLM: 512, XPL: 36645, XRP: 52, ZEC: 1437,
+};
+
+// Omni synthetic stock tokens — CMC icons where available, branded ticker otherwise
+const STOCK_ICONS: Record<string, { url?: string; label?: string; bg: string }> = {
+  NVDAON: { url: `${CMC_BASE}/38093.png`, bg: "#76B900" },
+  AAPLON: { url: `${CMC_BASE}/36994.png`, bg: "#333" },
+  TSLAON: { url: `${CMC_BASE}/37004.png`, bg: "#CC0000" },
+  GOOGLON:{ url: `${CMC_BASE}/37013.png`, bg: "#4285F4" },
+  METAON: { url: `${CMC_BASE}/37055.png`, bg: "#0668E1" },
+  MSFTON: { url: `${CMC_BASE}/37056.png`, bg: "#00A4EF" },
+  AMZNON: { url: `${CMC_BASE}/37014.png`, bg: "#FF9900" },
+  QQQON:  { url: `${CMC_BASE}/37057.png`, bg: "#8B5CF6" },
+  SPYON:  { url: `${CMC_BASE}/37006.png`, bg: "#0A3069" },
+  GLDON:  { url: `${CMC_BASE}/5176.png`, bg: "#DAA520" },
+  IAUON:  { url: `${CMC_BASE}/38051.png`, bg: "#B8860B" },
+  AGGON:  { url: `${CMC_BASE}/38067.png`, bg: "#1E40AF" },
+  TLTON:  { url: `${CMC_BASE}/38031.png`, bg: "#6366F1" },
+  SLVON:  { url: `${CMC_BASE}/38057.png`, bg: "#94A3B8" },
+  TIPON:  { url: `${CMC_BASE}/38021.png`, bg: "#059669" },
+  USDON: { url: `${CMC_BASE}/38273.png`, bg: "#16A34A" },
+};
+
 // Symbol → image URL (for tokens not in web3icons)
 const ICON_URLS: Record<string, string> = {
   // Wrapped / bridged variants
-  wNEAR: `${NEAR_ICONS}/wnear.svg`,
+  wNEAR: "https://img.rhea.finance/images/w-NEAR-no-border.png",
   stNEAR: `${NEAR_ICONS}/stnear.svg`,
   GNEAR: `${NEAR_ICONS}/gnear.svg`,
 
@@ -139,6 +183,32 @@ function tokenColor(symbol: string): string {
 }
 
 function FallbackIcon({ symbol, size = 24 }: { symbol: string; size?: number }) {
+  const key = symbol.toUpperCase();
+
+  // Omni synthetic stocks — branded icons
+  const stock = STOCK_ICONS[key];
+  if (stock) {
+    if (stock.url) {
+      return <ImageIcon src={stock.url} alt={symbol} size={size} />;
+    }
+    return (
+      <div
+        className="rounded-full shrink-0 flex items-center justify-center font-bold text-white"
+        style={{
+          width: size,
+          height: size,
+          backgroundColor: stock.bg,
+          fontSize: Math.max(size * 0.33, 8),
+          lineHeight: 1,
+          letterSpacing: "-0.02em",
+        }}
+        title={symbol}
+      >
+        {stock.label}
+      </div>
+    );
+  }
+
   const letter = symbol.charAt(0).toUpperCase();
   return (
     <div
@@ -190,11 +260,17 @@ export default function TokenIcon({ symbol, size = 24, className }: TokenIconPro
   }
 
   // 2. Try URL-based icon (CoinMarketCap / near.com hosted)
-  const url = ICON_URLS[key];
+  const url = ICON_URLS[key] || ICON_URLS[symbol];
   if (url) {
     return <ImageIcon src={url} alt={symbol} size={size} className={className} />;
   }
 
-  // 3. Letter-circle fallback
+  // 3. Try CMC symbol map (auto-generated from tokenized-assets category)
+  const cmcId = CMC_SYMBOL_MAP[key];
+  if (cmcId) {
+    return <ImageIcon src={`${CMC_BASE}/${cmcId}.png`} alt={symbol} size={size} className={className} />;
+  }
+
+  // 4. Letter-circle fallback
   return <FallbackIcon symbol={symbol} size={size} />;
 }

@@ -1,62 +1,69 @@
-import { Link } from 'react-router-dom'
+import { useState } from 'react'
 import { useNearWallet } from '@/contexts/NearWalletContext'
+import { getAllWalletKeys } from '@/lib/wallet-keys'
 import ThemeToggle from './ThemeToggle'
+import WalletPickerModal from './WalletPickerModal'
+import { ChevronDown } from 'lucide-react'
+
+function useWalletLabel(accountId: string | null) {
+  if (!accountId) return null
+  const keys = getAllWalletKeys()
+  const match = Object.entries(keys).find(([pk]) => pk === `ed25519:${accountId}`)
+  if (!match) return accountId.length > 20 ? `${accountId.slice(0, 10)}...${accountId.slice(-4)}` : accountId
+  const entry = match[1]
+  return entry.label
+    || (entry.googleEmail ? entry.googleEmail.split('@')[0] : null)
+    || (accountId.length > 20 ? `${accountId.slice(0, 10)}...${accountId.slice(-4)}` : accountId)
+}
 
 export default function MobileHeader() {
-  const { accountId, isConnected, authMethod, disconnect, requestLogin } = useNearWallet()
+  const { accountId, isConnected, googleUser, switchToWallet } = useNearWallet()
+  const name = useWalletLabel(isConnected ? accountId : null)
+  const [pickerOpen, setPickerOpen] = useState(false)
 
-  const name = isConnected && accountId
-    ? accountId.length > 20
-      ? `${accountId.slice(0, 10)}...${accountId.slice(-4)}`
-      : accountId
-    : null
+  const walletCount = Object.keys(getAllWalletKeys()).length
+  const showPicker = isConnected && walletCount > 1
 
   return (
-    <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-md border-b border-border">
-      <div className="flex items-center justify-between px-4 h-12">
-        <Link to="/" className="flex items-center gap-2.5 min-w-0">
-          <div className="w-6 h-6 rounded-md bg-primary flex items-center justify-center shrink-0">
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-              <rect x="1" y="3" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="1.5" className="text-primary-foreground"/>
-              <circle cx="5.5" cy="8" r="1.5" fill="currentColor" className="text-primary-foreground"/>
-              <path d="M10 6.5L12.5 8L10 9.5V6.5Z" fill="currentColor" className="text-primary-foreground"/>
-            </svg>
-          </div>
-          {name && authMethod === 'near' ? (
-            <span className="text-sm font-medium text-foreground truncate">
-              {name}
-            </span>
-          ) : (
-            <span className="text-sm font-semibold text-foreground tracking-tight">Outlayer</span>
-          )}
-        </Link>
-        <div className="flex items-center gap-1.5">
-          <ThemeToggle />
-          {isConnected ? (
-            <>
-              {authMethod === 'near' && (
-                <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
-                  NEAR
-                </span>
-              )}
+    <>
+      <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-md">
+        <div className="flex items-center justify-between px-4 h-12">
+          <div className="w-7 h-7" />
+
+          <div className="flex items-center gap-2">
+            {isConnected && name ? (
               <button
-                onClick={disconnect}
-                className="ml-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                title="Disconnect"
+                onClick={() => showPicker && setPickerOpen(true)}
+                className={`flex items-center gap-1.5 ${showPicker ? 'cursor-pointer active:opacity-70' : ''}`}
+                disabled={!showPicker}
               >
-                Logout
+                {googleUser?.picture ? (
+                  <img
+                    src={googleUser.picture}
+                    alt=""
+                    className="w-6 h-6 rounded-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center text-[10px] font-medium text-muted-foreground">
+                    {name.charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <span className="text-xs text-muted-foreground">{name}</span>
+                {showPicker && <ChevronDown size={12} className="text-muted-foreground" />}
               </button>
-            </>
-          ) : (
-            <button
-              onClick={requestLogin}
-              className="text-xs font-medium px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-            >
-              Login
-            </button>
-          )}
+            ) : null}
+            <ThemeToggle />
+          </div>
         </div>
-      </div>
-    </header>
+      </header>
+
+      <WalletPickerModal
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        activeAccountId={accountId}
+        onSelect={switchToWallet}
+      />
+    </>
   )
 }

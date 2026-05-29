@@ -284,8 +284,8 @@ export default function WalletSwapPage() {
     <div className="max-w-lg mx-auto px-4 pt-4 pb-24 sm:max-w-xl md:max-w-2xl">
       {/* Header */}
       <div className="flex items-center gap-2 mb-4">
-        <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-          <ArrowDownUp className="w-4 h-4 text-emerald-400" />
+        <div className="w-8 h-8 rounded-lg bg-lime-500/10 flex items-center justify-center">
+          <ArrowDownUp className="w-4 h-4 text-lime-400" />
         </div>
         <div>
           <h1 className="text-lg font-semibold text-foreground">Swap</h1>
@@ -307,7 +307,7 @@ export default function WalletSwapPage() {
                 setAmount("");
                 setError(null);
               }}
-              className="w-full h-11 appearance-none bg-zinc-50 border border-zinc-200 rounded-lg px-3 pr-10 text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-colors"
+              className="w-full h-11 appearance-none bg-zinc-50 border border-zinc-200 rounded-lg px-3 pr-10 text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-lime-500/30 focus:border-lime-500 transition-colors"
             >
               {savedWallets.map((w, i) => {
                 const display = w.label || shortAddr(w.pubkey.replace(/^ed25519:/, ""));
@@ -337,8 +337,8 @@ export default function WalletSwapPage() {
         </div>
       )}
       {txStatus === "success" && (
-        <div className="mb-4 bg-emerald-500/10 border-l-4 border-emerald-500 rounded-r-lg p-3">
-          <p className="text-sm text-emerald-400">
+        <div className="mb-4 bg-lime-500/10 border-l-4 border-lime-500 rounded-r-lg p-3">
+          <p className="text-sm text-lime-400">
             Swap complete! {txHash && (
               <span className="font-mono text-xs opacity-70 block mt-1 break-all">{txHash}</span>
             )}
@@ -364,7 +364,7 @@ export default function WalletSwapPage() {
               <button
                 type="button"
                 onClick={() => setPickerOpen("from")}
-                className="w-full h-11 flex items-center gap-2 bg-zinc-50 border border-zinc-200 rounded-lg px-3 text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-colors"
+                className="w-full h-11 flex items-center gap-2 bg-zinc-50 border border-zinc-200 rounded-lg px-3 text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-lime-500/30 focus:border-lime-500 transition-colors"
               >
                 {tokenIn ? (
                   <>
@@ -408,7 +408,7 @@ export default function WalletSwapPage() {
               <button
                 type="button"
                 onClick={() => setPickerOpen("to")}
-                className="w-full h-11 flex items-center gap-2 bg-zinc-50 border border-zinc-200 rounded-lg px-3 text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-colors"
+                className="w-full h-11 flex items-center gap-2 bg-zinc-50 border border-zinc-200 rounded-lg px-3 text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-lime-500/30 focus:border-lime-500 transition-colors"
               >
                 {tokenOut ? (
                   <>
@@ -457,7 +457,7 @@ export default function WalletSwapPage() {
                     handleMax();
                   }}
                   onMouseDown={(e) => e.preventDefault()}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 z-10 text-xs font-semibold text-emerald-500 hover:text-emerald-400 px-2 py-1 rounded-md hover:bg-emerald-500/10 transition-colors cursor-pointer"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 z-10 text-xs font-semibold text-lime-500 hover:text-lime-400 px-2 py-1 rounded-md hover:bg-lime-500/10 transition-colors cursor-pointer"
                 >
                   Max
                 </button>

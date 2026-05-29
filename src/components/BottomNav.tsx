@@ -1,12 +1,11 @@
 import { NavLink } from 'react-router-dom'
-import { Globe, SendHorizontal, ArrowDownUp, ShieldCheck, ClipboardList } from 'lucide-react'
+import { Wallet, Clock, ShieldCheck, Settings } from 'lucide-react'
 
 const tabs = [
-  { to: '/', label: 'Wallets', icon: Globe },
-  { to: '/wallet/send', label: 'Send', icon: SendHorizontal },
-  { to: '/wallet/swap', label: 'Swap', icon: ArrowDownUp },
-  { to: '/wallet/approvals', label: 'Approvals', icon: ShieldCheck },
-  { to: '/wallet/audit', label: 'Audit', icon: ClipboardList },
+  { to: '/', label: 'Home', icon: Wallet, end: true },
+  { to: '/wallet/history', label: 'Activity', icon: Clock, end: false },
+  { to: '/wallet/approvals', label: 'Approvals', icon: ShieldCheck, end: false },
+  { to: '/wallet/manage', label: 'Settings', icon: Settings, end: false },
 ]
 
 export default function BottomNav() {
@@ -19,9 +18,9 @@ export default function BottomNav() {
             <NavLink
               key={tab.to}
               to={tab.to}
-              end={tab.to === '/'}
+              end={tab.end}
               className={({ isActive }) =>
-                `relative flex flex-col items-center justify-center gap-0.5 px-4 py-1.5 rounded-lg text-xs transition-all duration-200 ${
+                `relative flex flex-col items-center justify-center gap-0.5 px-3 py-1.5 rounded-lg text-xs transition-all duration-200 ${
                   isActive
                     ? 'text-foreground font-medium'
                     : 'text-muted-foreground hover:text-foreground'
@@ -31,7 +30,7 @@ export default function BottomNav() {
               {({ isActive }) => (
                 <>
                   {isActive && (
-                    <span className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-5 h-0.5 rounded-full bg-emerald-500" />
+                    <span className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-5 h-0.5 rounded-full bg-lime-500" />
                   )}
                   <Icon
                     size={isActive ? 20 : 18}

@@ -126,13 +126,11 @@ function WalletHandoffContent() {
     if (!apiKey) return;
     setLoading(true);
     setError(null);
-    console.log('[handoff] loadWalletInfo, apiKey:', apiKey?.substring(0, 10));
 
     try {
       const resp = await fetch(`${coordinatorUrl}/wallet/v1/address?chain=near`, {
         headers: { 'Authorization': `Bearer ${apiKey}` },
       });
-      console.log('[handoff] wallet info response:', resp.status);
 
       if (!resp.ok) {
         const data = await resp.json().catch(() => ({}));
@@ -140,7 +138,6 @@ function WalletHandoffContent() {
       }
 
       const data = await resp.json();
-      console.log('[handoff] wallet info:', data);
       setWalletInfo({
         wallet_id: data.wallet_id,
         address: data.address,
@@ -157,23 +154,19 @@ function WalletHandoffContent() {
   // Check if policy already exists on-chain, and if so load it into the form
   const checkExistingPolicy = useCallback(async () => {
     if (!walletInfo || !apiKey) {
-      console.log('[handoff] checkExistingPolicy skipped, walletInfo:', !!walletInfo, 'apiKey:', !!apiKey);
       return;
     }
 
     try {
       const walletPubkey = `ed25519:${walletInfo.address}`;
-      console.log('[handoff] checking policy for:', walletPubkey);
       const result = await viewMethod({
         contractId,
         method: 'get_wallet_policy',
         args: { wallet_pubkey: walletPubkey },
       }).catch(() => null);
-      console.log('[handoff] on-chain policy result:', result);
 
       const exists = result !== null;
       setExistingPolicy(exists);
-      console.log('[handoff] policy exists:', exists, 'ownerReady:', ownerReady);
 
       // Load current policy from coordinator and pre-fill the form
       if (exists) {
@@ -181,12 +174,9 @@ function WalletHandoffContent() {
           const resp = await fetch(`${coordinatorUrl}/wallet/v1/policy`, {
             headers: { 'Authorization': `Bearer ${apiKey}` },
           });
-          console.log('[handoff] coordinator policy response:', resp.status);
           if (resp.ok) {
             const data = await resp.json();
-            console.log('[handoff] coordinator policy data:', data);
             const parsed = parsePolicyResponse(data, apiKeyHash || undefined);
-            console.log('[handoff] parsed policy form:', parsed.form);
             setPolicyForm(parsed.form);
 
             if (parsed.approval) {
@@ -300,8 +290,8 @@ function WalletHandoffContent() {
                     const data = await resp.json();
                     // Redirect with the new key
                     navigate(`/handoff?key=${encodeURIComponent(data.api_key)}`);
-                  } catch (e: any) {
-                    setError(e?.message || 'Failed to create wallet');
+                  } catch (e: unknown) {
+                    setError(e instanceof Error ? e.message : String(e));
                   } finally {
                     setSubmitting(false);
                   }
@@ -349,8 +339,8 @@ function WalletHandoffContent() {
       )}
 
       {success && (
-        <div className="mb-4 bg-emerald-500/10 border-l-4 border-emerald-500 rounded-r-lg p-4">
-          <p className="text-sm text-emerald-400">{success}</p>
+        <div className="mb-4 bg-lime-500/10 border-l-4 border-lime-500 rounded-r-lg p-4">
+          <p className="text-sm text-lime-400">{success}</p>
         </div>
       )}
 
@@ -466,7 +456,7 @@ function WalletHandoffContent() {
 
             {ownerMode === 'wallet' ? (
               isConnected ? (
-                <p className="text-sm text-emerald-400">
+                <p className="text-sm text-lime-400">
                   Connected as <span className="font-mono font-medium">{accountId}</span>
                 </p>
               ) : (
@@ -532,7 +522,7 @@ function WalletHandoffContent() {
                 <div
                   className={`flex items-center justify-between rounded-lg border p-4 transition-colors ${
                     requireApproval
-                      ? 'border-emerald-500/25 bg-emerald-500/10'
+                      ? 'border-lime-500/25 bg-lime-500/10'
                       : 'border-zinc-200 hover:border-zinc-300'
                   }`}
                 >
@@ -540,10 +530,10 @@ function WalletHandoffContent() {
                     className="cursor-pointer"
                     onClick={() => setRequireApproval(!requireApproval)}
                   >
-                    <p className={`font-medium ${requireApproval ? 'text-emerald-400' : 'text-foreground'}`}>
+                    <p className={`font-medium ${requireApproval ? 'text-lime-400' : 'text-foreground'}`}>
                       Require personal approval
                     </p>
-                    <p className={`text-sm mt-0.5 ${requireApproval ? 'text-emerald-400/70' : 'text-muted-foreground'}`}>
+                    <p className={`text-sm mt-0.5 ${requireApproval ? 'text-lime-400/70' : 'text-muted-foreground'}`}>
                       Transactions need your approval before execution
                     </p>
                   </div>
@@ -573,7 +563,7 @@ function WalletHandoffContent() {
                             placeholder="e.g. 1"
                           />
                           <div className="flex items-center gap-2 px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg min-h-[38px]">
-                            <div className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                            <div className="w-2 h-2 rounded-full bg-lime-500 shrink-0" />
                             <span className="text-sm font-mono text-zinc-700 truncate">{effectiveOwner}</span>
                             <span className="text-xs text-zinc-400 shrink-0 ml-auto">admin</span>
                           </div>

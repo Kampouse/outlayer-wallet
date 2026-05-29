@@ -65,17 +65,17 @@ export function AuthorizedKeysSection({
         <div className="mt-2 ml-5 space-y-3">
           {/* Auto-included key (read-only) */}
           {apiKeyHash && (
-            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+            <div className="bg-lime-50 border border-lime-200 rounded-lg p-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-emerald-800">
+                  <p className="text-sm font-medium text-lime-800">
                     Current handoff key
-                    <span className="ml-1.5 text-xs bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">auto-included</span>
+                    <span className="ml-1.5 text-xs bg-lime-100 text-lime-700 px-1.5 py-0.5 rounded">auto-included</span>
                   </p>
-                  <p className="text-xs text-emerald-600 font-mono mt-1 break-all">{apiKeyHash}</p>
+                  <p className="text-xs text-lime-600 font-mono mt-1 break-all">{apiKeyHash}</p>
                 </div>
               </div>
-              <p className="text-xs text-emerald-600/70 mt-2">
+              <p className="text-xs text-lime-600/70 mt-2">
                 This is the SHA-256 hash of your current handoff API key. It will always be included in the policy.
               </p>
             </div>

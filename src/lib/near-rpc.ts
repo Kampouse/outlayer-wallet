@@ -4,14 +4,50 @@
 
 export type NetworkType = 'testnet' | 'mainnet';
 
+// ── Round-robin RPC endpoints ───────────────────────────────────────────────
+
+const MAINNET_ENDPOINTS = [
+  'https://free.rpc.fastnear.com',
+  'https://rpc.mainnet.near.org',
+  'https://near.lava.build',
+  'https://near.drpc.org',
+  'https://endpoints.omniatech.io/v1/near/mainnet/public',
+] as const;
+
+const TESTNET_ENDPOINTS = [
+  'https://rpc.testnet.near.org',
+  'https://near-testnet.lava.build',
+] as const;
+
+let mainnetIdx = 0;
+let testnetIdx = 0;
+
+function getNextRpcEndpoint(network: NetworkType): string {
+  if (network === 'mainnet') {
+    const url = MAINNET_ENDPOINTS[mainnetIdx % MAINNET_ENDPOINTS.length];
+    mainnetIdx++;
+    return url;
+  }
+  const url = TESTNET_ENDPOINTS[testnetIdx % TESTNET_ENDPOINTS.length];
+  testnetIdx++;
+  return url;
+}
+
 /**
- * Get NEAR RPC URL for the given network
+ * Get NEAR RPC URL for the given network (single endpoint — env override)
  */
 function getNearRpcUrl(network: NetworkType): string {
   if (network === 'mainnet') {
-    return import.meta.env.VITE_MAINNET_RPC_URL || 'https://free.rpc.fastnear.com';
+    return import.meta.env.VITE_MAINNET_RPC_URL || getNextRpcEndpoint(network);
   }
-  return import.meta.env.VITE_TESTNET_RPC_URL || 'https://rpc.testnet.near.org';
+  return import.meta.env.VITE_TESTNET_RPC_URL || getNextRpcEndpoint(network);
+}
+
+/**
+ * Get a batch of RPC URLs for parallel requests
+ */
+export function getRpcEndpoints(network: NetworkType, count: number): string[] {
+  return Array.from({ length: count }, () => getNextRpcEndpoint(network));
 }
 
 /**

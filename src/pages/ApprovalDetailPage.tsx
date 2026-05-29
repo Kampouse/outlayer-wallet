@@ -157,8 +157,8 @@ function ApprovalDetailContent() {
       )}
 
       {success && (
-        <div className="mb-4 bg-emerald-500/10 border-l-4 border-emerald-500 rounded-r-lg p-4">
-          <p className="text-sm text-emerald-400">{success}</p>
+        <div className="mb-4 bg-lime-500/10 border-l-4 border-lime-500 rounded-r-lg p-4">
+          <p className="text-sm text-lime-400">{success}</p>
         </div>
       )}
 
@@ -182,7 +182,7 @@ function ApprovalDetailContent() {
                 <div className="flex items-center space-x-3">
                   <Badge
                     variant={approval.status === 'pending' ? 'outline' : approval.status === 'approved' ? 'secondary' : approval.status === 'expired' ? 'secondary' : 'destructive'}
-                    className={approval.status === 'pending' ? 'border-amber-200 bg-amber-50 text-amber-400' : approval.status === 'approved' ? 'bg-emerald-50 text-emerald-400 border-emerald-200' : approval.status === 'expired' ? 'bg-muted text-muted-foreground border-border' : ''}
+                    className={approval.status === 'pending' ? 'border-amber-200 bg-amber-50 text-amber-400' : approval.status === 'approved' ? 'bg-lime-50 text-lime-400 border-lime-200' : approval.status === 'expired' ? 'bg-muted text-muted-foreground border-border' : ''}
                   >
                     {approval.status.toUpperCase()}
                   </Badge>
@@ -234,7 +234,7 @@ function ApprovalDetailContent() {
                 <h2 className="text-lg font-semibold text-zinc-900 mb-3">Approvers</h2>
                 <div className="space-y-2">
                   {approval.approvers.map((a, i) => (
-                    <div key={i} className="flex items-center justify-between bg-emerald-50 border border-emerald-100 rounded-lg p-3">
+                    <div key={i} className="flex items-center justify-between bg-lime-50 border border-lime-100 rounded-lg p-3">
                       <div>
                         <p className="text-sm font-mono text-zinc-800">{a.approver_id}</p>
                         <p className="text-xs text-zinc-500">Role: {a.approver_role}</p>

@@ -22,6 +22,7 @@ const OUTLAYER_WORKER = "wallet-auth"
 app.use("/api/*", async (c, next) => {
   const allowedOrigins = [
     "https://outlayer-wallet.pages.dev",
+    "https://wallet.jemartel.dev",
     c.env.WALLET_DOMAIN ? `https://${c.env.WALLET_DOMAIN}` : "https://wallet.outlayer.xyz",
     "http://localhost:5173",
   ].filter(Boolean)
@@ -139,15 +140,6 @@ app.use("*", async (c, next) => {
 // ── 5. Audit Logging ──────────────────────────────────────────────────────
 
 function auditLog(c: any, googleSub: string | undefined, status: number, durationMs: number) {
-  console.log(JSON.stringify({
-    timestamp: new Date().toISOString(),
-    method: c.req.method,
-    path: new URL(c.req.url).pathname,
-    ip: c.req.header("cf-connecting-ip") || c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || "unknown",
-    google_sub: googleSub ? googleSub.slice(0, 8) + "…" : undefined,
-    status,
-    duration_ms: Math.round(durationMs),
-  }))
 }
 
 // ── 6. API Key Encryption ─────────────────────────────────────────────────
@@ -276,19 +268,6 @@ async function resolveGoogleSub(body: any, env: Bindings): Promise<{ sub: string
     }
   }
   throw new Error("Missing id_token")
-}
-
-async function resolveGoogleSubRelaxed(body: any, env: Bindings): Promise<{ sub: string; email?: string }> {
-  if (body.id_token) {
-    if (!env.GOOGLE_CLIENT_ID) throw new Error("Server misconfigured: missing GOOGLE_CLIENT_ID")
-    try {
-      return await verifyGoogleIdToken(body.id_token, env.GOOGLE_CLIENT_ID)
-    } catch {
-      return await verifyGoogleAccessToken(body.id_token, env.GOOGLE_CLIENT_ID)
-    }
-  }
-  if (body.google_sub) return { sub: body.google_sub }
-  throw new Error("Missing id_token or google_sub")
 }
 
 // ── WASM Helpers ──────────────────────────────────────────────────────────
@@ -424,7 +403,8 @@ app.post("/api/wallet/list", async (c) => {
   let status = 500
   try {
     const body = getBody(c) || await c.req.json()
-    const { sub } = await resolveGoogleSubRelaxed(body, c.env)
+    // Always require verified id_token — never accept bare google_sub for data access
+    const { sub } = await resolveGoogleSub(body, c.env)
     googleSub = sub
 
     const output = await callWasm(8, sub, c.env)
@@ -500,7 +480,20 @@ app.post("/api/wallet/unlink", async (c) => {
     const { sub } = await resolveGoogleSub(body, c.env)
     googleSub = sub
 
-    const output = await callWasm(5, sub, c.env)
+    const walletIndex = body.wallet_index ?? 0
+
+    // Look up the actual on-chain index by listing wallets first
+    const listOutput = await callWasmWithInput(8, { google_sub: sub }, c.env)
+    let resolvedIndex = walletIndex
+    if (listOutput?.wallets && body.near_account_id) {
+      const match = listOutput.wallets.find((w: any) => w.near_account_id === body.near_account_id)
+      if (match) resolvedIndex = match.index
+    }
+
+    const output = await callWasmWithInput(5, {
+      google_sub: sub,
+      wallet_index: resolvedIndex,
+    }, c.env)
 
     status = 200
     auditLog(c, googleSub, status, Date.now() - start)
@@ -633,15 +626,22 @@ app.post("/api/wallet/set-label", async (c) => {
   let status = 500
   try {
     const body = getBody(c) || await c.req.json()
-    let sub = body.google_sub
-    if (!sub) {
-      const resolved = await resolveGoogleSub(body, c.env)
-      sub = resolved.sub
-    }
+    // Always verify id_token — never accept bare google_sub for mutations
+    const { sub } = await resolveGoogleSub(body, c.env)
     googleSub = sub
 
     const label = body.label
     const walletIndex = body.wallet_index ?? 0
+
+    // If near_account_id provided, resolve to actual WASM index (same as unlink)
+    let resolvedIndex = walletIndex
+    if (body.near_account_id) {
+      const listOutput = await callWasmWithInput(8, { google_sub: sub }, c.env)
+      if (listOutput?.wallets) {
+        const match = listOutput.wallets.find((w: any) => w.near_account_id === body.near_account_id)
+        if (match) resolvedIndex = match.index
+      }
+    }
 
     if (!label) {
       status = 400
@@ -649,7 +649,7 @@ app.post("/api/wallet/set-label", async (c) => {
       return c.json({ error: "Missing label" }, 400)
     }
 
-    const output = await callWasmWithInput(6, { google_sub: sub, label, wallet_index: walletIndex }, c.env)
+    const output = await callWasmWithInput(6, { google_sub: sub, label, wallet_index: resolvedIndex }, c.env)
 
     status = 200
     auditLog(c, googleSub, status, Date.now() - start)
@@ -666,11 +666,8 @@ app.post("/api/wallet/labels", async (c) => {
   let status = 500
   try {
     const body = getBody(c) || await c.req.json()
-    let sub = body.google_sub
-    if (!sub) {
-      const resolved = await resolveGoogleSub(body, c.env)
-      sub = resolved.sub
-    }
+    // Always verify id_token — never accept bare google_sub
+    const { sub } = await resolveGoogleSub(body, c.env)
     googleSub = sub
 
     const output = await callWasm(7, sub, c.env)
@@ -685,6 +682,86 @@ app.post("/api/wallet/labels", async (c) => {
 })
 
 app.get("/api/test", (c) => c.json({ hello: "world" }))
+
+// ── Base chain FT balances (proxied RPC — avoids browser CORS) ───────────
+
+const RPC_ENDPOINTS = [
+  "https://free.rpc.fastnear.com",
+  "https://rpc.mainnet.near.org",
+  "https://near.lava.build",
+  "https://near.drpc.org",
+]
+let rpcIdx = 0
+function nextRpc(): string {
+  const url = RPC_ENDPOINTS[rpcIdx]
+  rpcIdx = (rpcIdx + 1) % RPC_ENDPOINTS.length
+  return url
+}
+
+app.post("/api/balances/base-chain", async (c) => {
+  const start = Date.now()
+  let status = 500
+  try {
+    const body = getBody(c) || await c.req.json()
+    const { account_id, contracts } = body as { account_id: string; contracts: string[] }
+
+    if (!account_id || !Array.isArray(contracts) || contracts.length === 0 || contracts.length > 60) {
+      status = 400
+      return c.json({ error: "Invalid request: account_id and contracts[] required (max 60)" }, 400)
+    }
+
+    if (!NEAR_ACCOUNT_RE.test(account_id)) {
+      status = 400
+      return c.json({ error: "Invalid account_id" }, 400)
+    }
+
+    const results: Record<string, string> = {}
+    const argsBase64 = btoa(JSON.stringify({ account_id: account_id }))
+
+    // Fetch 10 at a time to avoid overwhelming the RPC
+    for (let i = 0; i < contracts.length; i += 10) {
+      const batch = contracts.slice(i, i + 10)
+      const responses = await Promise.allSettled(
+        batch.map(async (contractId) => {
+          if (!NEAR_ACCOUNT_RE.test(contractId)) return null
+          const resp = await fetch(nextRpc(), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              jsonrpc: "2.0",
+              id: 1,
+              method: "query",
+              params: {
+                request_type: "call_function",
+                account_id: contractId,
+                method_name: "ft_balance_of",
+                args_base64: argsBase64,
+                finality: "final",
+              },
+            }),
+          })
+          if (!resp.ok) return null
+          const data = await resp.json() as any
+          const raw = data?.result?.result
+          if (!raw) return null
+          return JSON.parse(atob(raw))
+        }),
+      )
+      for (let j = 0; j < batch.length; j++) {
+        const r = responses[j]
+        if (r.status === "fulfilled" && r.value && r.value !== "0") {
+          results[batch[j]] = r.value
+        }
+      }
+    }
+
+    status = 200
+    return c.json({ balances: results })
+  } catch (err: any) {
+    status = 500
+    return c.json({ error: err.message }, 500)
+  }
+})
 
 app.all("*", (c) => c.json({ error: "Not found" }, 404))
 

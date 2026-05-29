@@ -38,8 +38,8 @@ interface WalletKeyInfo {
 const EVENT_TYPE_COLORS: Record<string, string> = {
   withdraw: 'bg-orange-50 text-orange-700 border-orange-200',
   withdraw_pending_approval: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
-  withdraw_auto_executed: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-  deposit: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  withdraw_auto_executed: 'bg-lime-500/10 text-lime-400 border-lime-500/20',
+  deposit: 'bg-lime-500/10 text-lime-400 border-lime-500/20',
   policy_change: 'bg-purple-50 text-purple-700 border-purple-200',
   approval: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
   freeze: 'bg-red-500/10 text-red-400 border-red-500/20',

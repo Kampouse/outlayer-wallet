@@ -21,7 +21,8 @@ export function PolicyJsonEditor({ policyJsonText, onChangeText, jsonEdited, onR
         const parsed = JSON.parse(policyJsonText);
         setExpandedJson(JSON.stringify(parsed, null, 2));
         setJsonError(null);
-      } catch {
+      } catch (e) {
+        console.warn('Invalid JSON:', e);
         setExpandedJson(policyJsonText);
       }
     }
@@ -77,7 +78,8 @@ export function PolicyJsonEditor({ policyJsonText, onChangeText, jsonEdited, onR
               try {
                 const parsed = JSON.parse(policyJsonText);
                 return JSON.stringify(parsed, null, 2);
-              } catch {
+              } catch (e) {
+                console.warn('Invalid JSON:', e);
                 return policyJsonText;
               }
             })()}

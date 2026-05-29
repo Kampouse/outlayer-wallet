@@ -45,7 +45,7 @@ export default function CopyableAddress({
         title="Copy address"
       >
         {copied ? (
-          <Check size={12} className="text-emerald-500" />
+          <Check size={12} className="text-lime-500" />
         ) : (
           <Copy size={12} />
         )}

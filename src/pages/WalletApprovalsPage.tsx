@@ -292,8 +292,8 @@ export default function WalletApprovalsPage() {
       )}
 
       {success && (
-        <div className="mb-4 bg-emerald-500/10 border-l-4 border-emerald-500 rounded-r-lg p-4">
-          <p className="text-sm text-emerald-400">{success}</p>
+        <div className="mb-4 bg-lime-500/10 border-l-4 border-lime-500 rounded-r-lg p-4">
+          <p className="text-sm text-lime-400">{success}</p>
         </div>
       )}
 

@@ -333,8 +333,8 @@ function FundContent() {
       <div className="max-w-lg mx-auto mt-12 px-4">
         <Card>
           <CardContent className="p-6 text-center">
-            <div className="w-16 h-16 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Check className="w-8 h-8 text-emerald-400" />
+            <div className="w-16 h-16 bg-lime-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Check className="w-8 h-8 text-lime-400" />
             </div>
             <h2 className="text-xl font-semibold text-zinc-900 mb-2">Transfer Complete</h2>
             <p className="text-zinc-500 mb-4">

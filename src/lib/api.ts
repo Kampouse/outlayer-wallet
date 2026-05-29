@@ -4,6 +4,9 @@
 
 import axios from 'axios';
 
+/** Wallet API base URL (CF Worker backend) */
+export const WALLET_API_URL = import.meta.env.VITE_WALLET_API_URL || 'https://wallet-api.kj95hgdgnn.workers.dev';
+
 export type NetworkType = 'testnet' | 'mainnet';
 
 /**
@@ -312,7 +315,58 @@ export async function fetchSupportedTokens(): Promise<SupportedToken[]> {
 }
 
 /**
- * Batch-query Intents balances via the on-chain intents.near contract.
+ * Batch-fetch FT balances on NEAR base chain via backend proxy.
+ * Avoids browser CORS issues with direct RPC calls.
+ * Returns map of contractId → balance string (only non-zero).
+ */
+export async function fetchBaseChainBalances(
+  accountId: string,
+  contractIds: string[],
+): Promise<Record<string, string>> {
+  try {
+    const resp = await fetch(`${WALLET_API_URL}/api/balances/base-chain`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ account_id: accountId, contracts: contractIds }),
+    });
+    if (!resp.ok) return {};
+    const data = await resp.json();
+    return (data.balances ?? {}) as Record<string, string>;
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Fetch token prices from Rhea Finance.
+ * Covers 534+ NEAR-native tokens including ones ChainDefuser misses.
+ * Returns map of contractId → { symbol, price, decimal }.
+ */
+export async function fetchRheaTokenPrices(): Promise<
+  Record<string, { symbol: string; price: number; decimal: number }>
+> {
+  try {
+    const resp = await fetch("https://api.rhea.finance/list-token-price");
+    if (!resp.ok) return {};
+    const data = await resp.json();
+    const result: Record<string, { symbol: string; price: number; decimal: number }> = {};
+    for (const [contractId, info] of Object.entries(data)) {
+      const t = info as { price: string; symbol: string; decimal: number };
+      const price = parseFloat(t.price);
+      if (!t.symbol || isNaN(price) || price <= 0) continue;
+      result[contractId] = {
+        symbol: t.symbol,
+        price,
+        decimal: t.decimal ?? 18,
+      };
+    }
+    return result;
+  } catch {
+    return {};
+  }
+}
+
+/**
  * Uses mt_batch_balance_of (NEP-245) — single RPC call, no API key needed.
  * Returns raw balance strings indexed by token_id.
  */
@@ -438,7 +492,7 @@ export interface WalletAuthResponse {
 }
 
 export async function registerWalletWithGoogle(idToken: string): Promise<WalletAuthResponse> {
-  const WALLET_API_URL = import.meta.env.VITE_WALLET_API_URL || 'https://wallet-api.kj95hgdgnn.workers.dev';
+  WALLET_API_URL;
   const response = await axios.post(`${WALLET_API_URL}/api/wallet_auth`, { id_token: idToken });
   const data = response.data;
 
@@ -459,7 +513,7 @@ export interface WalletCheckResponse {
 }
 
 export async function checkGoogleWallet(idToken: string): Promise<WalletCheckResponse> {
-  const WALLET_API_URL = import.meta.env.VITE_WALLET_API_URL || 'https://wallet-api.kj95hgdgnn.workers.dev';
+  WALLET_API_URL;
   const response = await axios.post(`${WALLET_API_URL}/api/wallet/check`, { id_token: idToken });
   const data = response.data;
 
@@ -470,7 +524,7 @@ export async function checkGoogleWallet(idToken: string): Promise<WalletCheckRes
 }
 
 export async function linkWalletToGoogle(idToken: string, apiKey: string, nearAccountId: string): Promise<{ status: string; linked: boolean }> {
-  const WALLET_API_URL = import.meta.env.VITE_WALLET_API_URL || 'https://wallet-api.kj95hgdgnn.workers.dev';
+  WALLET_API_URL;
   const response = await axios.post(`${WALLET_API_URL}/api/wallet/link`, {
     id_token: idToken,
     api_key: apiKey,
@@ -484,10 +538,12 @@ export async function linkWalletToGoogle(idToken: string, apiKey: string, nearAc
   return data;
 }
 
-export async function unlinkWalletFromGoogle(idToken: string): Promise<{ status: string; unlinked: boolean }> {
-  const WALLET_API_URL = import.meta.env.VITE_WALLET_API_URL || 'https://wallet-api.kj95hgdgnn.workers.dev';
+export async function unlinkWalletFromGoogle(idToken: string, walletIndex: number, nearAccountId: string): Promise<{ status: string; unlinked: boolean; message?: string }> {
+  WALLET_API_URL;
   const response = await axios.post(`${WALLET_API_URL}/api/wallet/unlink`, {
     id_token: idToken,
+    wallet_index: walletIndex,
+    near_account_id: nearAccountId,
   });
   const data = response.data;
 
@@ -502,22 +558,19 @@ export interface WalletLabel {
   label: string;
 }
 
-export async function fetchWalletLabels(idToken?: string, googleSub?: string): Promise<WalletLabel[]> {
-  const WALLET_API_URL = import.meta.env.VITE_WALLET_API_URL || 'https://wallet-api.kj95hgdgnn.workers.dev';
-  const body: any = {};
-  if (idToken) body.id_token = idToken;
-  if (googleSub) body.google_sub = googleSub;
-  const response = await axios.post(`${WALLET_API_URL}/api/wallet/labels`, body);
+export async function fetchWalletLabels(idToken: string): Promise<WalletLabel[]> {
+  WALLET_API_URL;
+  const response = await axios.post(`${WALLET_API_URL}/api/wallet/labels`, { id_token: idToken });
   const data = response.data;
   if (data.error) throw new Error(data.error);
   return data.labels || [];
 }
 
-export async function setWalletLabel(idToken?: string, label?: string, walletIndex: number = 0, googleSub?: string): Promise<{ status: string }> {
-  const WALLET_API_URL = import.meta.env.VITE_WALLET_API_URL || 'https://wallet-api.kj95hgdgnn.workers.dev';
-  const body: any = { label, wallet_index: walletIndex };
-  if (idToken) body.id_token = idToken;
-  if (googleSub) body.google_sub = googleSub;
+export async function setWalletLabel(idToken: string, label: string, walletIndex?: number, nearAccountId?: string): Promise<{ status: string }> {
+  WALLET_API_URL;
+  const body: Record<string, string | number> = { id_token: idToken, label };
+  if (walletIndex !== undefined) body.wallet_index = walletIndex;
+  if (nearAccountId) body.near_account_id = nearAccountId;
   const response = await axios.post(`${WALLET_API_URL}/api/wallet/set-label`, body);
   const data = response.data;
   if (data.error) throw new Error(data.error);

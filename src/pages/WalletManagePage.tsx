@@ -2,10 +2,11 @@ import { useState, useEffect, useMemo } from "react";
 import { useLocation, Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNearWallet } from "@/contexts/NearWalletContext";
+import type { GoogleUserProfile } from "@/lib/google-auth";
 import WalletConnectionModal from "@/components/WalletConnectionModal";
 import WalletBalancesSection from "@/components/wallet/WalletBalancesSection";
 import CopyableAddress from "@/components/CopyableAddress";
-import { getCoordinatorApiUrl, registerWallet, setWalletLabel } from "@/lib/api";
+import { getCoordinatorApiUrl, registerWallet, setWalletLabel, WALLET_API_URL } from "@/lib/api";
 import type { WalletLabel } from "@/lib/api";
 import { actionCreators } from "@near-js/transactions";
 import {
@@ -36,6 +37,7 @@ import {
   Link2,
   Pencil,
   Plus,
+  RefreshCw,
   ShieldCheck,
   Snowflake,
   Trash2,
@@ -59,6 +61,7 @@ interface WalletItem {
   isGoogle: boolean;
   hasPolicy: boolean;
   updatedAt: number | null;
+  walletIndex?: number;
 }
 
 export default function WalletManagePage() {
@@ -82,6 +85,7 @@ export default function WalletManagePage() {
     closeLoginModal,
     syncWalletLabels,
     setRemoteWalletLabel,
+    getValidIdToken,
   } = useNearWallet();
 
   const location = useLocation();
@@ -91,6 +95,7 @@ export default function WalletManagePage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [importKey, setImportKey] = useState("");
   const [selectedIdx, setSelectedIdx] = useState(0);
@@ -109,24 +114,25 @@ export default function WalletManagePage() {
     setSavedEntries(getAllWalletKeys());
   }, []);
 
-  // Auto-sync wallets from remote on mount (Google auth)
+  // Auto-sync wallets from remote ONLY if no local wallets exist yet
   useEffect(() => {
     if (googleUser?.sub) {
+      // Always sync from server on mount (merge remote wallets into local)
       (async () => {
         try {
-          const WALLET_API_URL = import.meta.env.VITE_WALLET_API_URL || 'https://wallet-api.kj95hgdgnn.workers.dev';
+          const idToken = await getValidIdToken();
           const resp = await fetch(`${WALLET_API_URL}/api/wallet/list`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ google_sub: googleUser.sub }),
+            body: JSON.stringify({ id_token: idToken }),
           });
           const data = await resp.json();
           if (data.wallets && Array.isArray(data.wallets)) {
             for (const w of data.wallets) {
               if (w.near_account_id && w.api_key) {
                 const pk = `ed25519:${w.near_account_id}`;
-                const existing = getAllWalletKeys()[pk];
-                saveWalletKey(pk, w.api_key, w.label || existing?.label, existing?.source || "google", existing?.googleEmail || googleUser.email);
+                const local = getAllWalletKeys()[pk];
+                saveWalletKey(pk, w.api_key, w.label || local?.label, local?.source || "google", local?.googleEmail || googleUser.email);
               }
             }
             setSavedEntries(getAllWalletKeys());
@@ -135,6 +141,38 @@ export default function WalletManagePage() {
       })();
     }
   }, [googleUser]);
+
+  // Manual sync — pull all wallets from WASM on demand
+  const handleSync = async () => {
+    if (!googleUser?.sub) return;
+    setSyncing(true);
+    try {
+      const idToken = await getValidIdToken();
+      const resp = await fetch(`${WALLET_API_URL}/api/wallet/list`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id_token: idToken }),
+      });
+      const data = await resp.json();
+      if (data.wallets && Array.isArray(data.wallets)) {
+        for (const w of data.wallets) {
+          if (w.near_account_id && w.api_key) {
+            const pk = `ed25519:${w.near_account_id}`;
+            const local = getAllWalletKeys()[pk];
+            saveWalletKey(pk, w.api_key, w.label || local?.label, local?.source || "google", local?.googleEmail || googleUser.email, w.index);
+          }
+        }
+        setSavedEntries(getAllWalletKeys());
+      }
+      setSuccess("Wallets synced!");
+      setTimeout(() => setSuccess(null), 2000);
+    } catch {
+      setError("Sync failed");
+      setTimeout(() => setError(null), 2000);
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const coordinatorUrl = getCoordinatorApiUrl(network);
 
@@ -196,6 +234,7 @@ export default function WalletManagePage() {
         isGoogle: saved?.source === "google",
         hasPolicy: true,
         updatedAt: w.updated_at,
+        walletIndex: saved?.walletIndex,
       });
     }
 
@@ -292,7 +331,7 @@ export default function WalletManagePage() {
       setSuccess("API key saved!");
       setImportModalOpen(false); setImportKey("");
       setTimeout(() => setSuccess(null), 2000);
-    } catch (e: any) { setError(e?.message || "Failed to import key"); }
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : "Failed to import key"); }
     finally { setSubmitting(false); }
   };
 
@@ -305,8 +344,9 @@ export default function WalletManagePage() {
       setSavedEntries((prev) => ({ ...prev, [pk]: { apiKey: res.api_key, savedAt: new Date().toISOString(), source: "manual" as const } }));
       setSuccess("Wallet created!");
       setTimeout(() => setSuccess(null), 2000);
-    } catch (e: any) {
-      setError(e?.response?.data?.error || e?.message || "Failed to create wallet");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(msg || "Failed to create wallet");
     } finally { setSubmitting(false); }
   };
 
@@ -330,12 +370,12 @@ export default function WalletManagePage() {
     // Persist to backend if Google-linked
     if (googleUser?.sub) {
       try {
-        // Find the on-chain wallet index for this pubkey
-        const idx = wallets.findIndex(w => w.wallet_pubkey === pk);
-        if (idx >= 0) {
-          await setWalletLabel(undefined, name, idx, googleUser.sub);
-        }
-      } catch { /* non-blocking — label saved locally at least */ }
+        const idToken = await getValidIdToken();
+        const nearAccountId = pk.startsWith('ed25519:') ? pk.slice(8) : pk;
+        await setWalletLabel(idToken, name, undefined, nearAccountId);
+      } catch (e: unknown) {
+        console.warn('Failed to persist label to backend:', e);
+      }
     }
   }
 
@@ -424,34 +464,64 @@ export default function WalletManagePage() {
   }
 
   // ─── Connected state ────────────────────────────────────────────
+  const isLoadingWallets = !isSuccess && isConnected && accountId;
+
   return (
     <div className="max-w-lg mx-auto px-4 pt-4">
       {error && <Flash kind="error">{error}</Flash>}
       {success && <Flash kind="success">{success}</Flash>}
 
-      {/* Action bar */}
-      <div className="flex gap-2 mb-4">
-        {googleUser && googleWalletExists === false && (
-          <Button size="sm" onClick={async () => {
-            setSubmitting(true); setError(null);
-            try { await createGoogleWallet(); setSuccess("Wallet created!"); setSavedEntries(getAllWalletKeys()); }
-            catch (e: any) { setError(e?.message || "Failed to create wallet"); }
-            finally { setSubmitting(false); }
-          }} disabled={submitting || googleAuthLoading} className="flex-1">
-            {submitting ? "Creating..." : "Create Wallet"}
+      {/* Loading skeleton */}
+      {isLoadingWallets && (
+        <Card className="mb-4">
+          <CardContent className="p-5">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-muted animate-pulse" />
+              <div className="flex-1 space-y-2">
+                <div className="h-4 w-32 bg-muted rounded animate-pulse" />
+                <div className="h-3 w-24 bg-muted rounded animate-pulse" />
+              </div>
+            </div>
+            <div className="space-y-3">
+              <div className="h-10 w-full bg-muted rounded-lg animate-pulse" />
+              <div className="h-10 w-full bg-muted rounded-lg animate-pulse" />
+              <div className="h-10 w-full bg-muted rounded-lg animate-pulse" />
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Action bar — hide during initial load to prevent premature "Create" clicks */}
+      {!isLoadingWallets && (
+        <div className="flex gap-2 mb-4">
+          {googleUser && googleWalletExists === false && (
+            <Button size="sm" onClick={async () => {
+              setSubmitting(true); setError(null);
+              try { await createGoogleWallet(); setSuccess("Wallet created!"); setSavedEntries(getAllWalletKeys()); }
+              catch (e: unknown) { setError(e instanceof Error ? e.message : "Failed to create wallet"); }
+              finally { setSubmitting(false); }
+            }} disabled={submitting || googleAuthLoading} className="flex-1">
+              {submitting ? "Creating..." : "Create Wallet"}
+            </Button>
+          )}
+          <Button size="sm" variant="outline" onClick={handleCreateWallet} disabled={submitting} className="flex-1">
+            <Plus size={14} /> New Wallet
           </Button>
-        )}
-        <Button size="sm" variant="outline" onClick={handleCreateWallet} disabled={submitting} className="flex-1">
-          <Plus size={14} /> New Wallet
-        </Button>
-        <Button size="sm" variant="outline" onClick={() => setImportModalOpen(true)}>
-          <ArrowDownToLine size={14} />
-        </Button>
-      </div>
+          <Button size="sm" variant="outline" onClick={() => setImportModalOpen(true)}>
+            <ArrowDownToLine size={14} />
+          </Button>
+          {googleUser && (
+            <Button size="sm" variant="outline" onClick={handleSync} disabled={syncing}>
+              <RefreshCw size={14} className={syncing ? "animate-spin" : ""} />
+            </Button>
+          )}
+        </div>
+      )}
 
       {/* Wallet view */}
-      {allWallets.length > 0 ? (
+      {!isLoadingWallets && allWallets.length > 0 ? (
         <SingleWalletView
+          key={allWallets[selectedIdx]?.id ?? selectedIdx}
           wallets={allWallets}
           selectedIdx={selectedIdx}
           onSelect={setSelectedIdx}
@@ -468,13 +538,13 @@ export default function WalletManagePage() {
           onLinkGoogle={async (apiKey, nearAcct) => {
             setSubmitting(true); setError(null);
             try { await linkWalletToGoogle(apiKey, nearAcct); setSuccess("Linked to Google!"); setSavedEntries(getAllWalletKeys()); }
-            catch (e: any) { setError(e?.message || "Failed to link"); }
+            catch (e: unknown) { setError(e instanceof Error ? e.message : "Failed to link"); }
             finally { setSubmitting(false); }
           }}
-          onUnlinkGoogle={async () => {
+          onUnlinkGoogle={async (walletIndex: number, nearAccountId: string) => {
             setSubmitting(true); setError(null);
-            try { await unlinkWalletFromGoogle(); setSuccess("Unlinked from Google"); setSavedEntries(getAllWalletKeys()); }
-            catch (e: any) { setError(e?.message || "Failed to unlink"); }
+            try { await unlinkWalletFromGoogle(walletIndex, nearAccountId); setSuccess("Unlinked from Google"); setSavedEntries(getAllWalletKeys()); }
+            catch (e: unknown) { setError(e instanceof Error ? e.message : "Failed to unlink"); }
             finally { setSubmitting(false); }
           }}
         />
@@ -482,11 +552,11 @@ export default function WalletManagePage() {
         isSuccess && (
           <Card>
             <CardContent className="py-12 text-center">
-              <div className="w-16 h-16 rounded-2xl bg-zinc-100 flex items-center justify-center mx-auto mb-5">
-                <Key size={28} className="text-zinc-400" />
+              <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-5">
+                <Key size={28} className="text-muted-foreground" />
               </div>
-              <h2 className="text-lg font-semibold text-zinc-900 mb-1">No wallets found</h2>
-              <p className="text-zinc-500 text-sm mb-6 max-w-xs mx-auto">Create a new wallet or import an existing API key.</p>
+              <h2 className="text-lg font-semibold mb-1">No wallets found</h2>
+              <p className="text-muted-foreground text-sm mb-6 max-w-xs mx-auto">Create a new wallet or import an existing API key.</p>
               <div className="flex flex-col items-center gap-3">
                 <Button onClick={handleCreateWallet} size="lg" className="w-full max-w-xs" disabled={submitting}>
                   {submitting ? "Creating..." : "Create Wallet"}
@@ -519,13 +589,13 @@ function SingleWalletView({
   onCopyKey: (key: string) => void;
   onRemoveKey: (pk: string) => void;
   onRename?: (pk: string, name: string) => void;
-  googleUser?: any;
+  googleUser?: { sub: string; email?: string; name?: string; picture?: string };
   googleAuthLoading?: boolean;
   submitting?: boolean;
   onFreeze?: (pk: string) => void;
   onUnfreeze?: (pk: string) => void;
   onLinkGoogle?: (apiKey: string, nearAcct: string) => void;
-  onUnlinkGoogle?: () => void;
+  onUnlinkGoogle?: (walletIndex: number, nearAccountId: string) => void;
 }) {
   const w = wallets[selectedIdx];
   if (!w) return null;
@@ -554,7 +624,7 @@ function SingleWalletView({
               }`}
             >
               <div className="flex items-center gap-1.5">
-                <div className={`w-1.5 h-1.5 rounded-full ${item.frozen ? "bg-zinc-400" : i === selectedIdx ? "bg-emerald-400" : "bg-emerald-500"}`} />
+                <div className={`w-1.5 h-1.5 rounded-full ${item.frozen ? "bg-zinc-400" : i === selectedIdx ? "bg-lime-400" : "bg-lime-500"}`} />
                 {item.label}
               </div>
             </button>
@@ -592,7 +662,7 @@ function SingleWalletView({
                       if (onRename && editVal.trim()) onRename(w.pubkey, editVal.trim());
                       setEditing(false);
                     }}
-                    className="text-xs text-emerald-600 font-medium px-3 py-1.5 rounded-md bg-emerald-50 shrink-0 active:bg-emerald-100"
+                    className="text-xs text-lime-600 font-medium px-3 py-1.5 rounded-md bg-lime-50 shrink-0 active:bg-lime-100"
                   >
                     Save
                   </button>
@@ -614,7 +684,7 @@ function SingleWalletView({
                   <Pencil size={11} className="text-zinc-400" />
                 </button>
               )}
-              <div className={`w-2 h-2 rounded-full shrink-0 ${w.frozen ? "bg-zinc-400" : "bg-emerald-500"}`} />
+              <div className={`w-2 h-2 rounded-full shrink-0 ${w.frozen ? "bg-zinc-400" : "bg-lime-500"}`} />
               <span className="text-xs text-zinc-500 shrink-0">{w.frozen ? "Frozen" : "Active"}</span>
               {w.isGoogle && <Badge variant="outline" className="text-[10px] shrink-0">Google</Badge>}
               {!w.hasPolicy && <Badge variant="outline" className="text-[10px] shrink-0">No Policy</Badge>}
@@ -686,7 +756,7 @@ function SingleWalletView({
               </Button>
             )}
             {w.isGoogle && w.apiKey && onUnlinkGoogle && (
-              <Button size="sm" variant="ghost" disabled={googleAuthLoading || submitting} onClick={onUnlinkGoogle}>
+              <Button size="sm" variant="ghost" disabled={googleAuthLoading || submitting} onClick={() => onUnlinkGoogle(w.walletIndex ?? selectedIdx, w.address)}>
                 <Unlink size={14} /> Unlink
               </Button>
             )}
@@ -727,8 +797,8 @@ function SingleWalletView({
 
 function Flash({ kind, children }: { kind: "error" | "success"; children: React.ReactNode }) {
   return (
-    <div className={`mb-3 border-l-4 rounded-r-lg p-3 ${kind === "error" ? "bg-red-500/10 border-red-500" : "bg-emerald-500/10 border-emerald-500"}`}>
-      <p className={`text-sm ${kind === "error" ? "text-red-400" : "text-emerald-400"}`}>{children}</p>
+    <div className={`mb-3 border-l-4 rounded-r-lg p-3 ${kind === "error" ? "bg-red-500/10 border-red-500" : "bg-lime-500/10 border-lime-500"}`}>
+      <p className={`text-sm ${kind === "error" ? "text-red-400" : "text-lime-400"}`}>{children}</p>
     </div>
   );
 }

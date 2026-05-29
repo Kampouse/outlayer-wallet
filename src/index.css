@@ -7,17 +7,17 @@
 
 /* Override zinc scale in dark mode so hardcoded classes work automatically */
 .dark {
-  --color-zinc-50: oklch(0.178 0 0);
-  --color-zinc-100: oklch(0.21 0 0);
-  --color-zinc-200: oklch(0.27 0 0);
-  --color-zinc-300: oklch(0.37 0 0);
-  --color-zinc-400: oklch(0.52 0 0);
-  --color-zinc-500: oklch(0.65 0 0);
-  --color-zinc-600: oklch(0.78 0 0);
-  --color-zinc-700: oklch(0.87 0 0);
-  --color-zinc-800: oklch(0.93 0 0);
-  --color-zinc-900: oklch(0.98 0 0);
-  --color-white: oklch(0.145 0 0);
+  --color-zinc-50: oklch(0.165 0.007 286);
+  --color-zinc-100: oklch(0.19 0.007 286);
+  --color-zinc-200: oklch(0.24 0.007 286);
+  --color-zinc-300: oklch(0.32 0.005 286);
+  --color-zinc-400: oklch(0.50 0.005 286);
+  --color-zinc-500: oklch(0.63 0.005 286);
+  --color-zinc-600: oklch(0.76 0.005 286);
+  --color-zinc-700: oklch(0.86 0.005 286);
+  --color-zinc-800: oklch(0.93 0.005 286);
+  --color-zinc-900: oklch(0.98 0.005 286);
+  --color-white: oklch(0.12 0.014 284);
 }
 
 :root {
@@ -130,37 +130,37 @@ button.text-xs, a.text-xs, button.text-sm, a.text-sm {
 }
 
 .dark {
-  --background: oklch(0.13 0 0);
-  --foreground: oklch(0.97 0 0);
-  --card: oklch(0.178 0 0);
-  --card-foreground: oklch(0.97 0 0);
-  --popover: oklch(0.178 0 0);
-  --popover-foreground: oklch(0.97 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.178 0 0);
-  --secondary: oklch(0.235 0 0);
-  --secondary-foreground: oklch(0.97 0 0);
-  --muted: oklch(0.235 0 0);
-  --muted-foreground: oklch(0.75 0 0);
-  --accent: oklch(0.235 0 0);
-  --accent-foreground: oklch(0.97 0 0);
+  --background: oklch(0.118 0.014 284);
+  --foreground: oklch(0.98 0 0);
+  --card: oklch(0.165 0.007 286);
+  --card-foreground: oklch(0.98 0 0);
+  --popover: oklch(0.165 0.007 286);
+  --popover-foreground: oklch(0.98 0 0);
+  --primary: oklch(0.92 0.23 123);
+  --primary-foreground: oklch(0.13 0 0);
+  --secondary: oklch(0.22 0.007 286);
+  --secondary-foreground: oklch(0.95 0 0);
+  --muted: oklch(0.22 0.007 286);
+  --muted-foreground: oklch(0.55 0 0);
+  --accent: oklch(0.22 0.007 286);
+  --accent-foreground: oklch(0.95 0 0);
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
+  --border: oklch(1 0 0 / 8%);
+  --input: oklch(1 0 0 / 12%);
+  --ring: oklch(0.92 0.23 123);
+  --chart-1: oklch(0.92 0.23 123);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --sidebar: oklch(0.165 0.007 286);
+  --sidebar-foreground: oklch(0.98 0 0);
+  --sidebar-primary: oklch(0.92 0.23 123);
+  --sidebar-primary-foreground: oklch(0.13 0 0);
+  --sidebar-accent: oklch(0.22 0.007 286);
+  --sidebar-accent-foreground: oklch(0.95 0 0);
+  --sidebar-border: oklch(1 0 0 / 8%);
+  --sidebar-ring: oklch(0.92 0.23 123);
 }
 
 @layer base {
@@ -183,4 +183,14 @@ button.text-xs, a.text-xs, button.text-sm, a.text-sm {
 
 .animate-fade-in {
   animation: fade-in 150ms ease-out;
+}
+
+/* Bottom sheet slide-up */
+@keyframes sheet-enter {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.sheet-enter {
+  animation: sheet-enter 300ms ease-out;
 }

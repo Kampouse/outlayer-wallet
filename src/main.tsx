@@ -20,10 +20,9 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 0,             // always refetch on mount
-      gcTime: MAX_AGE,            // match persistence TTL
+      gcTime: MAX_AGE,          // match persistence TTL
       retry: 1,
       refetchOnWindowFocus: true,
-      placeholderData: (prev) => prev,
     },
   },
 })
