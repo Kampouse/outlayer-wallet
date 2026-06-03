@@ -10,6 +10,7 @@ import {
 } from '@tanstack/react-query-persist-client'
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister'
 import { NearWalletProvider } from './contexts/NearWalletContext'
+import { PasskeyProvider } from './contexts/PasskeyContext'
 import App from './App'
 import './index.css'
 
@@ -46,7 +47,9 @@ createRoot(document.getElementById('root')!).render(
       persistOptions={{ persister, maxAge: MAX_AGE }}
     >
       <NearWalletProvider>
-        <App />
+        <PasskeyProvider>
+          <App />
+        </PasskeyProvider>
       </NearWalletProvider>
     </PersistQueryClientProvider>
   </BrowserRouter>,
