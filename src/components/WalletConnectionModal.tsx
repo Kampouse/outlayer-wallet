@@ -33,10 +33,12 @@ export default function WalletConnectionModal({ isOpen, onClose }: WalletConnect
     network,
     switchNetwork,
     connect,
-    isConnected,
+    isNearConnected,
     isWalletReady,
     connectWithGoogle,
     googleAuthLoading,
+    authMethod,
+    nearAccountId,
   } = useNearWallet();
   const [pendingNetwork, setPendingNetwork] = useState<NetworkType>(network);
 
@@ -49,13 +51,6 @@ export default function WalletConnectionModal({ isOpen, onClose }: WalletConnect
       setPendingNetwork(network);
     }
   }, [isOpen, network]);
-
-  // Auto-close modal when wallet gets connected
-  useEffect(() => {
-    if (isConnected && isOpen) {
-      onClose();
-    }
-  }, [isConnected, isOpen, onClose]);
 
   const handleNetworkChange = async (newNetwork: NetworkType) => {
     if (newNetwork === network) {
@@ -84,106 +79,123 @@ export default function WalletConnectionModal({ isOpen, onClose }: WalletConnect
     }
   };
 
+  // Already connected via NEAR wallet — show simple status
+  if (isNearConnected) {
+    return (
+      <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>NEAR Wallet Connected</DialogTitle>
+            <DialogDescription>
+              Connected as <span className="font-mono">{nearAccountId}</span>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Button variant="outline" onClick={onClose} className="w-full">
+              Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>
-            {isConnected ? 'Wallet Connected' : 'Connect Wallet'}
+            {authMethod === 'google' ? 'Connect NEAR Wallet' : 'Connect Wallet'}
           </DialogTitle>
           <DialogDescription>
-            {isConnected
-              ? 'Your wallet is already connected. Go to Settings to disconnect or switch network.'
+            {authMethod === 'google'
+              ? 'Connect a NEAR wallet to sign transactions on-chain. Your Google session stays active.'
               : 'Select network and login with NEAR or Google'}
           </DialogDescription>
         </DialogHeader>
 
-        {!isConnected ? (
-          <div className="space-y-6">
-            {/* Network Selector */}
-            <div>
-              <label className="block text-sm font-medium text-zinc-700 mb-2">
-                Network
-              </label>
-              <div className="flex items-center bg-zinc-100 rounded-lg p-1">
-                <button
-                  onClick={() => handleNetworkChange('testnet')}
-                  className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                    pendingNetwork === 'testnet'
-                      ? 'bg-white text-zinc-900 shadow-sm'
-                      : 'text-zinc-500 hover:text-zinc-700'
-                  }`}
-                >
-                  Testnet
-                </button>
-                <button
-                  onClick={() => handleNetworkChange('mainnet')}
-                  className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                    pendingNetwork === 'mainnet'
-                      ? 'bg-white text-zinc-900 shadow-sm'
-                      : 'text-zinc-500 hover:text-zinc-700'
-                  }`}
-                >
-                  Mainnet
-                </button>
-              </div>
+        <div className="space-y-6">
+          {/* Network Selector */}
+          <div>
+            <label className="block text-sm font-medium text-zinc-700 mb-2">
+              Network
+            </label>
+            <div className="flex items-center bg-zinc-100 rounded-lg p-1">
+              <button
+                onClick={() => handleNetworkChange('testnet')}
+                className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  pendingNetwork === 'testnet'
+                    ? 'bg-white text-zinc-900 shadow-sm'
+                    : 'text-zinc-500 hover:text-zinc-700'
+                }`}
+              >
+                Testnet
+              </button>
+              <button
+                onClick={() => handleNetworkChange('mainnet')}
+                className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  pendingNetwork === 'mainnet'
+                    ? 'bg-white text-zinc-900 shadow-sm'
+                    : 'text-zinc-500 hover:text-zinc-700'
+                }`}
+              >
+                Mainnet
+              </button>
             </div>
-
-            {/* Connect Button */}
-            <Button
-              onClick={handleConnect}
-              disabled={!isWalletReady || pendingNetwork !== network}
-              className="w-full h-11"
-            >
-              {!isWalletReady || pendingNetwork !== network ? 'Switching network...' : `Connect to ${pendingNetwork === 'testnet' ? 'Testnet' : 'Mainnet'}`}
-            </Button>
-
-            {(!isWalletReady || pendingNetwork !== network) && (
-              <p className="text-xs text-zinc-400 text-center">
-                Please wait while we switch to {pendingNetwork}...
-              </p>
-            )}
-
-            {/* Divider + Google Sign-In */}
-            {showGoogleButton && (
-              <>
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-zinc-200" />
-                  </div>
-                  <div className="relative flex justify-center text-xs">
-                    <span className="bg-white dark:bg-zinc-900 px-3 text-zinc-400">or</span>
-                  </div>
-                </div>
-
-                <button
-                  onClick={handleGoogleSignIn}
-                  disabled={googleAuthLoading}
-                  className="w-full flex items-center justify-center gap-3 h-12 px-4 bg-white border border-zinc-200 rounded-lg text-zinc-700 font-medium text-sm hover:bg-zinc-50 active:bg-zinc-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {googleAuthLoading ? (
-                    <svg className="animate-spin h-5 w-5 text-zinc-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                    </svg>
-                  ) : (
-                    <GoogleLogo className="h-5 w-5 flex-shrink-0" />
-                  )}
-                  {googleAuthLoading ? 'Signing in...' : 'Sign in with Google'}
-                </button>
-              </>
-            )}
           </div>
-        ) : (
-          <div className="space-y-4">
-            <p className="text-zinc-600 text-sm">
-              Your wallet is already connected. Go to Settings to disconnect or switch network.
+
+          {/* Connect Button */}
+          <Button
+            onClick={handleConnect}
+            disabled={!isWalletReady || pendingNetwork !== network}
+            className="w-full h-11"
+          >
+            {!isWalletReady || pendingNetwork !== network ? 'Switching network...' : `Connect to ${pendingNetwork === 'testnet' ? 'Testnet' : 'Mainnet'}`}
+          </Button>
+
+          {(!isWalletReady || pendingNetwork !== network) && (
+            <p className="text-xs text-zinc-400 text-center">
+              Please wait while we switch to {pendingNetwork}...
             </p>
-            <Button variant="outline" onClick={onClose} className="w-full">
-              Close
-            </Button>
-          </div>
-        )}
+          )}
+
+          {/* Divider + Google Sign-In — only when not already connected via Google */}
+          {showGoogleButton && authMethod !== 'google' && (
+            <>
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-zinc-200" />
+                </div>
+                <div className="relative flex justify-center text-xs">
+                  <span className="bg-white dark:bg-zinc-900 px-3 text-zinc-400">or</span>
+                </div>
+              </div>
+
+              <button
+                onClick={handleGoogleSignIn}
+                disabled={googleAuthLoading}
+                className="w-full flex items-center justify-center gap-3 h-12 px-4 bg-white border border-zinc-200 rounded-lg text-zinc-700 font-medium text-sm hover:bg-zinc-50 active:bg-zinc-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {googleAuthLoading ? (
+                  <svg className="animate-spin h-5 w-5 text-zinc-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                ) : (
+                  <GoogleLogo className="h-5 w-5 flex-shrink-0" />
+                )}
+                {googleAuthLoading ? 'Signing in...' : 'Sign in with Google'}
+              </button>
+            </>
+          )}
+
+          {/* Already Google-connected notice */}
+          {authMethod === 'google' && (
+            <p className="text-xs text-zinc-400 text-center">
+              Already signed in with Google. This only adds a NEAR wallet for signing.
+            </p>
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   );

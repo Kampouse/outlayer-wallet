@@ -72,6 +72,9 @@ export default function WalletManagePage() {
     contractId,
     viewMethod,
     signAndSendTransaction,
+    nearAccountId,
+    isNearConnected,
+    requestNearLogin,
     authMethod,
     googleUser,
     googleApiKey,
@@ -513,6 +516,11 @@ export default function WalletManagePage() {
           {googleUser && (
             <Button size="sm" variant="outline" onClick={handleSync} disabled={syncing}>
               <RefreshCw size={14} className={syncing ? "animate-spin" : ""} />
+            </Button>
+          )}
+          {!isNearConnected && (
+            <Button size="sm" variant="outline" onClick={requestNearLogin}>
+              <Link2 size={14} /> Connect NEAR
             </Button>
           )}
         </div>

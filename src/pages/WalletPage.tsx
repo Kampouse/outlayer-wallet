@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useNearWallet } from '@/contexts/NearWalletContext';
-import WalletConnectionModal from '@/components/WalletConnectionModal';
 import { getCoordinatorApiUrl } from '@/lib/api';
 import { Link } from 'react-router-dom';
 import { saveWalletKey, computeKeyHash } from '@/lib/wallet-keys';
@@ -37,14 +36,16 @@ function WalletHandoffContent() {
   const {
     accountId,
     isConnected,
+    isNearConnected,
+    nearAccountId,
     network,
     contractId,
     viewMethod,
     signAndSendTransaction,
+    requestNearLogin,
+    closeLoginModal,
   } = useNearWallet();
   const coordinatorUrl = getCoordinatorApiUrl(network);
-
-  const [showWalletModal, setShowWalletModal] = useState(false);
   const [walletInfo, setWalletInfo] = useState<WalletInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,9 +57,9 @@ function WalletHandoffContent() {
   const [ownerMode, setOwnerMode] = useState<'wallet' | 'manual'>('wallet');
   const [manualOwner, setManualOwner] = useState('');
 
-  // The effective owner account
-  const effectiveOwner = ownerMode === 'wallet' ? accountId : (manualOwner.trim() || null);
-  const ownerReady = ownerMode === 'wallet' ? isConnected : !!manualOwner.trim();
+  // The effective owner account — use nearAccountId (actual NEAR wallet) not accountId (may be Google-assigned)
+  const effectiveOwner = ownerMode === 'wallet' ? nearAccountId : (manualOwner.trim() || null);
+  const ownerReady = ownerMode === 'wallet' ? isNearConnected : !!manualOwner.trim();
 
   // SHA256 hash of current API key (for authorized_key_hashes in policy)
   const apiKeyHash = useApiKeyHash(apiKey);
@@ -220,8 +221,8 @@ function WalletHandoffContent() {
   const handleSubmitPolicy = async () => {
     if (!effectiveOwner || !walletInfo) return;
 
-    // Manual mode requires connected wallet to sign the transaction
-    if (ownerMode === 'manual' && !isConnected) {
+    // Manual mode requires connected NEAR wallet to sign the transaction
+    if (ownerMode === 'manual' && !isNearConnected) {
       setError('Connect your NEAR wallet to sign the transaction. The manual account will be set as owner.');
       return;
     }
@@ -455,13 +456,13 @@ function WalletHandoffContent() {
             </div>
 
             {ownerMode === 'wallet' ? (
-              isConnected ? (
+              isNearConnected ? (
                 <p className="text-sm text-lime-400">
-                  Connected as <span className="font-mono font-medium">{accountId}</span>
+                  Connected as <span className="font-mono font-medium">{nearAccountId}</span>
                 </p>
               ) : (
                 <div>
-                  <Button onClick={() => setShowWalletModal(true)}>
+                  <Button onClick={requestNearLogin}>
                     Connect Wallet
                   </Button>
                 </div>
@@ -478,9 +479,9 @@ function WalletHandoffContent() {
                 <p className="text-xs text-zinc-400 mt-1">
                   This NEAR account will be the policy owner. You still need to connect a wallet to sign the transaction.
                 </p>
-                {manualOwner.trim() && !isConnected && (
+                {manualOwner.trim() && !isNearConnected && (
                   <div className="mt-3">
-                    <Button variant="outline" onClick={() => setShowWalletModal(true)}>
+                    <Button variant="outline" onClick={requestNearLogin}>
                       Connect wallet to sign transaction
                     </Button>
                   </div>
@@ -718,7 +719,6 @@ function WalletHandoffContent() {
         </Card>
       )}
 
-      <WalletConnectionModal isOpen={showWalletModal} onClose={() => setShowWalletModal(false)} />
     </div>
   );
 }

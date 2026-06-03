@@ -124,10 +124,13 @@ interface NearWalletContextType {
   contractId: string;
   rpcUrl: string;
   stablecoin: StablecoinConfig;
+  nearAccountId: string | null;
+  isNearConnected: boolean;
   shouldReopenModal: boolean;
   clearReopenModal: () => void;
   connect: () => void;
   disconnect: () => void;
+  disconnectNear: () => Promise<void>;
   switchNetwork: (network: NetworkType) => void;
   signAndSendTransaction: (params: SignAndSendTransactionParams) => Promise<FinalExecutionOutcome>;
   signMessage: (params: SignMessageParams) => Promise<SignedMessage | null>;
@@ -150,6 +153,7 @@ interface NearWalletContextType {
   setRemoteWalletLabel: (label: string, walletIndex: number) => Promise<void>;
   loginModalOpen: boolean;
   requestLogin: () => void;
+  requestNearLogin: () => void;
   closeLoginModal: () => void;
 }
 
@@ -358,6 +362,9 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
     if (isConnected) return; // already connected — skip modal
     setLoginModalOpen(true);
   }, [isConnected]);
+  const requestNearLogin = useCallback(() => {
+    setLoginModalOpen(true);
+  }, []);
   const closeLoginModal = useCallback(() => setLoginModalOpen(false), []);
 
   const disconnect = useCallback(async () => {
@@ -383,8 +390,21 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('outlayer:cachedAccountId');
   }, [googleApiKey, nearAccountId]);
 
-  // -------------------------------------------------------------------------
-  // Google Sign-In — "Sync with Google" (checks + auto-creates if needed)
+  // Disconnect NEAR wallet only — keep Google session intact
+  const disconnectNear = useCallback(async () => {
+    if (connectorRef.current) {
+      try {
+        await connectorRef.current.disconnect();
+      } catch (e) {
+        console.warn('NEAR disconnect error:', e);
+      }
+    }
+    setNearAccountId(null);
+    localStorage.removeItem('outlayer:cachedAccountId');
+  }, []);
+
+  // -----------------------------------------------------------------------
+  // Google Sign-In
   // -------------------------------------------------------------------------
 
   const connectWithGoogle = useCallback(async () => {
@@ -853,6 +873,8 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
         accountId,
         isConnected,
         isWalletReady,
+        nearAccountId,
+        isNearConnected: !!nearAccountId,
         network,
         contractId: config.contractId,
         rpcUrl: config.rpcUrl,
@@ -861,6 +883,7 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
         clearReopenModal,
         connect,
         disconnect,
+        disconnectNear,
         switchNetwork,
         signAndSendTransaction,
         signMessage,
@@ -883,6 +906,7 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
         setRemoteWalletLabel: handleSetRemoteWalletLabel,
         loginModalOpen,
         requestLogin,
+        requestNearLogin,
         closeLoginModal,
       }}
     >
