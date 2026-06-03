@@ -35,6 +35,7 @@ import {
   EyeOff,
   Key,
   Link2,
+  LogOut,
   Pencil,
   Plus,
   RefreshCw,
@@ -75,6 +76,7 @@ export default function WalletManagePage() {
     nearAccountId,
     isNearConnected,
     requestNearLogin,
+    disconnect,
     authMethod,
     googleUser,
     googleApiKey,
@@ -523,6 +525,9 @@ export default function WalletManagePage() {
               <Link2 size={14} /> Connect NEAR
             </Button>
           )}
+          <Button size="sm" variant="ghost" onClick={() => disconnect()}>
+            <LogOut size={14} />
+          </Button>
         </div>
       )}
 
