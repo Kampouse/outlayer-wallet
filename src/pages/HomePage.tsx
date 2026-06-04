@@ -4,11 +4,13 @@ import { RefreshCw, Loader2 } from "lucide-react";
 import { useNearWallet } from "@/contexts/NearWalletContext";
 import { useWalletBalances } from "@/hooks/useWalletBalances";
 import { formatTokenBalance } from "@/hooks/useWalletBalances";
-import { getAllWalletKeys } from "@/lib/wallet-keys";
+import { getAllWalletKeys, saveWalletKey } from "@/lib/wallet-keys";
+import { getCoordinatorApiUrl } from "@/lib/api";
 import ActionRing from "@/components/ActionRing";
 import TokenIcon from "@/components/TokenIcon";
 import { BottomSheetModal } from "@/components/BottomSheetModal";
 import ReceiveSheet from "@/components/ReceiveSheet";
+import EmptyStateHero from "@/components/EmptyStateHero";
 
 const WalletSendPage = lazy(() => import("./WalletSendPage"));
 const WalletSwapPage = lazy(() => import("./WalletSwapPage"));
@@ -40,28 +42,72 @@ function SkeletonBlock({ className = "" }: { className?: string }) {
 
 export default function HomePage() {
   const navigate = useNavigate();
-  const { accountId, isConnected, requestLogin, googleUser } = useNearWallet();
+  const { accountId, isConnected, requestLogin, googleUser, switchToWallet } = useNearWallet();
 
-  // Derive apiKey and label from stored wallet keys
-  const { apiKey, walletLabel } = (() => {
-    if (!accountId) return { apiKey: null, walletLabel: null };
+  // Derive apiKey, label, and effective balance address from stored wallet keys
+  const { apiKey, walletLabel, walletAddress } = (() => {
     const keys = getAllWalletKeys();
-    // Keys are stored as "ed25519:{accountId}" → StoredKey
-    const match = Object.entries(keys).find(([pk]) => pk === `ed25519:${accountId}`);
-    if (!match) return { apiKey: null, walletLabel: null };
-    const entry = match[1];
-    // Priority: custom label > google email > truncated account
-    const label = entry.label
-      || (entry.googleEmail ? entry.googleEmail.split('@')[0] : null)
-      || (accountId.length > 20 ? `${accountId.slice(0, 10)}...${accountId.slice(-4)}` : accountId);
-    return { apiKey: entry.apiKey || null, walletLabel: label };
+    // Try exact match first: ed25519:{accountId}
+    if (accountId) {
+      const match = Object.entries(keys).find(([pk]) => pk === `ed25519:${accountId}`);
+      if (match) {
+        const entry = match[1];
+        const label = entry.label
+          || (entry.googleEmail ? entry.googleEmail.split('@')[0] : null)
+          || (accountId.length > 20 ? `${accountId.slice(0, 10)}...${accountId.slice(-4)}` : accountId);
+        return { apiKey: entry.apiKey || null, walletLabel: label, walletAddress: accountId };
+      }
+    }
+    // Fallback: use first stored wallet key (agent wallet address ≠ NEAR account)
+    const firstEntry = Object.entries(keys)[0];
+    if (firstEntry) {
+      const [pk, entry] = firstEntry;
+      const addr = pk.replace(/^ed25519:/, "");
+      const label = entry.label
+        || (entry.googleEmail ? entry.googleEmail.split('@')[0] : null)
+        || (addr.length > 20 ? `${addr.slice(0, 10)}...${addr.slice(-4)}` : addr);
+      return { apiKey: entry.apiKey || null, walletLabel: label, walletAddress: addr };
+    }
+    return { apiKey: null, walletLabel: null, walletAddress: accountId };
   })();
 
-  const { near, tokens, baseChainTokens, allTokens, loading, baseChainLoading, refetch } = useWalletBalances(apiKey, accountId);
+  // Use walletAddress (agent wallet) for balance lookups, not the NEAR extension account
+  const { near, tokens, baseChainTokens, allTokens, loading, baseChainLoading, refetch } = useWalletBalances(apiKey, walletAddress);
 
   const [sendOpen, setSendOpen] = useState(false);
   const [swapOpen, setSwapOpen] = useState(false);
   const [receiveOpen, setReceiveOpen] = useState(false);
+
+  // Inline API key import (shown when logged in but no wallet yet)
+  const [importKeyValue, setImportKeyValue] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+
+  const handleImportKey = async () => {
+    const key = importKeyValue.trim();
+    if (!key) return;
+    setImporting(true);
+    setImportError(null);
+    try {
+      const coordinatorUrl = getCoordinatorApiUrl();
+      const resp = await fetch(`${coordinatorUrl}/wallet/v1/address?chain=near`, {
+        headers: { Authorization: `Bearer ${key}` },
+      });
+      if (!resp.ok) {
+        setImportError(`Invalid API key: HTTP ${resp.status}`);
+        return;
+      }
+      const data = await resp.json();
+      saveWalletKey(`ed25519:${data.address}`, key, "imported");
+      setImportKeyValue("");
+      // Switch to the imported wallet so balances show immediately
+      switchToWallet(data.address, key);
+    } catch (e) {
+      setImportError(e instanceof Error ? e.message : "Failed to import key");
+    } finally {
+      setImporting(false);
+    }
+  };
 
   // Compute total USD value
   const totalUsd = (() => {
@@ -90,6 +136,12 @@ export default function HomePage() {
     totalUsd > 0 ? `$${totalUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
     : near ? `${formatNear(near.balance)} NEAR`
     : null;
+
+  // First-visit explainer — only when not logged in.
+  // Logged-in users see the normal dashboard (original behavior).
+  if (!isConnected) {
+    return <EmptyStateHero />;
+  }
 
   return (
     <div className="max-w-lg mx-auto px-4 pb-24">
@@ -135,16 +187,32 @@ export default function HomePage() {
         </div>
 
         {!apiKey ? (
-          <div className="flex flex-col items-center py-12 text-center">
+          <div className="flex flex-col items-center py-8 text-center">
             <span className="text-sm text-muted-foreground mb-3">
-              No wallet connected yet
+              Import an API key to see balances
             </span>
-            <button
-              onClick={requestLogin}
-              className="text-xs font-medium text-foreground bg-muted px-4 py-2 rounded-full"
-            >
-              Connect Wallet
-            </button>
+            <div className="w-full max-w-xs space-y-2">
+              <input
+                type="text"
+                placeholder="wk_..."
+                value={importKeyValue}
+                onChange={(e) => { setImportKeyValue(e.target.value); setImportError(null); }}
+                onKeyDown={(e) => { if (e.key === "Enter") handleImportKey(); }}
+                disabled={importing}
+                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                autoFocus
+              />
+              {importError && (
+                <p className="text-xs text-red-500">{importError}</p>
+              )}
+              <button
+                onClick={handleImportKey}
+                disabled={importing || !importKeyValue.trim()}
+                className="w-full text-xs font-medium text-foreground bg-muted hover:bg-muted/80 px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {importing ? "Importing..." : "Import"}
+              </button>
+            </div>
           </div>
         ) : loading && tokens.length === 0 && baseChainTokens.length === 0 ? (
           <div className="space-y-2">
@@ -315,7 +383,7 @@ export default function HomePage() {
 
       {/* Receive modal */}
       <BottomSheetModal open={receiveOpen} onClose={() => setReceiveOpen(false)} title="Receive">
-        {accountId ? <ReceiveSheet address={accountId} /> : (
+        {walletAddress ? <ReceiveSheet address={walletAddress} /> : (
           <p className="text-center text-sm text-muted-foreground py-8">No wallet connected</p>
         )}
       </BottomSheetModal>
