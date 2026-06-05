@@ -544,17 +544,6 @@ export default function WalletHistoryPage() {
         </Button>
       </div>
 
-      {/* Page header */}
-      <div className="flex items-center gap-2 mb-4">
-        <Activity className="h-5 w-5 text-foreground" />
-        <h1 className="text-lg font-semibold text-foreground">Activity</h1>
-        {tokenCatalog.length > 0 && (
-          <span className="text-xs text-muted-foreground ml-auto">
-            {tokenCatalog.length} tokens indexed
-          </span>
-        )}
-      </div>
-
       {/* Wallet filter tabs */}
       {multiWallet && (
         <div className="flex items-center gap-2 mb-4 flex-wrap">
