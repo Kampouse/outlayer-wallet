@@ -287,6 +287,13 @@ export default function WalletManagePage() {
     return items;
   }, [wallets, savedEntries, apiKeyWallet, searchParams]);
 
+  // Sync selected index to the currently active wallet
+  useEffect(() => {
+    if (!accountId) return;
+    const idx = allWallets.findIndex(w => w.address === accountId);
+    if (idx >= 0 && idx !== selectedIdx) setSelectedIdx(idx);
+  }, [accountId, allWallets]);
+
   // Clamp selected index
   useEffect(() => {
     if (selectedIdx >= allWallets.length) setSelectedIdx(Math.max(0, allWallets.length - 1));
