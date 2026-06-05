@@ -63,6 +63,11 @@ body {
   padding-right: env(safe-area-inset-right);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* Static gradient fallback visible on mobile (canvas is md:block only) */
+  background-image:
+    radial-gradient(at 15% 20%, oklch(0.25 0.10 285 / 0.55), transparent 50%),
+    radial-gradient(at 85% 80%, oklch(0.30 0.10 145 / 0.30), transparent 55%);
+  background-attachment: fixed;
 }
 
 /* Smooth scrolling */
