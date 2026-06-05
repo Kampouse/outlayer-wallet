@@ -58,13 +58,10 @@ export default function EmptyStateHero() {
               key={i}
               className="flex items-start gap-3 rounded-2xl border border-border/50 bg-card/50 p-4"
             >
-              <div className="relative shrink-0">
+              <div className="shrink-0">
                 <div className="w-10 h-10 rounded-full bg-lime-500/15 flex items-center justify-center">
                   <Icon size={16} className="text-lime-500" />
                 </div>
-                <span className="absolute -top-1 -right-1 text-[10px] font-bold bg-background border border-border rounded-full w-4 h-4 flex items-center justify-center">
-                  {i + 1}
-                </span>
               </div>
               <div className="flex-1 min-w-0 pt-0.5">
                 <div className="text-sm font-medium mb-0.5">{step.title}</div>
