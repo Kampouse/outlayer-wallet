@@ -6,7 +6,8 @@ import type { GoogleUserProfile } from "@/lib/google-auth";
 import WalletConnectionModal from "@/components/WalletConnectionModal";
 import WalletBalancesSection from "@/components/wallet/WalletBalancesSection";
 import CopyableAddress from "@/components/CopyableAddress";
-import { getCoordinatorApiUrl, registerWallet, setWalletLabel, WALLET_API_URL } from "@/lib/api";
+import { getCoordinatorApiUrl, registerWallet, setWalletLabel, WALLET_API_URL, fetchSupportedTokens, fetchIntentsBalancesBatch } from "@/lib/api";
+import { fetchNearAccountBalance } from "@/lib/near-rpc";
 import type { WalletLabel } from "@/lib/api";
 import { actionCreators } from "@near-js/transactions";
 import {
@@ -290,6 +291,53 @@ export default function WalletManagePage() {
     return items;
   }, [wallets, savedEntries, apiKeyWallet, searchParams, extraPolicyPubkeys]);
 
+  // Prefetch balances for all wallets in background
+  useEffect(() => {
+    if (allWallets.length === 0) return;
+    let cancelled = false;
+
+    (async () => {
+      // Fetch token catalog once (shared)
+      let tokenIds: string[] = [];
+      try {
+        const tokens = await fetchSupportedTokens();
+        if (cancelled) return;
+        tokenIds = tokens.map((t) => t.defuse_asset_id);
+      } catch { /* ignore */ }
+
+      // Prefetch NEAR + intents balances for each wallet in parallel
+      await Promise.all(
+        allWallets.map(async (w) => {
+          try {
+            await queryClient.prefetchQuery({
+              queryKey: ["wallet-balance-near", w.address],
+              queryFn: async () => {
+                const yocto = await fetchNearAccountBalance(w.address);
+                return { balance: yocto, token: "NEAR", account_id: w.address };
+              },
+              staleTime: 30_000,
+            });
+          } catch { /* ignore */ }
+
+          if (tokenIds.length > 0) {
+            try {
+              await queryClient.prefetchQuery({
+                queryKey: ["wallet-intents-balances", w.address, tokenIds.length],
+                queryFn: async () => {
+                  const balances = await fetchIntentsBalancesBatch(w.address, tokenIds);
+                  return balances;
+                },
+                staleTime: 30_000,
+              });
+            } catch { /* ignore */ }
+          }
+        }),
+      );
+    })();
+
+    return () => { cancelled = true };
+  }, [allWallets.map(w => w.address).join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Check on-chain policies for wallets not in the get_wallets result
   useEffect(() => {
     if (!viewMethod || !contractId) return;
@@ -555,7 +603,6 @@ export default function WalletManagePage() {
       {/* Wallet view */}
       {!isLoadingWallets && allWallets.length > 0 ? (
         <SingleWalletView
-          key={allWallets[selectedIdx]?.id ?? selectedIdx}
           wallets={allWallets}
           selectedIdx={selectedIdx}
           onSelect={handleSelect}
