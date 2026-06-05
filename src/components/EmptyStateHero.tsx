@@ -37,7 +37,12 @@ export default function EmptyStateHero() {
       {/* Hero */}
       <div className="text-center mb-8">
         <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-lime-500/15 mb-4">
-          <span className="text-2xl">🤖</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" className="w-7 h-7 text-lime-500">
+            <rect x="3" y="8" width="18" height="12" rx="2"/>
+            <path d="M12 8V4M9 4h6"/>
+            <circle cx="8.5" cy="14" r="1.5"/>
+            <circle cx="15.5" cy="14" r="1.5"/>
+          </svg>
         </div>
         <h1 className="text-2xl font-bold tracking-tight mb-2">
           Your AI agent's wallet.
