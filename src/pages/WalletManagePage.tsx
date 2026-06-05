@@ -35,7 +35,6 @@ import {
   EyeOff,
   Key,
   Link2,
-  LogIn,
   LogOut,
   Pencil,
   Plus,
@@ -455,15 +454,6 @@ export default function WalletManagePage() {
             </CardContent>
           </Card>
         )}
-
-        <div className="flex gap-2 mt-4">
-          <Button size="sm" variant="outline" onClick={requestLogin} className="flex-1">
-            <LogIn size={14} /> {allWallets.length > 0 ? 'Login' : 'Connect NEAR'}
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => setImportModalOpen(true)} className="flex-1">
-            <Plus size={14} /> Import
-          </Button>
-        </div>
 
         <WalletConnectionModal isOpen={loginModalOpen} onClose={closeLoginModal} />
         <ImportDialog />
