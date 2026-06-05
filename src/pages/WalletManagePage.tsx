@@ -596,28 +596,6 @@ function SingleWalletView({
 
   return (
     <div>
-      {/* Wallet picker tabs */}
-      {showNav && (
-        <div className="flex items-center gap-1 mb-4 overflow-x-auto no-scrollbar">
-          {wallets.map((item, i) => (
-            <button
-              key={item.id}
-              onClick={() => onSelect(i)}
-              className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                i === selectedIdx
-                  ? "bg-zinc-900 text-white"
-                  : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
-              }`}
-            >
-              <div className="flex items-center gap-1.5">
-                <div className={`w-1.5 h-1.5 rounded-full ${item.frozen ? "bg-zinc-400" : i === selectedIdx ? "bg-lime-400" : "bg-lime-500"}`} />
-                {item.label}
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
-
       {/* Single wallet card */}
       <Card className={w.frozen ? "opacity-60" : ""}>
         <CardContent className="p-5">
