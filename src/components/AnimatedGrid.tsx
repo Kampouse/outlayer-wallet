@@ -35,11 +35,6 @@ export default function AnimatedGrid() {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // Disable on mobile devices
-    if (window.innerWidth < 768) {
-      return;
-    }
-
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
@@ -81,6 +76,14 @@ export default function AnimatedGrid() {
       mouseRef.current = { x: e.clientX, y: e.clientY, lastMoveTime: Date.now() };
     };
     window.addEventListener('mousemove', handleMouseMove);
+
+    // Touch tracking for mobile
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length > 0) {
+        mouseRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, lastMoveTime: Date.now() };
+      }
+    };
+    window.addEventListener('touchmove', handleTouchMove, { passive: true });
 
     // Animation loop
     const animate = () => {
@@ -262,6 +265,7 @@ export default function AnimatedGrid() {
     return () => {
       window.removeEventListener('resize', resize);
       window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('touchmove', handleTouchMove);
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
       }
@@ -271,7 +275,7 @@ export default function AnimatedGrid() {
   return (
     <canvas
       ref={canvasRef}
-      className="fixed inset-0 w-full h-full pointer-events-none hidden md:block"
+      className="fixed inset-0 w-full h-full pointer-events-none"
       style={{ zIndex: 0 }}
     />
   );
