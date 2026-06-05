@@ -179,7 +179,7 @@ export default function HomePage() {
           <span className="text-sm font-semibold">Tokens</span>
           <button
             onClick={() => refetch()}
-            className="p-1.5 rounded-full hover:bg-muted transition-colors text-muted-foreground"
+            className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-muted transition-colors text-muted-foreground"
             aria-label="Refresh balances"
           >
             <RefreshCw size={14} />
