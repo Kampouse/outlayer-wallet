@@ -42,6 +42,7 @@ import {
   Snowflake,
   Trash2,
   Unlink,
+  X,
 } from "lucide-react";
 
 interface WalletPolicy {
@@ -467,7 +468,7 @@ export default function WalletManagePage() {
   if (!isConnected) {
     return (
       <div className="max-w-lg mx-auto px-4 pt-6">
-        {error && <Flash kind="error">{error}</Flash>}
+        {error && <Flash kind="error" onDismiss={() => setError(null)}>{error}</Flash>}
 
         {allWallets.length > 0 ? (
           <SingleWalletView
@@ -512,8 +513,8 @@ export default function WalletManagePage() {
 
   return (
     <div className="max-w-lg mx-auto px-4 pt-4">
-      {error && <Flash kind="error">{error}</Flash>}
-      {success && <Flash kind="success">{success}</Flash>}
+      {error && <Flash kind="error" onDismiss={() => setError(null)}>{error}</Flash>}
+      {success && <Flash kind="success" onDismiss={() => setSuccess(null)}>{success}</Flash>}
 
       {/* Loading skeleton */}
       {isLoadingWallets && (
@@ -808,10 +809,15 @@ function SingleWalletView({
 
 // ─── Flash message ──────────────────────────────────────────────────
 
-function Flash({ kind, children }: { kind: "error" | "success"; children: React.ReactNode }) {
+function Flash({ kind, children, onDismiss }: { kind: "error" | "success"; children: React.ReactNode; onDismiss?: () => void }) {
   return (
-    <div className={`mb-3 border-l-4 rounded-r-lg p-3 ${kind === "error" ? "bg-red-500/10 border-red-500" : "bg-lime-500/10 border-lime-500"}`}>
-      <p className={`text-sm ${kind === "error" ? "text-red-400" : "text-lime-400"}`}>{children}</p>
+    <div className={`mb-3 border-l-4 rounded-r-lg p-3 flex items-start gap-2 ${kind === "error" ? "bg-red-500/10 border-red-500" : "bg-lime-500/10 border-lime-500"}`}>
+      <p className={`text-sm flex-1 ${kind === "error" ? "text-red-400" : "text-lime-400"}`}>{children}</p>
+      {onDismiss && (
+        <button onClick={onDismiss} className={`shrink-0 ${kind === "error" ? "text-red-400/60 hover:text-red-400" : "text-lime-400/60 hover:text-lime-400"}`}>
+          <X size={14} />
+        </button>
+      )}
     </div>
   );
 }
