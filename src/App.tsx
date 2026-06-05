@@ -5,6 +5,7 @@ import MobileHeader from "./components/MobileHeader";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ToastProvider } from "./components/ToastProvider";
 import PWAInstallPrompt from "./components/PWAInstallPrompt";
+import AnimatedGrid from "./components/AnimatedGrid";
 
 // Code-split less-used pages
 const HomePage = lazy(() => import("./pages/HomePage"));
@@ -30,9 +31,10 @@ export default function App() {
   const location = useLocation();
 
   return (
-    <div className="flex flex-col min-h-screen bg-background text-foreground">
+    <div className="flex flex-col min-h-screen text-foreground">
+      <AnimatedGrid />
       <MobileHeader />
-      <main className="flex-1 pb-20 pt-0">
+      <main className="flex-1 pb-20 pt-0 relative z-10">
         <ErrorBoundary>
           <Suspense
             fallback={
