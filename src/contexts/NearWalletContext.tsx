@@ -165,7 +165,7 @@ const getNetworkConfig = (network: NetworkType) => ({
     : import.meta.env.VITE_MAINNET_CONTRACT_ID || 'outlayer.near',
   rpcUrl: network === 'testnet'
     ? import.meta.env.VITE_TESTNET_RPC_URL || 'https://rpc.testnet.near.org'
-    : import.meta.env.VITE_MAINNET_RPC_URL || 'https://rpc.mainnet.near.org',
+    : import.meta.env.VITE_MAINNET_RPC_URL || 'https://free.rpc.fastnear.com',
   stablecoin: {
     contract: network === 'testnet'
       ? import.meta.env.VITE_TESTNET_STABLECOIN_CONTRACT || 'usdc.fakes.testnet'

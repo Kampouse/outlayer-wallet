@@ -8,7 +8,6 @@ export type NetworkType = 'testnet' | 'mainnet';
 
 const MAINNET_ENDPOINTS = [
   'https://free.rpc.fastnear.com',
-  'https://rpc.mainnet.near.org',
   'https://near.lava.build',
   'https://near.drpc.org',
   'https://endpoints.omniatech.io/v1/near/mainnet/public',
