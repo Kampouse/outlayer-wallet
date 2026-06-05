@@ -97,8 +97,8 @@ export default function AnimatedGrid() {
 
       // Update points with wave motion and mouse influence
       const waveAmplitude = 15;
-      const mouseInfluence = 150;
-      const mouseStrength = 40; // More smooth, less responsive
+      const mouseInfluence = 100;
+      const mouseStrength = 12;
 
       points.forEach((point) => {
         // Wave animation using noise
@@ -168,11 +168,11 @@ export default function AnimatedGrid() {
         // 50% more visible (increased from 0.02)
         const baseAlpha = 0.03;
         const waveAlpha = avgOffsetZ * 0.015;
-        const mouseAlpha = (1 - gradientFactor) * 0.06;
+        const mouseAlpha = (1 - gradientFactor) * 0.02;
         const totalAlpha = baseAlpha + waveAlpha + mouseAlpha;
 
         ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${totalAlpha})`;
-        ctx.lineWidth = 0.6 + (1 - gradientFactor) * 0.8;
+        ctx.lineWidth = 0.6 + (1 - gradientFactor) * 0.3;
         ctx.stroke();
       }
 
@@ -204,14 +204,13 @@ export default function AnimatedGrid() {
         const g = Math.floor(230 * (1 - gradientFactor) + 197 * gradientFactor);
         const b = Math.floor(53 * (1 - gradientFactor) + 94 * gradientFactor);
 
-        // 50% more visible (increased from 0.02)
         const baseAlpha = 0.03;
         const waveAlpha = avgOffsetZ * 0.015;
-        const mouseAlpha = (1 - gradientFactor) * 0.06;
+        const mouseAlpha = (1 - gradientFactor) * 0.02;
         const totalAlpha = baseAlpha + waveAlpha + mouseAlpha;
 
         ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${totalAlpha})`;
-        ctx.lineWidth = 0.6 + (1 - gradientFactor) * 0.8;
+        ctx.lineWidth = 0.6 + (1 - gradientFactor) * 0.3;
         ctx.stroke();
       }
 
@@ -235,14 +234,14 @@ export default function AnimatedGrid() {
 
         if (proximity > 0.05 || waveIntensity > 0.25) {
           const baseSize = 0.5;
-          const proximitySize = proximity * 1;
+          const proximitySize = proximity * 0.4;
           const waveSize = waveIntensity * 0.6;
           const pulseSize = pulseBoost * 2;
           const size = baseSize + proximitySize + waveSize + pulseSize;
 
           // 50% more visible (increased from 0.04)
           const baseAlpha = 0.06;
-          const proximityAlpha = proximity * 0.09;
+          const proximityAlpha = proximity * 0.03;
           const waveAlpha = waveIntensity * 0.0375;
           const pulseAlpha = pulseBoost * 0.45;
           const alpha = baseAlpha + proximityAlpha + waveAlpha + pulseAlpha;
