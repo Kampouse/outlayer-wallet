@@ -346,7 +346,7 @@ export default function WalletManagePage() {
     if (!signAndSendTransaction || !contractId) return;
     setSubmitting(true); setError(null);
     try {
-      await signAndSendTransaction({ receiverId: contractId, actions: [actionCreators.freezeWallet(walletPubkey)] });
+      await signAndSendTransaction({ receiverId: contractId, actions: [actionCreators.functionCall('freeze_wallet', { wallet_pubkey: walletPubkey }, BigInt('100000000000000'), BigInt(0))] });
       setSuccess("Wallet frozen");
       queryClient.invalidateQueries({ queryKey: ["wallet-policies"] });
       setTimeout(() => setSuccess(null), 2000);
@@ -358,7 +358,7 @@ export default function WalletManagePage() {
     if (!signAndSendTransaction || !contractId) return;
     setSubmitting(true); setError(null);
     try {
-      await signAndSendTransaction({ receiverId: contractId, actions: [actionCreators.unfreezeWallet(walletPubkey)] });
+      await signAndSendTransaction({ receiverId: contractId, actions: [actionCreators.functionCall('unfreeze_wallet', { wallet_pubkey: walletPubkey }, BigInt('100000000000000'), BigInt(0))] });
       setSuccess("Wallet unfrozen");
       queryClient.invalidateQueries({ queryKey: ["wallet-policies"] });
       setTimeout(() => setSuccess(null), 2000);
