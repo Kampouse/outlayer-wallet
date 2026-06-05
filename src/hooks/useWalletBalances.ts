@@ -64,7 +64,7 @@ export function useWalletBalances(
       return { balance: yocto, token: "NEAR", account_id: accountId };
     },
     enabled: !!accountId,
-    staleTime: 0,
+    staleTime: 30_000,
   });
 
   // Token catalog from ChainDefuser (public, includes prices, no API key)
@@ -110,7 +110,7 @@ export function useWalletBalances(
         .filter((t) => t.balance !== "0") as TokenBalance[];
     },
     enabled: !!accountId && allTokens.length > 0,
-    staleTime: 0,
+    staleTime: 30_000,
   });
 
   // ── Base chain balances from Rhea tokens ──
