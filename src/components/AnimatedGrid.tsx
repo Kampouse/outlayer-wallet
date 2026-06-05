@@ -160,10 +160,10 @@ export default function AnimatedGrid() {
         // Smooth gradient: 0 at mouse, 1 far away
         const gradientFactor = Math.min(1, distToMouse / 250);
 
-        // Interpolate between orange (near mouse) and green (far from mouse)
-        const r = Math.floor(255 * (1 - gradientFactor) + 74 * gradientFactor);
-        const g = Math.floor(122 * (1 - gradientFactor) + 124 * gradientFactor);
-        const b = Math.floor(0 * (1 - gradientFactor) + 44 * gradientFactor);
+        // Interpolate between bright lime (near mouse) and subtle lime (far)
+        const r = Math.floor(163 * (1 - gradientFactor) + 34 * gradientFactor);
+        const g = Math.floor(230 * (1 - gradientFactor) + 197 * gradientFactor);
+        const b = Math.floor(53 * (1 - gradientFactor) + 94 * gradientFactor);
 
         // 50% more visible (increased from 0.02)
         const baseAlpha = 0.03;
@@ -199,10 +199,10 @@ export default function AnimatedGrid() {
         // Smooth gradient: 0 at mouse, 1 far away
         const gradientFactor = Math.min(1, distToMouse / 250);
 
-        // Interpolate between orange (near mouse) and green (far from mouse)
-        const r = Math.floor(255 * (1 - gradientFactor) + 74 * gradientFactor);
-        const g = Math.floor(122 * (1 - gradientFactor) + 124 * gradientFactor);
-        const b = Math.floor(0 * (1 - gradientFactor) + 44 * gradientFactor);
+        // Interpolate between bright lime (near mouse) and subtle lime (far)
+        const r = Math.floor(163 * (1 - gradientFactor) + 34 * gradientFactor);
+        const g = Math.floor(230 * (1 - gradientFactor) + 197 * gradientFactor);
+        const b = Math.floor(53 * (1 - gradientFactor) + 94 * gradientFactor);
 
         // 50% more visible (increased from 0.02)
         const baseAlpha = 0.03;
@@ -223,9 +223,9 @@ export default function AnimatedGrid() {
 
         // Smooth gradient for color
         const gradientFactor = Math.min(1, distance / 180);
-        const r = Math.floor(255 * (1 - gradientFactor) + 74 * gradientFactor);
-        const g = Math.floor(122 * (1 - gradientFactor) + 124 * gradientFactor);
-        const b = Math.floor(0 * (1 - gradientFactor) + 44 * gradientFactor);
+        const r = Math.floor(163 * (1 - gradientFactor) + 34 * gradientFactor);
+        const g = Math.floor(230 * (1 - gradientFactor) + 197 * gradientFactor);
+        const b = Math.floor(53 * (1 - gradientFactor) + 94 * gradientFactor);
 
         const proximity = Math.max(0, 1 - distance / 180);
         const waveIntensity = Math.abs(point.offsetZ) / waveAmplitude;
