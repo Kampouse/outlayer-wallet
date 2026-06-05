@@ -90,6 +90,7 @@ export default function WalletManagePage() {
     syncWalletLabels,
     setRemoteWalletLabel,
     getValidIdToken,
+    switchToWallet,
   } = useNearWallet();
 
   const location = useLocation();
@@ -287,6 +288,14 @@ export default function WalletManagePage() {
     return items;
   }, [wallets, savedEntries, apiKeyWallet, searchParams]);
 
+  const handleSelect = (idx: number) => {
+    setSelectedIdx(idx);
+    const w = allWallets[idx];
+    if (w?.apiKey && w.address !== accountId) {
+      switchToWallet(w.address, w.apiKey);
+    }
+  };
+
   // Sync selected index to the currently active wallet
   useEffect(() => {
     if (!accountId) return;
@@ -433,7 +442,7 @@ export default function WalletManagePage() {
           <SingleWalletView
             wallets={allWallets}
             selectedIdx={selectedIdx}
-            onSelect={setSelectedIdx}
+            onSelect={handleSelect}
             revealedKeys={revealedKeys}
             onToggleReveal={toggleReveal}
             onCopyKey={copyKey}
@@ -517,7 +526,7 @@ export default function WalletManagePage() {
           key={allWallets[selectedIdx]?.id ?? selectedIdx}
           wallets={allWallets}
           selectedIdx={selectedIdx}
-          onSelect={setSelectedIdx}
+          onSelect={handleSelect}
           revealedKeys={revealedKeys}
           onToggleReveal={toggleReveal}
           onCopyKey={copyKey}
