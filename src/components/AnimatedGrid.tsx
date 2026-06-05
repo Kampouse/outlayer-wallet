@@ -86,8 +86,8 @@ export default function AnimatedGrid() {
     const animate = () => {
       timeRef.current += 1;
 
-      // Semi-transparent background for fade effect
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+      // Semi-transparent dark fill for fade effect (matches body bg)
+      ctx.fillStyle = 'rgba(20, 18, 30, 0.15)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       // Continuous pulse effect (always active, not only when idle)
