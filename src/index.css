@@ -78,6 +78,14 @@ main button, header button, nav button {
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
 }
 
+/* Remove shadow from lime/accent text and backgrounds */
+main .bg-primary, header .bg-primary, nav .bg-primary,
+main .bg-lime-500\/15, main .bg-amber-500\/15,
+main .text-lime-500, main .text-lime-400,
+header .text-lime-500, nav .text-lime-500 {
+  text-shadow: none;
+}
+
 /* Stronger glassmorphism for cards over the canvas */
 .bg-card\/50 {
   background-color: oklch(0.165 0.007 286 / 0.82);
