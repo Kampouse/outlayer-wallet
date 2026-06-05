@@ -207,7 +207,7 @@ export default function HomePage() {
               <button
                 onClick={handleImportKey}
                 disabled={importing || !importKeyValue.trim()}
-                className="w-full text-xs font-medium text-primary-foreground bg-primary/75 hover:bg-primary px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full text-xs font-medium text-primary-foreground bg-primary/95 hover:bg-primary px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {importing ? "Importing..." : "Import"}
               </button>

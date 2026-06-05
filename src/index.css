@@ -78,10 +78,17 @@ main button, header button, nav button {
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
 }
 
-/* Remove shadow from lime/accent text and backgrounds */
+/* Remove shadow from lime/accent text and colored button backgrounds */
 main .bg-primary, header .bg-primary, nav .bg-primary,
-main .bg-lime-500\/15, main .bg-amber-500\/15,
+main .bg-lime-500\/15, main .bg-lime-500\/30, main .bg-lime-500\/75, main .bg-lime-500\/95,
+main .bg-blue-500\/15, main .bg-blue-500\/30, main .bg-blue-500\/75, main .bg-blue-500\/95,
+main .bg-purple-500\/15, main .bg-purple-500\/30, main .bg-purple-500\/75, main .bg-purple-500\/95,
+main .bg-zinc-500\/15, main .bg-zinc-500\/30, main .bg-zinc-500\/75, main .bg-zinc-500\/95,
+main .bg-amber-500\/15,
 main .text-lime-500, main .text-lime-400,
+main .text-blue-500, main .text-blue-400,
+main .text-purple-500, main .text-purple-400,
+main .text-zinc-500, main .text-zinc-400,
 header .text-lime-500, nav .text-lime-500 {
   text-shadow: none;
 }
