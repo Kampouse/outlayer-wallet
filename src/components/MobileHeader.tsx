@@ -17,12 +17,14 @@ function useWalletLabel(accountId: string | null) {
 }
 
 export default function MobileHeader() {
-  const { accountId, isConnected, googleUser, switchToWallet } = useNearWallet()
+  const { accountId, isConnected, googleUser, switchToWallet, disconnect } = useNearWallet()
   const name = useWalletLabel(isConnected ? accountId : null)
   const [pickerOpen, setPickerOpen] = useState(false)
 
   const walletCount = Object.keys(getAllWalletKeys()).length
   const showPicker = isConnected && walletCount > 1
+  // Allow opening picker with 1 wallet too (for logout access)
+  const canOpenPicker = isConnected
 
   return (
     <>
@@ -33,9 +35,9 @@ export default function MobileHeader() {
           <div className="flex items-center gap-2">
             {isConnected && name ? (
               <button
-                onClick={() => showPicker && setPickerOpen(true)}
-                className={`flex items-center gap-1.5 ${showPicker ? 'cursor-pointer active:opacity-70' : ''}`}
-                disabled={!showPicker}
+                onClick={() => canOpenPicker && setPickerOpen(true)}
+                className={`flex items-center gap-1.5 ${canOpenPicker ? 'cursor-pointer active:opacity-70' : ''}`}
+                disabled={!canOpenPicker}
               >
                 {googleUser?.picture ? (
                   <img
@@ -50,7 +52,7 @@ export default function MobileHeader() {
                   </div>
                 )}
                 <span className="text-xs text-muted-foreground">{name}</span>
-                {showPicker && <ChevronDown size={12} className="text-muted-foreground" />}
+                {canOpenPicker && <ChevronDown size={12} className="text-muted-foreground" />}
               </button>
             ) : null}
             <ThemeToggle />
@@ -63,6 +65,7 @@ export default function MobileHeader() {
         onClose={() => setPickerOpen(false)}
         activeAccountId={accountId}
         onSelect={switchToWallet}
+        onLogout={disconnect}
       />
     </>
   )

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { X, Check } from 'lucide-react'
+import { X, Check, LogOut } from 'lucide-react'
 import { getAllWalletKeys } from '@/lib/wallet-keys'
 import { fetchSupportedTokens, fetchIntentsBalancesBatch, fetchRheaTokenPrices, fetchBaseChainBalances } from '@/lib/api'
 import { fetchNearAccountBalance } from '@/lib/near-rpc'
@@ -18,9 +18,10 @@ interface WalletPickerModalProps {
   onClose: () => void
   activeAccountId: string | null
   onSelect: (nearAccountId: string, apiKey: string) => void
+  onLogout?: () => void
 }
 
-export default function WalletPickerModal({ open, onClose, activeAccountId, onSelect }: WalletPickerModalProps) {
+export default function WalletPickerModal({ open, onClose, activeAccountId, onSelect, onLogout }: WalletPickerModalProps) {
   const [balances, setBalances] = useState<Record<string, string>>({})
   const fetchedRef = useRef(false)
 
@@ -189,6 +190,24 @@ export default function WalletPickerModal({ open, onClose, activeAccountId, onSe
             </button>
           ))}
         </div>
+
+        {/* Logout footer */}
+        {onLogout && (
+          <div className="border-t border-border p-2">
+            <button
+              onClick={() => {
+                onLogout()
+                onClose()
+              }}
+              className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-muted active:bg-muted transition-colors text-left"
+            >
+              <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center shrink-0">
+                <LogOut size={16} className="text-red-400" />
+              </div>
+              <span className="text-sm font-medium text-red-400">Log out</span>
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )
