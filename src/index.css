@@ -70,6 +70,24 @@ body {
   background-attachment: fixed;
 }
 
+/* Boost text readability over animated grid */
+.text-foreground {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+/* Stronger glassmorphism for cards over the canvas */
+.bg-card\/50 {
+  background-color: oklch(0.165 0.007 286 / 0.78);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+}
+
+.bg-card\/30 {
+  background-color: oklch(0.165 0.007 286 / 0.65);
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
+}
+
 /* Smooth scrolling */
 html {
   scroll-behavior: smooth;
