@@ -175,8 +175,7 @@ export default function HomePage() {
 
       {/* Token list */}
       <div className="pt-6">
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-sm font-semibold">Tokens</span>
+        <div className="flex items-center justify-end mb-3">
           <button
             onClick={() => refetch()}
             className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-muted transition-colors text-muted-foreground"
