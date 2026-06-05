@@ -275,7 +275,7 @@ export default function AnimatedGrid() {
   return (
     <canvas
       ref={canvasRef}
-      className="fixed inset-0 w-full h-full pointer-events-none"
+      className="fixed inset-0 w-full h-full pointer-events-none hidden md:block"
       style={{ zIndex: 0 }}
     />
   );
