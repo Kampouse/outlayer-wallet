@@ -38,7 +38,6 @@ export default function WalletApprovalsPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [approvingId, setApprovingId] = useState<string | null>(null);
-  const [nextRefreshIn, setNextRefreshIn] = useState<number | null>(null);
 
   // API key for reject action
   const [apiKey, setApiKey] = useState<string>('');
@@ -57,8 +56,6 @@ export default function WalletApprovalsPage() {
   const {
     data: approvals = [],
     isSuccess: approvalsLoaded,
-    dataUpdatedAt,
-    refetch,
   } = useQuery({
     queryKey: [APPROVALS_KEY, accountId, contractId, coordinatorUrl],
     queryFn: async () => {
@@ -109,28 +106,6 @@ export default function WalletApprovalsPage() {
       }
     }
   }, [approvals, apiKey]);
-
-  // Countdown timer for next refresh
-  useEffect(() => {
-    if (!isConnected || approvals.length === 0) {
-      setNextRefreshIn(null);
-      return;
-    }
-
-    const REFRESH_INTERVAL = 30;
-    let countdown = REFRESH_INTERVAL;
-    setNextRefreshIn(countdown);
-
-    const tick = setInterval(() => {
-      countdown -= 1;
-      if (countdown <= 0) {
-        countdown = REFRESH_INTERVAL;
-      }
-      setNextRefreshIn(countdown);
-    }, 1000);
-
-    return () => clearInterval(tick);
-  }, [isConnected, approvals.length, dataUpdatedAt]);
 
   // Approve mutation
   const handleApprove = async (approvalId: string) => {
@@ -266,24 +241,13 @@ export default function WalletApprovalsPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 pt-4">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          {approvals.length > 0 && (
-            <Badge variant="destructive" className="text-xs">
-              {approvals.length}
-            </Badge>
-          )}
-          <button
-            onClick={() => refetch()}
-            className="text-sm text-zinc-400 hover:text-zinc-900 font-medium transition-colors"
-          >
-            Refresh
-          </button>
-          {nextRefreshIn !== null && (
-            <span className="text-xs text-zinc-300">{nextRefreshIn}s</span>
-          )}
+      {approvals.length > 0 && (
+        <div className="mb-4">
+          <Badge variant="destructive" className="text-xs">
+            {approvals.length}
+          </Badge>
         </div>
-      </div>
+      )}
 
       {error && (
         <div className="mb-4 bg-red-500/10 border-l-4 border-red-500 rounded-r-lg p-4">
