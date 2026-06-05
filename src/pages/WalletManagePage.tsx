@@ -297,13 +297,13 @@ export default function WalletManagePage() {
     let cancelled = false;
 
     (async () => {
-      // Fetch token catalog once (shared)
-      let tokenIds: string[] = [];
-      try {
-        const tokens = await fetchSupportedTokens();
-        if (cancelled) return;
-        tokenIds = tokens.map((t) => t.defuse_asset_id);
-      } catch { /* ignore */ }
+      // Fetch token catalog once (shared across all wallet prefetches)
+      const tokens = await fetchSupportedTokens();
+      if (cancelled) return;
+      const tokenIds = tokens.map((t) => t.defuse_asset_id);
+
+      // Seed the catalog into react-query cache so WalletBalancesSection hits instantly
+      queryClient.setQueryData(["wallet-supported-tokens"], tokens);
 
       // Prefetch NEAR + intents balances for each wallet in parallel
       await Promise.all(
@@ -325,7 +325,17 @@ export default function WalletManagePage() {
                 queryKey: ["wallet-intents-balances", w.address, tokenIds.length],
                 queryFn: async () => {
                   const balances = await fetchIntentsBalancesBatch(w.address, tokenIds);
-                  return balances;
+                  // Must return same shape as useWalletBalances expects
+                  return tokens
+                    .map((token, i) => ({
+                      symbol: token.symbol,
+                      decimals: token.decimals,
+                      balance: balances[i] ?? "0",
+                      defuse_asset_id: token.defuse_asset_id,
+                      chains: token.chains,
+                      price: token.price,
+                    }))
+                    .filter((t: { balance: string }) => t.balance !== "0");
                 },
                 staleTime: 30_000,
               });

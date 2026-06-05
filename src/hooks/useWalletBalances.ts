@@ -171,11 +171,11 @@ export function useWalletBalances(
       return results;
     },
     enabled: !!accountId && !!rheaQuery.data,
-    staleTime: 10_000,
+    staleTime: 30_000,
   });
 
   const loading = nearQuery.isLoading;
-  const fetching = nearQuery.isFetching || intentsQuery.isFetching || baseChainQuery.isFetching;
+  const fetching = nearQuery.isFetching || intentsQuery.isFetching;
   const intentsLoading = intentsQuery.isLoading;
   const error = nearQuery.error?.message || intentsQuery.error?.message || null;
 
