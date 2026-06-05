@@ -139,8 +139,8 @@ export default function WalletPickerModal({ open, onClose, activeAccountId, onSe
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <h2 className="text-sm font-semibold">Switch Wallet</h2>
-          <button onClick={onClose} className="p-1 rounded-full hover:bg-muted transition-colors">
-            <X size={16} className="text-muted-foreground" />
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-muted transition-colors">
+            <X size={14} className="text-muted-foreground" />
           </button>
         </div>
 
