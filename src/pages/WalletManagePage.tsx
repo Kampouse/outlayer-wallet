@@ -104,6 +104,7 @@ export default function WalletManagePage() {
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [importKey, setImportKey] = useState("");
   const [selectedIdx, setSelectedIdx] = useState(0);
+  const [extraPolicyPubkeys, setExtraPolicyPubkeys] = useState<Set<string>>(new Set());
 
   // API key wallet (from ?key= query param)
   const [apiKeyWallet, setApiKeyWallet] = useState<{
@@ -255,7 +256,7 @@ export default function WalletManagePage() {
         apiKey: searchParams.get("key"),
         frozen: false,
         isGoogle: false,
-        hasPolicy: false,
+        hasPolicy: extraPolicyPubkeys.has(pk),
         updatedAt: null,
       });
     }
@@ -273,7 +274,7 @@ export default function WalletManagePage() {
         apiKey: saved?.apiKey || null,
         frozen: false,
         isGoogle: saved?.source === "google",
-        hasPolicy: false,
+        hasPolicy: extraPolicyPubkeys.has(pk),
         updatedAt: null,
       });
     }
@@ -286,7 +287,37 @@ export default function WalletManagePage() {
     });
 
     return items;
-  }, [wallets, savedEntries, apiKeyWallet, searchParams]);
+  }, [wallets, savedEntries, apiKeyWallet, searchParams, extraPolicyPubkeys]);
+
+  // Check on-chain policies for wallets not in the get_wallets result
+  useEffect(() => {
+    if (!viewMethod || !contractId) return;
+    const onChainPubkeys = new Set(wallets.map((w) => w.wallet_pubkey));
+    const toCheck = allWallets
+      .filter((w) => !onChainPubkeys.has(w.pubkey))
+      .map((w) => w.pubkey);
+    if (toCheck.length === 0) return;
+
+    let cancelled = false;
+    Promise.all(
+      toCheck.map(async (pk) => {
+        try {
+          const result = await viewMethod({
+            contractId,
+            method: "get_wallet_policy",
+            args: { wallet_pubkey: pk },
+          });
+          return result ? pk : null;
+        } catch { return null; }
+      }),
+    ).then((found) => {
+      if (cancelled) return;
+      const newSet = new Set(found.filter(Boolean) as string[]);
+      if (newSet.size > 0) setExtraPolicyPubkeys((prev) => new Set([...prev, ...newSet]));
+    });
+
+    return () => { cancelled = true };
+  }, [allWallets.length, wallets.length, viewMethod, contractId]);
 
   const handleSelect = (idx: number) => {
     setSelectedIdx(idx);
