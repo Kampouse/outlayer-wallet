@@ -27,7 +27,7 @@ export default function MobileHeader() {
 
   return (
     <>
-      <header className="sticky top-0 z-40 bg-black/30 backdrop-blur-md">
+      <header className="sticky top-0 z-40 bg-transparent">
         <div className="flex items-center justify-between px-4 h-12">
           <div className="w-7 h-7" />
 
