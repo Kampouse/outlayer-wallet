@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useNearWallet } from '@/contexts/NearWalletContext'
 import { getAllWalletKeys } from '@/lib/wallet-keys'
-import ThemeToggle from './ThemeToggle'
 import WalletPickerModal from './WalletPickerModal'
 import { ChevronDown } from 'lucide-react'
 
@@ -28,7 +27,7 @@ export default function MobileHeader() {
 
   return (
     <>
-      <header className="sticky top-0 z-40 backdrop-blur-md">
+      <header className="sticky top-0 z-40 bg-black/30 backdrop-blur-md">
         <div className="flex items-center justify-between px-4 h-12">
           <div className="w-7 h-7" />
 
@@ -55,7 +54,6 @@ export default function MobileHeader() {
                 {canOpenPicker && <ChevronDown size={12} className="text-muted-foreground" />}
               </button>
             ) : null}
-            <ThemeToggle />
           </div>
         </div>
       </header>
