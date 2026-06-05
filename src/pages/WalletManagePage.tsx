@@ -491,23 +491,7 @@ export default function WalletManagePage() {
 
       {/* Action bar — hide during initial load to prevent premature "Create" clicks */}
       {!isLoadingWallets && (
-        <div className="flex gap-2 mb-4">
-          {googleUser && googleWalletExists === false && (
-            <Button size="sm" onClick={async () => {
-              setSubmitting(true); setError(null);
-              try { await createGoogleWallet(); setSuccess("Wallet created!"); setSavedEntries(getAllWalletKeys()); }
-              catch (e: unknown) { setError(e instanceof Error ? e.message : "Failed to create wallet"); }
-              finally { setSubmitting(false); }
-            }} disabled={submitting || googleAuthLoading} className="flex-1">
-              {submitting ? "Creating..." : "Create Wallet"}
-            </Button>
-          )}
-          <Button size="sm" variant="outline" onClick={handleCreateWallet} disabled={submitting} className="flex-1">
-            <Plus size={14} /> New Wallet
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => setImportModalOpen(true)}>
-            <ArrowDownToLine size={14} />
-          </Button>
+        <div className="flex justify-end gap-2 mb-4">
           {googleUser && (
             <Button size="sm" variant="outline" onClick={handleSync} disabled={syncing}>
               <RefreshCw size={14} className={syncing ? "animate-spin" : ""} />
