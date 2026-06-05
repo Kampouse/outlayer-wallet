@@ -568,6 +568,7 @@ export default function WalletManagePage() {
           submitting={submitting}
           onFreeze={handleFreeze}
           onUnfreeze={handleUnfreeze}
+          canSign={isNearConnected}
           onLinkGoogle={async (apiKey, nearAcct) => {
             setSubmitting(true); setError(null);
             try { await linkWalletToGoogle(apiKey, nearAcct); setSuccess("Linked to Google!"); setSavedEntries(getAllWalletKeys()); }
@@ -612,7 +613,7 @@ export default function WalletManagePage() {
 
 function SingleWalletView({
   wallets, selectedIdx, onSelect, revealedKeys, onToggleReveal, onCopyKey, onRemoveKey, onRename,
-  googleUser, googleAuthLoading, submitting, onFreeze, onUnfreeze, onLinkGoogle, onUnlinkGoogle,
+  googleUser, googleAuthLoading, submitting, onFreeze, onUnfreeze, onLinkGoogle, onUnlinkGoogle, canSign,
 }: {
   wallets: WalletItem[];
   selectedIdx: number;
@@ -629,6 +630,7 @@ function SingleWalletView({
   onUnfreeze?: (pk: string) => void;
   onLinkGoogle?: (apiKey: string, nearAcct: string) => void;
   onUnlinkGoogle?: (walletIndex: number, nearAccountId: string) => void;
+  canSign?: boolean;
 }) {
   const w = wallets[selectedIdx];
   if (!w) return null;
@@ -749,7 +751,7 @@ function SingleWalletView({
                 <ShieldCheck size={14} /> Policy
               </Button>
             )}
-            {w.hasPolicy && onFreeze && onUnfreeze && (
+            {w.hasPolicy && canSign && onFreeze && onUnfreeze && (
               w.frozen ? (
                 <Button size="sm" variant="outline" onClick={() => onUnfreeze(w.pubkey)} disabled={submitting}>
                   Unfreeze
