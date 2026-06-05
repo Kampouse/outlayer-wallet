@@ -490,7 +490,7 @@ export default function WalletManagePage() {
 
       {/* Action bar — hide during initial load to prevent premature "Create" clicks */}
       {!isLoadingWallets && (
-        <div className="flex justify-end gap-2 mb-4">
+        <div className="flex gap-2 mb-4">
           {googleUser && (
             <Button size="sm" variant="outline" onClick={handleSync} disabled={syncing}>
               <RefreshCw size={14} className={syncing ? "animate-spin" : ""} />
