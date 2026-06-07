@@ -85,8 +85,8 @@ function ApprovalDetailContent() {
       const nonceBytes = crypto.getRandomValues(new Uint8Array(32));
       const nonceBase64 = Buffer.from(nonceBytes).toString('base64');
 
-      // Build NEP-413 message: "approve:{approval_id}:{wallet_pubkey}:{request_hash}"
-      const message = `approve:${approval.id}:${(approval as any).wallet_pubkey}:${approval.request_hash}`;
+      // Build NEP-413 message: "approve:{approval_id}:{request_hash}"
+      const message = `approve:${approval.id}:${approval.request_hash}`;
 
       // Sign with NEAR wallet (NEP-413)
       const signed = await signMessage({
