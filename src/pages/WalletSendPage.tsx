@@ -4,6 +4,7 @@ import { getCoordinatorApiUrl } from "@/lib/api";
 import { getAllWalletKeys } from "@/lib/wallet-keys";
 import { useWalletBalances, formatTokenBalance } from "@/hooks/useWalletBalances";
 import { useToast } from "@/components/ToastProvider";
+import { useNearWallet } from "@/contexts/NearWalletContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -77,7 +78,12 @@ export default function WalletSendPage() {
 
   // Check for ?key= query param
   const urlKey = searchParams.get("key");
-  const [selectedIndex, setSelectedIndex] = useState(0);
+  const { accountId } = useNearWallet();
+  const [selectedIndex, setSelectedIndex] = useState(() => {
+    if (!accountId) return 0;
+    const idx = savedWallets.findIndex((w) => w.pubkey === `ed25519:${accountId}`);
+    return idx >= 0 ? idx : 0;
+  });
   const initialIndexSet = useMemo(() => {
     if (!urlKey) return -1;
     return savedWallets.findIndex((w) => w.apiKey === urlKey);

@@ -4,6 +4,7 @@ import { getAllWalletKeys } from "@/lib/wallet-keys";
 import { useWalletBalances, formatTokenBalance } from "@/hooks/useWalletBalances";
 import { useConfidentialData } from "@/hooks/useConfidentialData";
 import { useToast } from "@/components/ToastProvider";
+import { useNearWallet } from "@/contexts/NearWalletContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -41,6 +42,7 @@ export default function WalletSwapPage({ privateMode = false }: { privateMode?: 
   const { toast } = useToast();
   const coordinatorUrl = getCoordinatorApiUrl();
   const conf = useConfidentialData();
+  const { accountId } = useNearWallet();
 
   // Load all saved wallets from localStorage
   const savedWallets = useMemo(() => {
@@ -52,8 +54,12 @@ export default function WalletSwapPage({ privateMode = false }: { privateMode?: 
     }));
   }, []);
 
-  // Check for ?key= query param
-  const [selectedIndex, setSelectedIndex] = useState(0);
+  // Default to the wallet matching the active NEAR account, else first
+  const [selectedIndex, setSelectedIndex] = useState(() => {
+    if (!accountId) return 0;
+    const idx = savedWallets.findIndex((w) => w.pubkey === `ed25519:${accountId}`);
+    return idx >= 0 ? idx : 0;
+  });
   const activeApiKey = savedWallets[selectedIndex]?.apiKey ?? null;
   const activePubkey = savedWallets[selectedIndex]?.pubkey ?? null;
   const balanceAccountId = activePubkey?.replace(/^ed25519:/, "") ?? null;
