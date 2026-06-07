@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNearWallet } from "@/contexts/NearWalletContext";
 import { getCoordinatorApiUrl } from "@/lib/api";
-import { getAllWalletKeys } from "@/lib/wallet-keys";
+import { getAllWalletKeys, getWalletKey } from "@/lib/wallet-keys";
 import { Loader2, CheckCircle2, ShieldCheck, Wallet, ArrowRight, RefreshCw } from "lucide-react";
 
 interface PendingApproval {
@@ -160,6 +160,37 @@ export default function WalletApprovalsPage() {
     }
   };
 
+  const handleReject = async (approval: PendingApproval) => {
+    const apiKey = getWalletKey(approval.wallet_pubkey);
+    if (!apiKey) {
+      setError("No API key found for this wallet. Cannot reject.");
+      return;
+    }
+    setApprovingId(approval.id);
+    setError(null);
+    setSuccess(null);
+    try {
+      const resp = await fetch(`${coordinatorUrl}/wallet/v1/reject/${approval.id}`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ approver_account: accountId }),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.error || err.message || `Reject failed: ${resp.status}`);
+      }
+      setSuccess("Request rejected.");
+      loadApprovals();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setApprovingId(null);
+    }
+  };
+
   const formatType = (type: string) =>
     type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
@@ -289,25 +320,35 @@ export default function WalletApprovalsPage() {
               </div>
 
               {!expired && (
-                <button
-                  onClick={() => handleApprove(a)}
-                  disabled={isPending || !canSign}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-lime-500 text-black text-sm font-medium hover:bg-lime-400 disabled:opacity-50 transition-colors"
-                >
-                  {isPending ? (
-                    <>
-                      <Loader2 size={14} className="animate-spin" />
-                      Signing...
-                    </>
-                  ) : !canSign ? (
-                    "Connect wallet to sign"
-                  ) : (
-                    <>
-                      Approve
-                      <ArrowRight size={14} />
-                    </>
-                  )}
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleReject(a)}
+                    disabled={isPending}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg bg-white/[0.04] border border-white/[0.08] text-zinc-400 text-sm font-medium hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20 disabled:opacity-50 transition-colors"
+                  >
+                    <Loader2 size={14} className={isPending ? "animate-spin" : "hidden"} />
+                    <span className={isPending ? "hidden" : ""}>Reject</span>
+                  </button>
+                  <button
+                    onClick={() => handleApprove(a)}
+                    disabled={isPending || !canSign}
+                    className="flex-[2] flex items-center justify-center gap-2 py-2.5 rounded-lg bg-lime-500 text-black text-sm font-medium hover:bg-lime-400 disabled:opacity-50 transition-colors"
+                  >
+                    {isPending ? (
+                      <>
+                        <Loader2 size={14} className="animate-spin" />
+                        Signing...
+                      </>
+                    ) : !canSign ? (
+                      "Connect wallet to sign"
+                    ) : (
+                      <>
+                        Approve
+                        <ArrowRight size={14} />
+                      </>
+                    )}
+                  </button>
+                </div>
               )}
             </div>
           );
