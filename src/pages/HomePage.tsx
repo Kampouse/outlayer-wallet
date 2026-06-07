@@ -1,6 +1,6 @@
 import { useState, Suspense, lazy } from "react";
 import { useNavigate } from "react-router-dom";
-import { RefreshCw, Loader2 } from "lucide-react";
+import { RefreshCw, Loader2, Shield } from "lucide-react";
 import { useNearWallet } from "@/contexts/NearWalletContext";
 import { useWalletBalances } from "@/hooks/useWalletBalances";
 import { formatTokenBalance } from "@/hooks/useWalletBalances";
@@ -11,6 +11,8 @@ import TokenIcon from "@/components/TokenIcon";
 import { BottomSheetModal } from "@/components/BottomSheetModal";
 import ReceiveSheet from "@/components/ReceiveSheet";
 import EmptyStateHero from "@/components/EmptyStateHero";
+import { PrivateActionSheet, formatAmount, type PrivateSheetMode } from "@/components/PrivateActionSheet";
+import { useConfidentialData } from "@/hooks/useConfidentialData";
 
 const WalletSendPage = lazy(() => import("./WalletSendPage"));
 const WalletSwapPage = lazy(() => import("./WalletSwapPage"));
@@ -77,6 +79,12 @@ export default function HomePage() {
   const [sendOpen, setSendOpen] = useState(false);
   const [swapOpen, setSwapOpen] = useState(false);
   const [receiveOpen, setReceiveOpen] = useState(false);
+
+  // Private mode
+  const [privateMode, setPrivateMode] = useState(false);
+  const [privateSheet, setPrivateSheet] = useState<PrivateSheetMode>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const conf = useConfidentialData();
 
   // Inline API key import (shown when logged in but no wallet yet)
   const [importKeyValue, setImportKeyValue] = useState("");
@@ -147,7 +155,30 @@ export default function HomePage() {
     <div className="max-w-lg mx-auto px-4 pb-24">
       {/* Total balance */}
       <div className="flex flex-col items-center pt-6 pb-6">
-        {loading && !near ? (
+        {privateMode ? (
+          <>
+            {conf.loading && conf.shieldedItems.length === 0 ? (
+              <>
+                <SkeletonBlock className="h-9 w-36 mb-1" />
+                <SkeletonBlock className="h-3 w-20" />
+              </>
+            ) : (
+              <>
+                <span className="text-3xl font-bold tabular-nums tracking-tight">
+                  {conf.totalUsd > 0
+                    ? `$${conf.totalUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                    : "$0.00"}
+                </span>
+                <span className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                  <Shield size={10} className="text-purple-400" />
+                  {conf.shieldedItems.length === 0
+                    ? "No shielded assets"
+                    : `${conf.shieldedItems.length} shielded asset${conf.shieldedItems.length === 1 ? "" : "s"}`}
+                </span>
+              </>
+            )}
+          </>
+        ) : loading && !near ? (
           <>
             <SkeletonBlock className="h-9 w-36 mb-1" />
             <SkeletonBlock className="h-3 w-20" />
@@ -168,16 +199,43 @@ export default function HomePage() {
 
       {/* Action ring */}
       <ActionRing
-        onSend={() => setSendOpen(true)}
-        onSwap={() => setSwapOpen(true)}
+        onSend={() => {
+          if (privateMode) setPrivateSheet("send");
+          else setSendOpen(true);
+        }}
+        onSwap={() => {
+          if (privateMode) setPrivateSheet("swap");
+          else setSwapOpen(true);
+        }}
         onReceive={() => setReceiveOpen(true)}
+        privateMode={privateMode}
+        onTogglePrivate={() => setPrivateMode((v) => !v)}
       />
+
+      {/* Private mode badge */}
+      {privateMode && (
+        <div className="flex items-center justify-center gap-1.5 mt-3 mb-1">
+          <Shield size={11} className="text-purple-400" />
+          <span className="text-[10px] text-purple-400 font-medium">
+            Private mode active · funds on intents.far
+          </span>
+        </div>
+      )}
 
       {/* Token list */}
       <div className="pt-6">
-        <div className="flex items-center justify-end mb-3">
+        <div className="flex items-center justify-between mb-3">
+          {privateMode && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Shielded</span>
+              <span className="text-[10px] bg-purple-500/15 text-purple-400 px-1.5 py-0.5 rounded-full font-medium">
+                private
+              </span>
+            </div>
+          )}
+          {!privateMode && <div />}
           <button
-            onClick={() => refetch()}
+            onClick={() => privateMode ? conf.refetch() : refetch()}
             className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-muted transition-colors text-muted-foreground"
             aria-label="Refresh balances"
           >
@@ -185,7 +243,63 @@ export default function HomePage() {
           </button>
         </div>
 
-        {!apiKey ? (
+        {/* Private mode: shielded token list */}
+        {privateMode ? (
+          conf.shieldedItems.length === 0 ? (
+            <div className="rounded-2xl border border-purple-500/20 bg-purple-500/[0.03] p-6 text-center">
+              <Shield size={24} className="text-purple-400/60 mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground mb-3">No shielded assets yet</p>
+              <button
+                onClick={() => setPrivateSheet("shield")}
+                className="text-xs text-purple-400 hover:text-purple-300 font-medium"
+              >
+                Shield funds to private
+              </button>
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-purple-500/15 bg-purple-500/[0.02] divide-y divide-purple-500/10 px-3">
+              {conf.shieldedItems.map((t) => (
+                <div
+                  key={t.assetId}
+                  className="flex items-center gap-3 py-3 px-1"
+                >
+                  <TokenIcon symbol={t.symbol || "?"} size={36} />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium">{t.symbol || t.assetId.slice(0, 12)}</div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="text-sm font-mono">{formatAmount(t.amount, t.decimals)}</div>
+                    {t.price && (
+                      <div className="text-[10px] text-muted-foreground">
+                        ${(Number(t.amount) / 10 ** t.decimals * t.price).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+              <div className="flex gap-2 pt-3 pb-1">
+                <button
+                  onClick={() => setPrivateSheet("shield")}
+                  className="flex-1 text-[11px] text-purple-400 hover:text-purple-300 font-medium py-2 rounded-lg border border-purple-500/20 hover:border-purple-500/40 transition-colors"
+                >
+                  + Shield more
+                </button>
+                <button
+                  onClick={() => setPrivateSheet("unshield")}
+                  className="flex-1 text-[11px] text-muted-foreground hover:text-foreground font-medium py-2 rounded-lg border border-border hover:border-foreground/20 transition-colors"
+                >
+                  Unshield
+                </button>
+                <button
+                  onClick={() => setPrivateSheet("withdraw")}
+                  className="flex-1 text-[11px] text-muted-foreground hover:text-foreground font-medium py-2 rounded-lg border border-border hover:border-foreground/20 transition-colors"
+                >
+                  Withdraw
+                </button>
+              </div>
+            </div>
+          )
+        ) : !apiKey ? (
           <div className="flex flex-col items-center py-8 text-center">
             <span className="text-sm text-muted-foreground mb-3">
               Import an API key to see balances
@@ -386,6 +500,33 @@ export default function HomePage() {
           <p className="text-center text-sm text-muted-foreground py-8">No wallet connected</p>
         )}
       </BottomSheetModal>
+
+      {/* Private action sheet */}
+      {apiKey && (
+        <PrivateActionSheet
+          mode={privateSheet}
+          apiKey={apiKey}
+          onClose={() => setPrivateSheet(null)}
+          tokenCatalog={conf.tokenCatalog}
+          publicTokens={conf.publicTokens}
+          shieldedItems={conf.shieldedItems.map(({ assetId, amount }) => ({ assetId, amount }))}
+          onSubmit={(msg) => {
+            setToast(msg);
+            setTimeout(() => setToast(null), 5000);
+            setTimeout(() => conf.refetch(), 4000);
+          }}
+        />
+      )}
+
+      {/* Toast */}
+      {toast && (
+        <div
+          className="fixed bottom-20 left-1/2 -translate-x-1/2 bg-card border border-border rounded-lg px-4 py-2 text-xs shadow-lg z-50 max-w-sm"
+          onClick={() => setToast(null)}
+        >
+          {toast}
+        </div>
+      )}
     </div>
   );
 }
