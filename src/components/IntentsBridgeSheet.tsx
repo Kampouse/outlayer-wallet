@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Loader2, ArrowLeftRight } from "lucide-react";
+import { Loader2, ArrowLeftRight, CheckCircle2 } from "lucide-react";
 import { getCoordinatorApiUrl, type SupportedToken } from "@/lib/api";
 import { formatAmount, toAtomic } from "@/components/PrivateActionSheet";
 import { rpcQuery } from "@/lib/rpc-pool";
@@ -70,6 +70,8 @@ export function IntentsBridgeSheet({
   const [assetId, setAssetId] = useState("");
   const [amount, setAmount] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [phase, setPhase] = useState<string | null>(null);
+  const [successHash, setSuccessHash] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -96,7 +98,9 @@ export function IntentsBridgeSheet({
 
   const handleSubmit = async () => {
     setError(null);
+    setSuccessHash(null);
     setSubmitting(true);
+    setPhase("Preparing...");
     try {
       const humanAmt = amount.trim();
       if (!humanAmt || Number(humanAmt) <= 0) throw new Error("Enter an amount greater than 0");
@@ -109,15 +113,8 @@ export function IntentsBridgeSheet({
       const baseUrl = getCoordinatorApiUrl();
 
       if (dir === "deposit") {
-        // For native NEAR: /intents/deposit only moves FTs (wNEAR) the wallet
-        // already holds. We need to wrap first via near_deposit (which also
-        // auto-registers storage on wrap.near).
-        // Docs: POST /wallet/v1/call { receiver_id: "wrap.near", method_name: "near_deposit", deposit: <yoctoNEAR> }
         if (selected.assetId === "near") {
-          // 0. Register agent on wrap.near (idempotent). near_deposit is
-          // supposed to auto-register, but in practice the coordinator
-          // sometimes swallows the registration step — doing it explicitly
-          // is cheap (~0.00125 NEAR) and eliminates one failure mode.
+          setPhase("Registering on wrap.near...");
           const regResp = await fetch(`${baseUrl}/wallet/v1/storage-deposit`, {
             method: "POST",
             headers: {
@@ -127,21 +124,17 @@ export function IntentsBridgeSheet({
             body: JSON.stringify({ token: "wrap.near" }),
           });
           if (!regResp.ok) {
-            // eslint-disable-next-line no-console
             console.warn("[bridge] wrap.near storage-deposit failed", await regResp.text().catch(() => ""));
           } else {
             const regJson = await regResp.json().catch(() => null);
             const regHash: string | undefined =
               regJson?.tx_hash || regJson?.transaction_hash || regJson?.result?.transaction_hash;
             if (regHash && agentAccountId) {
-              try { await waitForTx(regHash, agentAccountId); } catch { /* idempotent, ignore */ }
+              try { await waitForTx(regHash, agentAccountId); } catch { /* idempotent */ }
             }
           }
-          // 1. Wrap NEAR -> wNEAR via coordinator.
-          // /wallet/v1/call returns immediately on tx submission, so we MUST
-          // poll for finalization before calling /intents/deposit, otherwise
-          // the second tx races ahead and reads stale state (account not yet
-          // registered on wrap.near, no wNEAR balance).
+
+          setPhase("Wrapping NEAR...");
           const wrapResp = await fetch(`${baseUrl}/wallet/v1/call`, {
             method: "POST",
             headers: {
@@ -152,7 +145,7 @@ export function IntentsBridgeSheet({
               receiver_id: "wrap.near",
               method_name: "near_deposit",
               args: {},
-              deposit: amt, // yoctoNEAR attached as deposit
+              deposit: amt,
               gas: "30000000000000",
             }),
           });
@@ -161,22 +154,20 @@ export function IntentsBridgeSheet({
             throw new Error(errBody || `Wrap failed: HTTP ${wrapResp.status}`);
           }
           const wrapJson = await wrapResp.json().catch(() => null);
-          // Coordinator returns { request_id, status, tx_hash, result }.
-          // status:"success" means tx was submitted; we still need to wait for finalization.
           const wrapHash: string | undefined =
             wrapJson?.tx_hash || wrapJson?.transaction_hash || wrapJson?.result?.transaction_hash;
           if (wrapHash && agentAccountId) {
             try {
               await waitForTx(wrapHash, agentAccountId);
             } catch (e) {
-              // Wrap may have still succeeded — don't abort the deposit.
-              // eslint-disable-next-line no-console
               console.warn("[bridge] wrap waitForTx failed, continuing to deposit", e);
             }
           } else {
             await new Promise((r) => setTimeout(r, 3500));
           }
+
           // 2. Now deposit wNEAR into Intents
+          setPhase("Depositing to Intents...");
           const resp = await fetch(`${baseUrl}/wallet/v1/intents/deposit`, {
             method: "POST",
             headers: {
@@ -191,9 +182,16 @@ export function IntentsBridgeSheet({
           }
           const result = await resp.json().catch(() => null);
           const hash = result?.transaction_hash || result?.tx_hash;
+
+          if (hash && agentAccountId) {
+            setPhase("Confirming on-chain...");
+            try { await waitForTx(hash, agentAccountId); } catch { /* still call onDone */ }
+          }
+          setSuccessHash(hash ?? null);
+          setPhase("Done");
           onDone(hash ? `Deposited. tx: ${hash.slice(0, 10)}...` : "Deposit submitted");
         } else {
-          // FT deposit: register storage first (idempotent), then deposit
+          setPhase("Registering storage...");
           const storageResp = await fetch(`${baseUrl}/wallet/v1/storage-deposit`, {
             method: "POST",
             headers: {
@@ -203,10 +201,10 @@ export function IntentsBridgeSheet({
             body: JSON.stringify({ token: selected.contractId }),
           });
           if (!storageResp.ok) {
-            // eslint-disable-next-line no-console
             console.warn("[bridge] storage-deposit preflight failed", await storageResp.text().catch(() => ""));
           }
 
+          setPhase("Depositing to Intents...");
           const resp = await fetch(`${baseUrl}/wallet/v1/intents/deposit`, {
             method: "POST",
             headers: {
@@ -221,13 +219,17 @@ export function IntentsBridgeSheet({
           }
           const result = await resp.json().catch(() => null);
           const hash = result?.transaction_hash || result?.tx_hash;
+
+          if (hash && agentAccountId) {
+            setPhase("Confirming on-chain...");
+            try { await waitForTx(hash, agentAccountId); } catch { /* still call onDone */ }
+          }
+          setSuccessHash(hash ?? null);
+          setPhase("Done");
           onDone(hash ? `Deposited. tx: ${hash.slice(0, 10)}...` : "Deposit submitted");
         }
       } else {
-        // POST /wallet/v1/intents/withdraw — coordinator moves from Intents back to agent wallet.
-        // For NEAR: token="near" tells intents.near to unwrap wNEAR -> native NEAR (no storage
-        // needed on receiver). Sending "wrap.near" would deliver wNEAR as-is and require storage.
-        // For other tokens: nep141:<contract> or plain contract both accepted.
+        setPhase("Withdrawing from Intents...");
         const withdrawToken = selected.assetId === "near" ? "near" : selected.contractId;
         const resp = await fetch(`${baseUrl}/wallet/v1/intents/withdraw`, {
           method: "POST",
@@ -247,9 +249,18 @@ export function IntentsBridgeSheet({
         }
         const result = await resp.json().catch(() => null);
         const hash = result?.transaction_hash || result?.tx_hash;
+
+        if (hash && agentAccountId) {
+          setPhase("Confirming on-chain...");
+          try { await waitForTx(hash, agentAccountId); } catch { /* still call onDone */ }
+        }
+        setSuccessHash(hash ?? null);
+        setPhase("Done");
         onDone(hash ? `Withdrawn. tx: ${hash.slice(0, 10)}...` : "Withdrawal submitted");
       }
 
+      // Show success state for 1.2s before closing, so user sees it.
+      await new Promise((r) => setTimeout(r, 1200));
       onClose();
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -258,6 +269,7 @@ export function IntentsBridgeSheet({
       }
     } finally {
       setSubmitting(false);
+      setPhase(null);
     }
   };
 
@@ -369,13 +381,31 @@ export function IntentsBridgeSheet({
               <button
                 onClick={handleSubmit}
                 disabled={submitting || !amount || !selected}
-                className="w-full bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-lg py-2.5 transition-colors flex items-center justify-center gap-2"
+                className={`w-full disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-lg py-2.5 transition-colors flex items-center justify-center gap-2 ${
+                  phase === "Done"
+                    ? "bg-lime-500 hover:bg-lime-400"
+                    : "bg-cyan-500 hover:bg-cyan-400"
+                }`}
               >
-                {submitting && <Loader2 size={14} className="animate-spin" />}
+                {submitting && phase !== "Done" && <Loader2 size={14} className="animate-spin" />}
+                {phase === "Done" && <CheckCircle2 size={14} />}
                 {submitting
-                  ? "Submitting..."
+                  ? phase === "Done"
+                    ? "Success"
+                    : phase ?? "Submitting..."
                   : dir === "deposit" ? "Deposit to Intents" : "Withdraw to Wallet"}
               </button>
+
+              {successHash && phase === "Done" && (
+                <a
+                  href={`https://nearblocks.io/zh-tw/tx/${successHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block text-center text-[11px] text-lime-400/70 hover:text-lime-400 font-mono truncate"
+                >
+                  {successHash.slice(0, 20)}...
+                </a>
+              )}
 
               <p className="text-[10px] text-muted-foreground text-center">
                 Runs via the coordinator. Usually settles in a few seconds.
