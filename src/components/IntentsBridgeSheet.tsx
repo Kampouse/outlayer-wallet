@@ -73,43 +73,77 @@ export function IntentsBridgeSheet({
       const baseUrl = getCoordinatorApiUrl();
 
       if (dir === "deposit") {
-        // 1. Register storage on the token contract (idempotent).
-        //    Wrap.near (and any FT) requires storage registration before any
-        //    ft_transfer / near_deposit. Cheap (~0.00125 NEAR), skip if already
-        //    registered.
-        const storageTarget = selected.contractId;
-        const storageResp = await fetch(`${baseUrl}/wallet/v1/storage-deposit`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ token: storageTarget }),
-        });
-        // Non-fatal: if it fails (e.g. already registered, or transient), let
-        // the actual deposit surface the real error. Log for debug only.
-        if (!storageResp.ok) {
-          // eslint-disable-next-line no-console
-          console.warn("[bridge] storage-deposit preflight failed", await storageResp.text().catch(() => ""));
-        }
+        // For native NEAR: /intents/deposit only moves FTs (wNEAR) the wallet
+        // already holds. We need to wrap first via near_deposit (which also
+        // auto-registers storage on wrap.near).
+        // Docs: POST /wallet/v1/call { receiver_id: "wrap.near", method_name: "near_deposit", deposit: <yoctoNEAR> }
+        if (selected.assetId === "near") {
+          // 1. Wrap NEAR -> wNEAR
+          const wrapResp = await fetch(`${baseUrl}/wallet/v1/call`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              receiver_id: "wrap.near",
+              method_name: "near_deposit",
+              args: {},
+              deposit: amt, // yoctoNEAR attached as deposit
+              gas: "30000000000000",
+            }),
+          });
+          if (!wrapResp.ok) {
+            const errBody = await wrapResp.text().catch(() => "");
+            throw new Error(errBody || `Wrap failed: HTTP ${wrapResp.status}`);
+          }
+          // 2. Now deposit wNEAR into Intents
+          const resp = await fetch(`${baseUrl}/wallet/v1/intents/deposit`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ token: "wrap.near", amount: amt }),
+          });
+          if (!resp.ok) {
+            const errBody = await resp.text().catch(() => "");
+            throw new Error(errBody || `Deposit failed: HTTP ${resp.status}`);
+          }
+          const result = await resp.json().catch(() => null);
+          const hash = result?.transaction_hash || result?.tx_hash;
+          onDone(hash ? `Deposited. tx: ${hash.slice(0, 10)}...` : "Deposit submitted");
+        } else {
+          // FT deposit: register storage first (idempotent), then deposit
+          const storageResp = await fetch(`${baseUrl}/wallet/v1/storage-deposit`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ token: selected.contractId }),
+          });
+          if (!storageResp.ok) {
+            // eslint-disable-next-line no-console
+            console.warn("[bridge] storage-deposit preflight failed", await storageResp.text().catch(() => ""));
+          }
 
-        // 2. POST /wallet/v1/intents/deposit — coordinator deposits from agent wallet to intents.near.
-        //    Deposit uses plain contract ID (wrap.near for NEAR).
-        const resp = await fetch(`${baseUrl}/wallet/v1/intents/deposit`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ token: selected.contractId, amount: amt }),
-        });
-        if (!resp.ok) {
-          const errBody = await resp.text().catch(() => "");
-          throw new Error(errBody || `Deposit failed: HTTP ${resp.status}`);
+          const resp = await fetch(`${baseUrl}/wallet/v1/intents/deposit`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ token: selected.contractId, amount: amt }),
+          });
+          if (!resp.ok) {
+            const errBody = await resp.text().catch(() => "");
+            throw new Error(errBody || `Deposit failed: HTTP ${resp.status}`);
+          }
+          const result = await resp.json().catch(() => null);
+          const hash = result?.transaction_hash || result?.tx_hash;
+          onDone(hash ? `Deposited. tx: ${hash.slice(0, 10)}...` : "Deposit submitted");
         }
-        const result = await resp.json().catch(() => null);
-        const hash = result?.transaction_hash || result?.tx_hash;
-        onDone(hash ? `Deposited. tx: ${hash.slice(0, 10)}...` : "Deposit submitted");
       } else {
         // POST /wallet/v1/intents/withdraw — coordinator moves from Intents back to agent wallet.
         // For NEAR: token="near" tells intents.near to unwrap wNEAR -> native NEAR (no storage
