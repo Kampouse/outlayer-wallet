@@ -12,6 +12,7 @@ import { BottomSheetModal } from "@/components/BottomSheetModal";
 import ReceiveSheet from "@/components/ReceiveSheet";
 import EmptyStateHero from "@/components/EmptyStateHero";
 import { PrivateActionSheet, formatAmount, type PrivateSheetMode } from "@/components/PrivateActionSheet";
+import { IntentsBridgeSheet, buildWalletTokens, buildIntentsTokens, type BridgeDirection } from "@/components/IntentsBridgeSheet";
 import { useConfidentialData } from "@/hooks/useConfidentialData";
 
 const WalletSendPage = lazy(() => import("./WalletSendPage"));
@@ -83,6 +84,8 @@ export default function HomePage() {
   // Private mode
   const [privateMode, setPrivateMode] = useState(false);
   const [privateSheet, setPrivateSheet] = useState<PrivateSheetMode>(null);
+  const [bridgeOpen, setBridgeOpen] = useState(false);
+  const [bridgeDir, setBridgeDir] = useState<BridgeDirection>("deposit");
   const [toast, setToast] = useState<string | null>(null);
   const conf = useConfidentialData();
 
@@ -198,6 +201,12 @@ export default function HomePage() {
           else setSendOpen(true);
         }}
         onSwap={() => setSwapOpen(true)}
+        onBridge={() => {
+          // Default direction: deposit if user has wallet tokens, else withdraw
+          const hasWallet = (near && BigInt(near.balance) > 0n) || baseChainTokens.some((t) => t.balance !== "0");
+          setBridgeDir(hasWallet ? "deposit" : "withdraw");
+          setBridgeOpen(true);
+        }}
         onReceive={() => setReceiveOpen(true)}
         privateMode={privateMode}
         onTogglePrivate={() => setPrivateMode((v) => !v)}
@@ -486,6 +495,26 @@ export default function HomePage() {
             setToast(msg);
             setTimeout(() => setToast(null), 5000);
             setTimeout(() => conf.refetch(), 4000);
+          }}
+        />
+      )}
+
+      {/* Bridge sheet (Wallet ↔ Intents) */}
+      {bridgeOpen && apiKey && accountId && (
+        <IntentsBridgeSheet
+          direction={bridgeDir}
+          agentAccountId={walletAddress}
+          apiKey={apiKey}
+          userAccountId={accountId}
+          walletTokens={buildWalletTokens(near?.balance ?? null, baseChainTokens, allTokens)}
+          intentsTokens={buildIntentsTokens(tokens)}
+          tokenCatalog={allTokens}
+          onClose={() => setBridgeOpen(false)}
+          onDone={(msg) => {
+            setToast(msg);
+            setBridgeOpen(false);
+            setTimeout(() => setToast(null), 5000);
+            setTimeout(() => refetch(), 4000);
           }}
         />
       )}

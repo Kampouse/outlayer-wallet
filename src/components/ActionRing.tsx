@@ -2,12 +2,14 @@ import {
   SendHorizontal,
   ArrowDownUp,
   ArrowDownToLine,
+  ArrowLeftRight,
   Shield,
 } from "lucide-react";
 
 interface ActionRingProps {
   onSend?: () => void;
   onSwap?: () => void;
+  onBridge?: () => void;
   onReceive?: () => void;
   privateMode?: boolean;
   onTogglePrivate?: () => void;
@@ -16,12 +18,13 @@ interface ActionRingProps {
 export default function ActionRing({
   onSend,
   onSwap,
+  onBridge,
   onReceive,
   privateMode = false,
   onTogglePrivate,
 }: ActionRingProps) {
   return (
-    <div className="flex justify-center items-center gap-6">
+    <div className="flex justify-center items-center gap-4 sm:gap-6">
       {/* Send */}
       <button
         onClick={onSend}
@@ -42,6 +45,17 @@ export default function ActionRing({
           <ArrowDownUp size={20} />
         </div>
         <span className="text-[10px] text-muted-foreground">Swap</span>
+      </button>
+
+      {/* Bridge (Wallet ↔ Intents) */}
+      <button
+        onClick={onBridge}
+        className="flex flex-col items-center gap-1.5 active:scale-95 transition-transform cursor-pointer"
+      >
+        <div className="w-12 h-12 rounded-full flex items-center justify-center bg-cyan-500/95 text-cyan-600 dark:text-cyan-400">
+          <ArrowLeftRight size={20} />
+        </div>
+        <span className="text-[10px] text-muted-foreground">Bridge</span>
       </button>
 
       {/* Receive */}
