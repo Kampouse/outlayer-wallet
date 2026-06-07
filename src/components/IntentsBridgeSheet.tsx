@@ -181,13 +181,9 @@ export function IntentsBridgeSheet({
           const result = await resp.json().catch(() => null);
           const hash = result?.transaction_hash || result?.tx_hash;
 
-          if (hash && agentAccountId) {
-            setPhase("Confirming on-chain...");
-            try { await waitForTx(hash, agentAccountId); } catch { /* still call onDone */ }
-          }
           setSuccessHash(hash ?? null);
           setPhase("Done");
-          onDone(hash ? `Deposited. tx: ${hash.slice(0, 10)}...` : "Deposit submitted");
+          onDone(hash ? `Depositing. tx: ${hash.slice(0, 10)}...` : "Deposit submitted");
         } else {
           setPhase("Registering storage...");
           const storageResp = await fetch(`${baseUrl}/wallet/v1/storage-deposit`, {
@@ -218,13 +214,9 @@ export function IntentsBridgeSheet({
           const result = await resp.json().catch(() => null);
           const hash = result?.transaction_hash || result?.tx_hash;
 
-          if (hash && agentAccountId) {
-            setPhase("Confirming on-chain...");
-            try { await waitForTx(hash, agentAccountId); } catch { /* still call onDone */ }
-          }
           setSuccessHash(hash ?? null);
           setPhase("Done");
-          onDone(hash ? `Deposited. tx: ${hash.slice(0, 10)}...` : "Deposit submitted");
+          onDone(hash ? `Depositing. tx: ${hash.slice(0, 10)}...` : "Deposit submitted");
         }
       } else {
         setPhase("Withdrawing from Intents...");
