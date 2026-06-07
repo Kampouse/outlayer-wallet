@@ -1,6 +1,6 @@
 import { useState, Suspense, lazy } from "react";
 import { useNavigate } from "react-router-dom";
-import { RefreshCw, Loader2 } from "lucide-react";
+import { RefreshCw, Loader2, Shield } from "lucide-react";
 import { useNearWallet } from "@/contexts/NearWalletContext";
 import { useWalletBalances } from "@/hooks/useWalletBalances";
 import { formatTokenBalance } from "@/hooks/useWalletBalances";
