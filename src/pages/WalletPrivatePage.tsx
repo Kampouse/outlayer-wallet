@@ -62,7 +62,7 @@ function formatAmount(raw: string, decimals: number): string {
     const fracStr = fracPart.toString().padStart(Number(decimals), "0").replace(/0+$/, "");
     return fracStr ? `${intPart.toLocaleString()}.${fracStr}` : intPart.toLocaleString();
   } catch {
-    return raw;
+    return "0";
   }
 }
 
@@ -73,7 +73,20 @@ function flattenBalances(data: ConfidentialBalance | undefined): Array<{ assetId
     return data.items.map((i) => ({ assetId: i.asset_id, amount: i.amount }));
   }
   if (data.balances) {
-    return Object.entries(data.balances).map(([assetId, amount]) => ({ assetId, amount }));
+    // Handle array of {token, balance} objects (actual API format)
+    if (Array.isArray(data.balances)) {
+      return (data.balances as Array<Record<string, unknown>>)
+        .map((b) => ({
+          assetId: String(b.token ?? b.asset_id ?? b.assetId ?? ""),
+          amount: String(b.balance ?? b.amount ?? "0"),
+        }))
+        .filter((b) => b.assetId);
+    }
+    // Handle Record<string, string>
+    return Object.entries(data.balances).map(([assetId, amount]) => ({
+      assetId,
+      amount: typeof amount === "string" ? amount : String((amount as Record<string, unknown>)?.balance ?? "0"),
+    }));
   }
   return [];
 }

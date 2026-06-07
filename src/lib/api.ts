@@ -648,7 +648,7 @@ export async function fetchAttestation(
 
 export interface ConfidentialBalance {
   /** Map of defuse asset id → raw balance string (atomic units) */
-  balances?: Record<string, string>;
+  balances?: Record<string, string> | Array<{ token: string; balance: string }>;
   /** Some endpoints return a flat array of {asset_id, amount} */
   items?: Array<{ asset_id: string; amount: string }>;
 }
