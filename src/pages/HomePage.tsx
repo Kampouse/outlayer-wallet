@@ -1,6 +1,6 @@
 import { useState, Suspense, lazy } from "react";
 import { useNavigate } from "react-router-dom";
-import { RefreshCw, Loader2, Shield } from "lucide-react";
+import { RefreshCw, Loader2 } from "lucide-react";
 import { useNearWallet } from "@/contexts/NearWalletContext";
 import { useWalletBalances } from "@/hooks/useWalletBalances";
 import { formatTokenBalance } from "@/hooks/useWalletBalances";
@@ -206,28 +206,9 @@ export default function HomePage() {
         onTogglePrivate={() => setPrivateMode((v) => !v)}
       />
 
-      {/* Private mode badge */}
-      {privateMode && (
-        <div className="flex items-center justify-center gap-1.5 mt-3 mb-1">
-          <Shield size={11} className="text-purple-400" />
-          <span className="text-[10px] text-purple-400 font-medium">
-            Private mode active · funds on intents.far
-          </span>
-        </div>
-      )}
-
       {/* Token list */}
       <div className="pt-6">
-        <div className="flex items-center justify-between mb-3">
-          {privateMode && (
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Shielded</span>
-              <span className="text-[10px] bg-purple-500/15 text-purple-400 px-1.5 py-0.5 rounded-full font-medium">
-                private
-              </span>
-            </div>
-          )}
-          {!privateMode && <div />}
+        <div className="flex items-center justify-end mb-3">
           <button
             onClick={() => privateMode ? conf.refetch() : refetch()}
             className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-muted transition-colors text-muted-foreground"
