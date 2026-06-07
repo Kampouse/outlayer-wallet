@@ -6,14 +6,13 @@ import { rpcQuery } from "@/lib/rpc-pool";
 
 /**
  * Wait for a NEAR tx to be finalized and successful.
- * Polls RPC `tx` every 1.5s for up to 30s. Throws if tx fails or times out.
+ * Polls RPC `tx` every 2s for up to 90s. Throws if tx fails or times out.
  * Coordinator's /wallet/v1/call returns immediately on submission — without
  * this guard, the next coordinator call (ft_transfer_call) races ahead and
  * reads stale chain state.
  */
 async function waitForTx(hash: string, signerId: string, network: "mainnet" | "testnet" = "mainnet") {
-  const deadline = Date.now() + 30_000;
-  let lastErr: unknown = null;
+  const deadline = Date.now() + 90_000;
   while (Date.now() < deadline) {
     try {
       const res = await rpcQuery<{ status: any } & Record<string, unknown>>(
@@ -28,13 +27,12 @@ async function waitForTx(hash: string, signerId: string, network: "mainnet" | "t
           || JSON.stringify(result.status.Failure);
         throw new Error(`tx failed: ${msg}`);
       }
-    } catch (e) {
-      lastErr = e;
+    } catch {
       // "Transaction with hash=... doesn't exist" → keep polling
     }
-    await new Promise((r) => setTimeout(r, 1500));
+    await new Promise((r) => setTimeout(r, 2000));
   }
-  throw new Error(`tx ${hash.slice(0, 10)}... not finalized after 30s`);
+  throw new Error(`tx ${hash.slice(0, 10)}... not finalized after 90s`);
 }
 
 export type BridgeDirection = "deposit" | "withdraw";
