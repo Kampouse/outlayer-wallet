@@ -308,13 +308,33 @@ function ActionSheet({
     ? tokenCatalog.filter((t) => t.defuse_asset_id !== assetId)
     : [];
 
+  // Convert human-readable amount (e.g. "0.5") to atomic units string
+  const toAtomic = (human: string, decimals: number): string => {
+    const cleaned = human.replace(/,/g, "").trim();
+    if (!cleaned || cleaned === ".") return "0";
+    const num = Number(cleaned);
+    if (!isFinite(num) || num <= 0) return "0";
+    // Use string math to avoid floating precision loss
+    const [intPart, fracPart = ""] = cleaned.split(".");
+    const fracPadded = fracPart.padEnd(decimals, "0").slice(0, decimals);
+    const atomic = (intPart || "0") + fracPadded;
+    return BigInt(atomic).toString();
+  };
+
   const handleSubmit = async () => {
     setError(null);
     setSubmitting(true);
     try {
-      const amt = amount.trim();
-      if (!amt || BigInt(amt) <= 0n) {
+      const humanAmt = amount.trim();
+      if (!humanAmt || Number(humanAmt) <= 0) {
         throw new Error("Enter an amount greater than 0");
+      }
+      // Resolve decimals for the selected token
+      const tok = sourceTokens.find((t) => t.assetId === assetId);
+      const decimals = tok?.decimals ?? 18;
+      const amt = toAtomic(humanAmt, decimals);
+      if (amt === "0" || BigInt(amt) <= 0n) {
+        throw new Error("Amount too small after rounding");
       }
       let res;
       switch (mode) {
@@ -397,25 +417,46 @@ function ActionSheet({
 
           {/* Amount */}
           <label className="block">
-            <span className="text-xs text-muted-foreground mb-1 block">Amount (atomic units)</span>
+            <span className="text-xs text-muted-foreground mb-1 block">
+              Amount{assetId && sourceTokens.length > 0 ? ` (${sourceTokens.find((t) => t.assetId === assetId)?.symbol ?? ""})` : ""}
+            </span>
             <input
               type="text"
               value={amount}
-              onChange={(e) => setAmount(e.target.value.replace(/[^0-9]/g, ""))}
-              placeholder="0"
-              inputMode="numeric"
+              onChange={(e) => {
+                // Allow digits and a single dot
+                let v = e.target.value.replace(/[^0-9.]/g, "");
+                const firstDot = v.indexOf(".");
+                if (firstDot !== -1) {
+                  v = v.slice(0, firstDot + 1) + v.slice(firstDot + 1).replace(/\./g, "");
+                }
+                setAmount(v);
+              }}
+              placeholder="0.0"
+              inputMode="decimal"
               className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm tabular-nums"
             />
             {assetId && sourceTokens.length > 0 && (() => {
               const tok = sourceTokens.find((t) => t.assetId === assetId);
               if (!tok || tok.amount === "0") return null;
+              const humanMax = formatAmount(tok.amount, tok.decimals);
+              const setMaxAtomic = () => {
+                // Convert the raw balance to a clean human number string
+                const decimals = tok.decimals ?? 18;
+                const raw = BigInt(tok.amount);
+                const divisor = 10n ** BigInt(decimals);
+                const intPart = raw / divisor;
+                const frac = raw % divisor;
+                let fracStr = frac.toString().padStart(Number(decimals), "0").replace(/0+$/, "");
+                setAmount(fracStr ? `${intPart}.${fracStr}` : intPart.toString());
+              };
               return (
                 <button
                   type="button"
-                  onClick={() => setAmount(tok.amount)}
+                  onClick={setMaxAtomic}
                   className="text-[10px] text-muted-foreground hover:text-foreground mt-1"
                 >
-                  Max: {formatAmount(tok.amount, tok.decimals)}
+                  Max: {humanMax}
                 </button>
               );
             })()}
