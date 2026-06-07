@@ -114,6 +114,29 @@ export function IntentsBridgeSheet({
         // auto-registers storage on wrap.near).
         // Docs: POST /wallet/v1/call { receiver_id: "wrap.near", method_name: "near_deposit", deposit: <yoctoNEAR> }
         if (selected.assetId === "near") {
+          // 0. Register agent on wrap.near (idempotent). near_deposit is
+          // supposed to auto-register, but in practice the coordinator
+          // sometimes swallows the registration step — doing it explicitly
+          // is cheap (~0.00125 NEAR) and eliminates one failure mode.
+          const regResp = await fetch(`${baseUrl}/wallet/v1/storage-deposit`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ token: "wrap.near" }),
+          });
+          if (!regResp.ok) {
+            // eslint-disable-next-line no-console
+            console.warn("[bridge] wrap.near storage-deposit failed", await regResp.text().catch(() => ""));
+          } else {
+            const regJson = await regResp.json().catch(() => null);
+            const regHash: string | undefined =
+              regJson?.tx_hash || regJson?.transaction_hash || regJson?.result?.transaction_hash;
+            if (regHash && agentAccountId) {
+              try { await waitForTx(regHash, agentAccountId); } catch { /* idempotent, ignore */ }
+            }
+          }
           // 1. Wrap NEAR -> wNEAR via coordinator.
           // /wallet/v1/call returns immediately on tx submission, so we MUST
           // poll for finalization before calling /intents/deposit, otherwise
