@@ -2,38 +2,6 @@ import { useState, useEffect, useMemo } from "react";
 import { Loader2, ArrowLeftRight, CheckCircle2 } from "lucide-react";
 import { getCoordinatorApiUrl, type SupportedToken } from "@/lib/api";
 import { formatAmount, toAtomic } from "@/components/PrivateActionSheet";
-import { rpcQuery } from "@/lib/rpc-pool";
-
-/**
- * Wait for a NEAR tx to be finalized and successful.
- * Polls RPC `tx` every 2s for up to 90s. Throws if tx fails or times out.
- * Coordinator's /wallet/v1/call returns immediately on submission — without
- * this guard, the next coordinator call (ft_transfer_call) races ahead and
- * reads stale chain state.
- */
-async function waitForTx(hash: string, signerId: string, network: "mainnet" | "testnet" = "mainnet") {
-  const deadline = Date.now() + 90_000;
-  while (Date.now() < deadline) {
-    try {
-      const res = await rpcQuery<{ status: any } & Record<string, unknown>>(
-        network,
-        "tx",
-        [hash, signerId],
-      );
-      const result = (res as any)?.result;
-      if (result?.status?.SuccessValue !== undefined) return result;
-      if (result?.status?.Failure) {
-        const msg = result.status.Failure?.ActionError?.kind?.FunctionCallError?.ExecutionError
-          || JSON.stringify(result.status.Failure);
-        throw new Error(`tx failed: ${msg}`);
-      }
-    } catch {
-      // "Transaction with hash=... doesn't exist" → keep polling
-    }
-    await new Promise((r) => setTimeout(r, 2000));
-  }
-  throw new Error(`tx ${hash.slice(0, 10)}... not finalized after 90s`);
-}
 
 export type BridgeDirection = "deposit" | "withdraw";
 
@@ -48,7 +16,6 @@ interface TokenRow {
 export function IntentsBridgeSheet({
   direction,
   apiKey,
-  agentAccountId,
   walletTokens,    // tokens in agent wallet (NEAR + base chain FTs) available to deposit
   intentsTokens,   // tokens already in Intents available to withdraw
   tokenCatalog,
@@ -57,7 +24,6 @@ export function IntentsBridgeSheet({
 }: {
   direction: BridgeDirection;
   apiKey: string;
-  agentAccountId?: string;   // agent's NEAR account ID — needed to poll /wallet/v1/call txs
   walletTokens: TokenRow[];
   intentsTokens: TokenRow[];
   tokenCatalog: SupportedToken[];
@@ -123,13 +89,6 @@ export function IntentsBridgeSheet({
           });
           if (!regResp.ok) {
             console.warn("[bridge] wrap.near storage-deposit failed", await regResp.text().catch(() => ""));
-          } else {
-            const regJson = await regResp.json().catch(() => null);
-            const regHash: string | undefined =
-              regJson?.tx_hash || regJson?.transaction_hash || regJson?.result?.transaction_hash;
-            if (regHash && agentAccountId) {
-              try { await waitForTx(regHash, agentAccountId); } catch { /* idempotent */ }
-            }
           }
 
           setPhase("Wrapping NEAR...");
@@ -150,18 +109,6 @@ export function IntentsBridgeSheet({
           if (!wrapResp.ok) {
             const errBody = await wrapResp.text().catch(() => "");
             throw new Error(errBody || `Wrap failed: HTTP ${wrapResp.status}`);
-          }
-          const wrapJson = await wrapResp.json().catch(() => null);
-          const wrapHash: string | undefined =
-            wrapJson?.tx_hash || wrapJson?.transaction_hash || wrapJson?.result?.transaction_hash;
-          if (wrapHash && agentAccountId) {
-            try {
-              await waitForTx(wrapHash, agentAccountId);
-            } catch (e) {
-              console.warn("[bridge] wrap waitForTx failed, continuing to deposit", e);
-            }
-          } else {
-            await new Promise((r) => setTimeout(r, 3500));
           }
 
           // 2. Now deposit wNEAR into Intents
@@ -240,13 +187,9 @@ export function IntentsBridgeSheet({
         const result = await resp.json().catch(() => null);
         const hash = result?.transaction_hash || result?.tx_hash;
 
-        if (hash && agentAccountId) {
-          setPhase("Confirming on-chain...");
-          try { await waitForTx(hash, agentAccountId); } catch { /* still call onDone */ }
-        }
         setSuccessHash(hash ?? null);
         setPhase("Done");
-        onDone(hash ? `Withdrawn. tx: ${hash.slice(0, 10)}...` : "Withdrawal submitted");
+        onDone(hash ? `Withdrawing. tx: ${hash.slice(0, 10)}...` : "Withdrawal submitted");
       }
 
       // Show success state for 1.2s before closing, so user sees it.

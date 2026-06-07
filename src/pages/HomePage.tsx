@@ -504,7 +504,6 @@ export default function HomePage() {
         <IntentsBridgeSheet
           direction={bridgeDir}
           apiKey={apiKey}
-          agentAccountId={walletAddress ?? undefined}
           walletTokens={buildWalletTokens(near?.balance ?? null, baseChainTokens, allTokens)}
           intentsTokens={buildIntentsTokens(tokens)}
           tokenCatalog={allTokens}
