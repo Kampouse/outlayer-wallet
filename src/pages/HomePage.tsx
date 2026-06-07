@@ -169,10 +169,6 @@ export default function HomePage() {
                     ? `$${conf.totalUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                     : "$0.00"}
                 </span>
-                <span className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                  <Shield size={10} className="text-purple-400" />
-                  Shielded balance
-                </span>
               </>
             )}
           </>
