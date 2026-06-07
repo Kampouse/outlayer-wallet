@@ -375,7 +375,11 @@ export async function fetchRheaTokenPrices(): Promise<
 export async function fetchIntentsBalancesBatch(
   accountId: string,
   tokenIds: string[],
-  rpcUrl: string = "https://free.rpc.fastnear.com",
+  rpcUrls: string[] = [
+    "https://free.rpc.fastnear.com",
+    "https://near.lava.build",
+    "https://near.drpc.org",
+  ],
 ): Promise<string[]> {
   const args = JSON.stringify({
     account_id: accountId,
@@ -383,31 +387,43 @@ export async function fetchIntentsBalancesBatch(
   });
   const argsBase64 = btoa(args);
 
-  const resp = await fetch(rpcUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      id: 1,
-      method: "query",
-      params: {
-        request_type: "call_function",
-        finality: "final",
-        account_id: "intents.near",
-        method_name: "mt_batch_balance_of",
-        args_base64: argsBase64,
-      },
-    }),
+  const body = JSON.stringify({
+    jsonrpc: "2.0",
+    id: 1,
+    method: "query",
+    params: {
+      request_type: "call_function",
+      finality: "final",
+      account_id: "intents.near",
+      method_name: "mt_batch_balance_of",
+      args_base64: argsBase64,
+    },
   });
-  if (!resp.ok) throw new Error(`RPC call failed: ${resp.status}`);
-  const result = await resp.json();
-  if (result.error) throw new Error(result.error.message || "RPC error");
 
-  const raw = result?.result?.result;
-  if (!raw) throw new Error("Empty RPC result");
-  const resultBytes = Uint8Array.from(raw);
-  const decoded = new TextDecoder().decode(resultBytes);
-  return JSON.parse(decoded);
+  let lastError: Error | null = null;
+  for (const rpcUrl of rpcUrls) {
+    try {
+      const resp = await fetch(rpcUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body,
+        signal: AbortSignal.timeout(8_000),
+      });
+      if (!resp.ok) throw new Error(`RPC ${rpcUrl} failed: ${resp.status}`);
+      const result = await resp.json();
+      if (result.error) throw new Error(result.error.message || "RPC error");
+
+      const raw = result?.result?.result;
+      if (!raw) throw new Error("Empty RPC result");
+      const resultBytes = Uint8Array.from(raw);
+      const decoded = new TextDecoder().decode(resultBytes);
+      return JSON.parse(decoded);
+    } catch (e) {
+      lastError = e instanceof Error ? e : new Error(String(e));
+      // Try next endpoint
+    }
+  }
+  throw lastError ?? new Error("All RPC endpoints failed");
 }
 
 // ============================================================================

@@ -65,6 +65,7 @@ export function useWalletBalances(
     },
     enabled: !!accountId,
     staleTime: 30_000,
+    retry: 2,
   });
 
   // Token catalog from ChainDefuser (public, includes prices, no API key)
@@ -89,14 +90,8 @@ export function useWalletBalances(
     queryFn: async () => {
       if (!accountId || allTokens.length === 0) return [];
 
-      let balances: string[];
-      try {
-        const tokenIds = allTokens.map((t) => t.defuse_asset_id);
-        balances = await fetchIntentsBalancesBatch(accountId, tokenIds);
-      } catch (e) {
-        console.warn("Failed to fetch balances:", e);
-        balances = allTokens.map(() => "0");
-      }
+      const tokenIds = allTokens.map((t) => t.defuse_asset_id);
+      const balances = await fetchIntentsBalancesBatch(accountId, tokenIds);
 
       return allTokens
         .map((token, i) => ({
@@ -111,6 +106,7 @@ export function useWalletBalances(
     },
     enabled: !!accountId && allTokens.length > 0,
     staleTime: 30_000,
+    retry: 2,
   });
 
   // ── Base chain balances from Rhea tokens ──

@@ -57,25 +57,36 @@ export async function fetchNearAccountBalance(
   accountId: string,
   network: NetworkType = 'mainnet',
 ): Promise<string> {
-  const rpcUrl = getNearRpcUrl(network);
-  const resp = await fetch(rpcUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'query',
-      params: {
-        request_type: 'view_account',
-        finality: 'final',
-        account_id: accountId,
-      },
-    }),
-  });
-  if (!resp.ok) throw new Error(`RPC failed: ${resp.status}`);
-  const data = await resp.json();
-  if (data.error) throw new Error(data.error.message || 'RPC error');
-  return data.result.amount;
+  // Try up to 4 round-robin endpoints with 8s timeout each
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const rpcUrl = getNearRpcUrl(network);
+    try {
+      const resp = await fetch(rpcUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'query',
+          params: {
+            request_type: 'view_account',
+            finality: 'final',
+            account_id: accountId,
+          },
+        }),
+        signal: AbortSignal.timeout(8_000),
+      });
+      if (!resp.ok) throw new Error(`RPC failed: ${resp.status}`);
+      const data = await resp.json();
+      if (data.error) throw new Error(data.error.message || 'RPC error');
+      return data.result.amount;
+    } catch (e) {
+      lastError = e instanceof Error ? e : new Error(String(e));
+      // Try next endpoint
+    }
+  }
+  throw lastError ?? new Error('All RPC endpoints failed');
 }
 
 /**
