@@ -2,6 +2,40 @@ import { useState, useEffect, useMemo } from "react";
 import { Loader2, ArrowLeftRight } from "lucide-react";
 import { getCoordinatorApiUrl, type SupportedToken } from "@/lib/api";
 import { formatAmount, toAtomic } from "@/components/PrivateActionSheet";
+import { rpcQuery } from "@/lib/rpc-pool";
+
+/**
+ * Wait for a NEAR tx to be finalized and successful.
+ * Polls RPC `tx` every 1.5s for up to 30s. Throws if tx fails or times out.
+ * Coordinator's /wallet/v1/call returns immediately on submission — without
+ * this guard, the next coordinator call (ft_transfer_call) races ahead and
+ * reads stale chain state.
+ */
+async function waitForTx(hash: string, signerId: string, network: "mainnet" | "testnet" = "mainnet") {
+  const deadline = Date.now() + 30_000;
+  let lastErr: unknown = null;
+  while (Date.now() < deadline) {
+    try {
+      const res = await rpcQuery<{ status: any } & Record<string, unknown>>(
+        network,
+        "tx",
+        [hash, signerId],
+      );
+      const result = (res as any)?.result;
+      if (result?.status?.SuccessValue !== undefined) return result;
+      if (result?.status?.Failure) {
+        const msg = result.status.Failure?.ActionError?.kind?.FunctionCallError?.ExecutionError
+          || JSON.stringify(result.status.Failure);
+        throw new Error(`tx failed: ${msg}`);
+      }
+    } catch (e) {
+      lastErr = e;
+      // "Transaction with hash=... doesn't exist" → keep polling
+    }
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+  throw new Error(`tx ${hash.slice(0, 10)}... not finalized after 30s`);
+}
 
 export type BridgeDirection = "deposit" | "withdraw";
 
@@ -16,6 +50,7 @@ interface TokenRow {
 export function IntentsBridgeSheet({
   direction,
   apiKey,
+  agentAccountId,
   walletTokens,    // tokens in agent wallet (NEAR + base chain FTs) available to deposit
   intentsTokens,   // tokens already in Intents available to withdraw
   tokenCatalog,
@@ -24,6 +59,7 @@ export function IntentsBridgeSheet({
 }: {
   direction: BridgeDirection;
   apiKey: string;
+  agentAccountId?: string;   // agent's NEAR account ID — needed to poll /wallet/v1/call txs
   walletTokens: TokenRow[];
   intentsTokens: TokenRow[];
   tokenCatalog: SupportedToken[];
@@ -78,7 +114,11 @@ export function IntentsBridgeSheet({
         // auto-registers storage on wrap.near).
         // Docs: POST /wallet/v1/call { receiver_id: "wrap.near", method_name: "near_deposit", deposit: <yoctoNEAR> }
         if (selected.assetId === "near") {
-          // 1. Wrap NEAR -> wNEAR
+          // 1. Wrap NEAR -> wNEAR via coordinator.
+          // /wallet/v1/call returns immediately on tx submission, so we MUST
+          // poll for finalization before calling /intents/deposit, otherwise
+          // the second tx races ahead and reads stale state (account not yet
+          // registered on wrap.near, no wNEAR balance).
           const wrapResp = await fetch(`${baseUrl}/wallet/v1/call`, {
             method: "POST",
             headers: {
@@ -96,6 +136,19 @@ export function IntentsBridgeSheet({
           if (!wrapResp.ok) {
             const errBody = await wrapResp.text().catch(() => "");
             throw new Error(errBody || `Wrap failed: HTTP ${wrapResp.status}`);
+          }
+          const wrapJson = await wrapResp.json().catch(() => null);
+          // Coordinator returns { request_id, status, tx_hash, result }.
+          // status:"success" means tx was submitted; we still need to wait for finalization.
+          const wrapHash: string | undefined =
+            wrapJson?.tx_hash || wrapJson?.transaction_hash || wrapJson?.result?.transaction_hash;
+          if (!wrapHash) {
+            // Some coordinators return early without a hash. Best-effort: wait a beat.
+            await new Promise((r) => setTimeout(r, 3500));
+          } else if (agentAccountId) {
+            await waitForTx(wrapHash, agentAccountId);
+          } else {
+            await new Promise((r) => setTimeout(r, 3500));
           }
           // 2. Now deposit wNEAR into Intents
           const resp = await fetch(`${baseUrl}/wallet/v1/intents/deposit`, {
