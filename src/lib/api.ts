@@ -775,8 +775,8 @@ export async function confidentialSwapQuote(
 ): Promise<ConfidentialQuoteResponse> {
   const baseUrl = getCoordinatorApiUrl();
   const params = new URLSearchParams({
-    input_token: inputToken,
-    output_token: outputToken,
+    token_in: inputToken,
+    token_out: outputToken,
     amount,
   });
   const resp = await fetch(
@@ -802,8 +802,8 @@ export async function confidentialSwap(
 ): Promise<ConfidentialRequestResponse> {
   const baseUrl = getCoordinatorApiUrl();
   const body: Record<string, unknown> = {
-    input_token: inputToken,
-    output_token: outputToken,
+    token_in: inputToken,
+    token_out: outputToken,
     amount,
   };
   if (minOutputAmount) body.min_output_amount = minOutputAmount;
