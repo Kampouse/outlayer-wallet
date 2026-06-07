@@ -2,91 +2,62 @@
  * NEAR RPC utilities for transaction data fetching
  */
 
-export type NetworkType = 'testnet' | 'mainnet';
+import { rpcQuery, type NetworkType } from './rpc-pool';
 
-// ── Round-robin RPC endpoints ───────────────────────────────────────────────
-
-const MAINNET_ENDPOINTS = [
-  'https://free.rpc.fastnear.com',
-  'https://near.lava.build',
-  'https://near.drpc.org',
-  'https://endpoints.omniatech.io/v1/near/mainnet/public',
-] as const;
-
-const TESTNET_ENDPOINTS = [
-  'https://rpc.testnet.near.org',
-  'https://near-testnet.lava.build',
-] as const;
-
-let mainnetIdx = 0;
-let testnetIdx = 0;
-
-function getNextRpcEndpoint(network: NetworkType): string {
-  if (network === 'mainnet') {
-    const url = MAINNET_ENDPOINTS[mainnetIdx % MAINNET_ENDPOINTS.length];
-    mainnetIdx++;
-    return url;
-  }
-  const url = TESTNET_ENDPOINTS[testnetIdx % TESTNET_ENDPOINTS.length];
-  testnetIdx++;
-  return url;
-}
-
-/**
- * Get NEAR RPC URL for the given network (single endpoint — env override)
- */
-function getNearRpcUrl(network: NetworkType): string {
-  if (network === 'mainnet') {
-    return import.meta.env.VITE_MAINNET_RPC_URL || getNextRpcEndpoint(network);
-  }
-  return import.meta.env.VITE_TESTNET_RPC_URL || getNextRpcEndpoint(network);
-}
-
-/**
- * Get a batch of RPC URLs for parallel requests
- */
-export function getRpcEndpoints(network: NetworkType, count: number): string[] {
-  return Array.from({ length: count }, () => getNextRpcEndpoint(network));
-}
+export type { NetworkType };
 
 /**
  * Query account balance directly from NEAR RPC.
  * Returns balance in yoctoNEAR (string).
+ *
+ * Uses the rpc-pool: circuit breaker on 429, in-flight dedup, 10 s cache.
  */
 export async function fetchNearAccountBalance(
   accountId: string,
   network: NetworkType = 'mainnet',
 ): Promise<string> {
-  // Try up to 4 round-robin endpoints with 8s timeout each
-  let lastError: Error | null = null;
-  for (let attempt = 0; attempt < 4; attempt++) {
-    const rpcUrl = getNearRpcUrl(network);
-    try {
-      const resp = await fetch(rpcUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: 1,
-          method: 'query',
-          params: {
-            request_type: 'view_account',
-            finality: 'final',
-            account_id: accountId,
-          },
-        }),
-        signal: AbortSignal.timeout(8_000),
-      });
-      if (!resp.ok) throw new Error(`RPC failed: ${resp.status}`);
-      const data = await resp.json();
-      if (data.error) throw new Error(data.error.message || 'RPC error');
-      return data.result.amount;
-    } catch (e) {
-      lastError = e instanceof Error ? e : new Error(String(e));
-      // Try next endpoint
-    }
-  }
-  throw lastError ?? new Error('All RPC endpoints failed');
+  const result = await rpcQuery<{ amount: string }>(
+    network,
+    'query',
+    {
+      request_type: 'view_account',
+      finality: 'final',
+      account_id: accountId,
+    },
+    { cacheTtlMs: 10_000, timeoutMs: 6_000 },
+  );
+  return result.amount;
+}
+
+/**
+ * Run an arbitrary view-function call on a NEAR contract.
+ * Decodes the base64-style byte array returned by `call_function`.
+ */
+export async function viewFunction<T = unknown>(
+  contractId: string,
+  methodName: string,
+  args: Record<string, unknown> = {},
+  network: NetworkType = 'mainnet',
+): Promise<T> {
+  const argsBase64 = btoa(JSON.stringify(args));
+  const result = await rpcQuery<{ result: number[] }>(
+    network,
+    'query',
+    {
+      request_type: 'call_function',
+      finality: 'final',
+      account_id: contractId,
+      method_name: methodName,
+      args_base64: argsBase64,
+    },
+    { cacheTtlMs: 10_000, timeoutMs: 8_000 },
+  );
+  const raw = result?.result;
+  if (!raw) throw new Error('Empty RPC result');
+  const decoded = new TextDecoder().decode(Uint8Array.from(raw));
+  // Empty contract return (void) is "null" or "" after decode
+  if (!decoded || decoded === 'null') return null as T;
+  return JSON.parse(decoded) as T;
 }
 
 /**

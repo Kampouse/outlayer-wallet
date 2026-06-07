@@ -6,6 +6,7 @@ import { googleSignIn, decodeJwt, loadGoogleGIS, type GoogleUserProfile } from '
 import { registerWalletWithGoogle, checkGoogleWallet, linkWalletToGoogle, unlinkWalletFromGoogle, fetchWalletLabels, setWalletLabel, WALLET_API_URL } from '@/lib/api';
 import { saveWalletKey, getAllWalletKeys, renameWalletKey, removeWalletKey, initCrypto, clearCrypto } from '@/lib/wallet-keys';
 import WalletConnectionModal from '@/components/WalletConnectionModal';
+import { rpcQuery } from '@/lib/rpc-pool';
 
 export type NetworkType = 'testnet' | 'mainnet';
 
@@ -835,37 +836,29 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
   }, [nearAccountId, network]);
 
   const viewMethod = useCallback(async (params: { contractId: string; method: string; args?: Record<string, unknown> }) => {
-    const response = await fetch(config.rpcUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        id: 'dontcare',
-        method: 'query',
-        params: {
-          request_type: 'call_function',
-          finality: 'final',
-          account_id: params.contractId,
-          method_name: params.method,
-          args_base64: btoa(JSON.stringify(params.args || {})),
-        },
-      }),
-    });
+    const argsBase64 = btoa(JSON.stringify(params.args || {}));
+    const result = await rpcQuery<{ result: number[] }>(
+      network,
+      'query',
+      {
+        request_type: 'call_function',
+        finality: 'final',
+        account_id: params.contractId,
+        method_name: params.method,
+        args_base64: argsBase64,
+      },
+      { cacheTtlMs: 8_000, timeoutMs: 8_000 },
+    );
 
-    const data = await response.json();
-
-    if (data.error) {
-      throw new Error(data.error.message || 'View method call failed');
-    }
-
-    const resultBytes = data.result?.result;
+    const resultBytes = result?.result;
     if (!resultBytes || resultBytes.length === 0) {
       return null;
     }
 
     const resultStr = new TextDecoder().decode(new Uint8Array(resultBytes));
+    if (!resultStr || resultStr === 'null') return null;
     return JSON.parse(resultStr);
-  }, [config.rpcUrl]);
+  }, [network]);
 
   return (
     <NearWalletContext.Provider

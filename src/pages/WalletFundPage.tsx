@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2, Check, DollarSign } from 'lucide-react';
+import { rpcQuery } from '@/lib/rpc-pool';
 
 interface TokenMeta {
   symbol: string;
@@ -65,7 +66,7 @@ export default function FundPage() {
 
 function FundContent() {
   const [searchParams] = useSearchParams();
-  const { accountId, isConnected, signAndSendTransaction, viewMethod, rpcUrl, network } = useNearWallet();
+  const { accountId, isConnected, signAndSendTransaction, viewMethod, network } = useNearWallet();
 
   const to = searchParams.get('to');
   const amount = searchParams.get('amount');
@@ -152,22 +153,14 @@ function FundContent() {
 
     try {
       if (isNative) {
-        // Fetch native NEAR balance via RPC
-        const res = await fetch(rpcUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            jsonrpc: '2.0', id: 'balance',
-            method: 'query',
-            params: { request_type: 'view_account', finality: 'final', account_id: accountId },
-          }),
-        });
-        const data = await res.json();
-        if (data.result?.amount) {
-          setUserBalance(data.result.amount);
-        } else {
-          setUserBalance('0');
-        }
+        // Fetch native NEAR balance via pool (circuit breaker + dedup)
+        const data = await rpcQuery<{ amount: string }>(
+          network,
+          'query',
+          { request_type: 'view_account', finality: 'final', account_id: accountId },
+          { cacheTtlMs: 8_000 },
+        );
+        setUserBalance(data?.amount ?? '0');
       } else {
         // FT: check user balance
         const bal = await viewMethod({
@@ -191,7 +184,7 @@ function FundContent() {
       const errMsg = e instanceof Error ? e.message : String(e);
       setError(`Failed to check balances: ${errMsg}`);
     }
-  }, [isConnected, accountId, isNative, rpcUrl, tokenParam, to, viewMethod, depositToIntents]);
+  }, [isConnected, accountId, isNative, network, tokenParam, to, viewMethod, depositToIntents]);
 
   // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {

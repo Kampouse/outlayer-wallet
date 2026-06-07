@@ -3,6 +3,7 @@
  */
 
 import axios from 'axios';
+import { rpcQuery } from './rpc-pool';
 
 /** Wallet API base URL (CF Worker backend) */
 export const WALLET_API_URL = import.meta.env.VITE_WALLET_API_URL || 'https://wallet-api.kj95hgdgnn.workers.dev';
@@ -371,15 +372,12 @@ export async function fetchRheaTokenPrices(): Promise<
 /**
  * Uses mt_batch_balance_of (NEP-245) — single RPC call, no API key needed.
  * Returns raw balance strings indexed by token_id.
+ *
+ * Routes through rpc-pool for circuit breaker + coalescing.
  */
 export async function fetchIntentsBalancesBatch(
   accountId: string,
   tokenIds: string[],
-  rpcUrls: string[] = [
-    "https://free.rpc.fastnear.com",
-    "https://near.lava.build",
-    "https://near.drpc.org",
-  ],
 ): Promise<string[]> {
   const args = JSON.stringify({
     account_id: accountId,
@@ -387,43 +385,23 @@ export async function fetchIntentsBalancesBatch(
   });
   const argsBase64 = btoa(args);
 
-  const body = JSON.stringify({
-    jsonrpc: "2.0",
-    id: 1,
-    method: "query",
-    params: {
+  const result = await rpcQuery<{ result: number[] }>(
+    "mainnet",
+    "query",
+    {
       request_type: "call_function",
       finality: "final",
       account_id: "intents.near",
       method_name: "mt_batch_balance_of",
       args_base64: argsBase64,
     },
-  });
+    { cacheTtlMs: 10_000, timeoutMs: 8_000 },
+  );
 
-  let lastError: Error | null = null;
-  for (const rpcUrl of rpcUrls) {
-    try {
-      const resp = await fetch(rpcUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body,
-        signal: AbortSignal.timeout(8_000),
-      });
-      if (!resp.ok) throw new Error(`RPC ${rpcUrl} failed: ${resp.status}`);
-      const result = await resp.json();
-      if (result.error) throw new Error(result.error.message || "RPC error");
-
-      const raw = result?.result?.result;
-      if (!raw) throw new Error("Empty RPC result");
-      const resultBytes = Uint8Array.from(raw);
-      const decoded = new TextDecoder().decode(resultBytes);
-      return JSON.parse(decoded);
-    } catch (e) {
-      lastError = e instanceof Error ? e : new Error(String(e));
-      // Try next endpoint
-    }
-  }
-  throw lastError ?? new Error("All RPC endpoints failed");
+  const raw = result?.result;
+  if (!raw) throw new Error("Empty RPC result");
+  const decoded = new TextDecoder().decode(Uint8Array.from(raw));
+  return JSON.parse(decoded);
 }
 
 // ============================================================================

@@ -55,7 +55,7 @@ export function useWalletBalances(
   apiKey: string | null | undefined,
   accountId: string | null | undefined,
 ) {
-  // NEAR balance — direct from NEAR RPC, no API key needed
+  // NEAR balance — direct from RPC pool, no API key needed
   const nearQuery = useQuery({
     queryKey: ["wallet-balance-near", accountId],
     queryFn: async () => {
@@ -65,7 +65,7 @@ export function useWalletBalances(
     },
     enabled: !!accountId,
     staleTime: 30_000,
-    retry: 2,
+    retry: false, // rpc-pool already retries across endpoints
   });
 
   // Token catalog from ChainDefuser (public, includes prices, no API key)
@@ -82,7 +82,7 @@ export function useWalletBalances(
     staleTime: 60_000,
   });
 
-  // Intents balances — single RPC call via mt_batch_balance_of
+  // Intents balances — single RPC call via mt_batch_balance_of (pool handles retries)
   const allTokens = catalogQuery.data ?? [];
 
   const intentsQuery = useQuery({
@@ -106,7 +106,7 @@ export function useWalletBalances(
     },
     enabled: !!accountId && allTokens.length > 0,
     staleTime: 30_000,
-    retry: 2,
+    retry: false, // rpc-pool already retries across endpoints
   });
 
   // ── Base chain balances from Rhea tokens ──
