@@ -73,8 +73,28 @@ export function IntentsBridgeSheet({
       const baseUrl = getCoordinatorApiUrl();
 
       if (dir === "deposit") {
-        // POST /wallet/v1/intents/deposit — coordinator deposits from agent wallet to intents.near
-        // Deposit uses plain contract ID (wrap.near for NEAR)
+        // 1. Register storage on the token contract (idempotent).
+        //    Wrap.near (and any FT) requires storage registration before any
+        //    ft_transfer / near_deposit. Cheap (~0.00125 NEAR), skip if already
+        //    registered.
+        const storageTarget = selected.contractId;
+        const storageResp = await fetch(`${baseUrl}/wallet/v1/storage-deposit`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ token: storageTarget }),
+        });
+        // Non-fatal: if it fails (e.g. already registered, or transient), let
+        // the actual deposit surface the real error. Log for debug only.
+        if (!storageResp.ok) {
+          // eslint-disable-next-line no-console
+          console.warn("[bridge] storage-deposit preflight failed", await storageResp.text().catch(() => ""));
+        }
+
+        // 2. POST /wallet/v1/intents/deposit — coordinator deposits from agent wallet to intents.near.
+        //    Deposit uses plain contract ID (wrap.near for NEAR).
         const resp = await fetch(`${baseUrl}/wallet/v1/intents/deposit`, {
           method: "POST",
           headers: {
