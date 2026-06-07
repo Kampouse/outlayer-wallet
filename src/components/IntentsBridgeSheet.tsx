@@ -1,15 +1,13 @@
 import { useState, useEffect, useMemo } from "react";
 import { Loader2, ArrowLeftRight } from "lucide-react";
-import { useNearWallet } from "@/contexts/NearWalletContext";
-import { actionCreators } from "@near-js/transactions";
 import { getCoordinatorApiUrl, type SupportedToken } from "@/lib/api";
 import { formatAmount, toAtomic } from "@/components/PrivateActionSheet";
 
 export type BridgeDirection = "deposit" | "withdraw";
 
 interface TokenRow {
-  assetId: string;        // defuse_asset_id ("nep141:wrap.near" or "near")
-  contractId: string | null; // on-chain contract (null for native NEAR)
+  assetId: string;        // "near" or "nep141:wrap.near" etc
+  contractId: string;     // on-chain contract ("wrap.near", or the nep141 contract)
   symbol: string;
   decimals: number;
   balance: string;        // atomic
@@ -17,71 +15,41 @@ interface TokenRow {
 
 export function IntentsBridgeSheet({
   direction,
-  agentAccountId,
   apiKey,
-  userAccountId,
-  walletTokens,    // tokens in user's NEAR wallet available to deposit
+  walletTokens,    // tokens in agent wallet (NEAR + base chain FTs) available to deposit
   intentsTokens,   // tokens already in Intents available to withdraw
   tokenCatalog,
   onClose,
   onDone,
 }: {
   direction: BridgeDirection;
-  agentAccountId: string;
   apiKey: string;
-  userAccountId: string;
   walletTokens: TokenRow[];
   intentsTokens: TokenRow[];
   tokenCatalog: SupportedToken[];
   onClose: () => void;
   onDone: (msg: string) => void;
 }) {
-  const { signAndSendTransaction, viewMethod } = useNearWallet();
   const [dir, setDir] = useState<BridgeDirection>(direction);
   const [assetId, setAssetId] = useState("");
   const [amount, setAmount] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [needsStorage, setNeedsStorage] = useState(false);
 
   useEffect(() => {
     setAssetId("");
     setAmount("");
     setError(null);
-    setNeedsStorage(false);
   }, [dir]);
 
   const sourceTokens = dir === "deposit" ? walletTokens : intentsTokens;
 
-  // Filter non-zero balances + enrich
   const availableTokens = useMemo(
     () => sourceTokens.filter((t) => t.balance !== "0" && BigInt(t.balance) > 0n),
     [sourceTokens],
   );
 
   const selected = availableTokens.find((t) => t.assetId === assetId) ?? null;
-
-  // Check if intents.near is registered on the token contract (only for FT deposits)
-  useEffect(() => {
-    if (!selected || dir !== "deposit" || !selected.contractId) {
-      setNeedsStorage(false);
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      try {
-        const storage = await viewMethod({
-          contractId: selected.contractId!,
-          method: "storage_balance_of",
-          args: { account_id: "intents.near" },
-        });
-        if (!cancelled) setNeedsStorage(!storage);
-      } catch {
-        if (!cancelled) setNeedsStorage(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [selected, dir, viewMethod]);
 
   const handleSwapDir = () => setDir(dir === "deposit" ? "withdraw" : "deposit");
 
@@ -102,119 +70,27 @@ export function IntentsBridgeSheet({
       if (amt === "0" || BigInt(amt) <= 0n) throw new Error("Amount too small");
       if (BigInt(amt) > BigInt(selected.balance)) throw new Error("Insufficient balance");
 
+      const baseUrl = getCoordinatorApiUrl();
+
       if (dir === "deposit") {
-        // On-chain: ft_transfer_call to intents.near
-        // msg = agent account ID so intents.near credits the agent
-        if (!selected.contractId) {
-          // Native NEAR: wrap + deposit via wrap.near contract
-          // 1. storage_deposit for user on wrap.near (if needed)
-          // 2. near_deposit to wrap
-          // 3. ft_transfer_call to intents.near
-          const wrapContract = "wrap.near";
-
-          // Check storage on wrap.near for user
-          let wrapStorageOk = true;
-          try {
-            const s = await viewMethod({
-              contractId: wrapContract,
-              method: "storage_balance_of",
-              args: { account_id: userAccountId },
-            });
-            wrapStorageOk = !!s;
-          } catch {}
-
-          const actions = [];
-          if (!wrapStorageOk) {
-            actions.push(
-              actionCreators.functionCall(
-                "storage_deposit",
-                { account_id: userAccountId, registration_only: true },
-                BigInt("30000000000000"),
-                BigInt("1250000000000000000000"), // 0.00125 NEAR
-              ),
-            );
-          }
-
-          // Also check intents.near storage on wrap.near
-          let intentsStorageOk = true;
-          try {
-            const s = await viewMethod({
-              contractId: wrapContract,
-              method: "storage_balance_of",
-              args: { account_id: "intents.near" },
-            });
-            intentsStorageOk = !!s;
-          } catch {}
-          if (!intentsStorageOk) {
-            actions.push(
-              actionCreators.functionCall(
-                "storage_deposit",
-                { account_id: "intents.near", registration_only: true },
-                BigInt("30000000000000"),
-                BigInt("1250000000000000000000"),
-              ),
-            );
-          }
-
-          // near_deposit to mint wNEAR
-          actions.push(
-            actionCreators.functionCall(
-              "near_deposit",
-              {},
-              BigInt("30000000000000"),
-              BigInt(amt),
-            ),
-          );
-
-          // ft_transfer_call to intents.near
-          actions.push(
-            actionCreators.functionCall(
-              "ft_transfer_call",
-              { receiver_id: "intents.near", amount: amt, msg: agentAccountId },
-              BigInt("100000000000000"),
-              BigInt("1"),
-            ),
-          );
-
-          const result = await signAndSendTransaction({
-            receiverId: wrapContract,
-            actions,
-          });
-          const hash = result?.transaction_outcome?.id || result?.transaction?.hash;
-          onDone(hash ? `Deposited. tx: ${hash.slice(0, 10)}...` : "Deposited");
-        } else {
-          // FT deposit: storage_deposit (if needed) + ft_transfer_call
-          const actions = [];
-          if (needsStorage) {
-            actions.push(
-              actionCreators.functionCall(
-                "storage_deposit",
-                { account_id: "intents.near", registration_only: true },
-                BigInt("30000000000000"),
-                BigInt("1250000000000000000000"),
-              ),
-            );
-          }
-          actions.push(
-            actionCreators.functionCall(
-              "ft_transfer_call",
-              { receiver_id: "intents.near", amount: amt, msg: agentAccountId },
-              BigInt("100000000000000"),
-              BigInt("1"),
-            ),
-          );
-          const result = await signAndSendTransaction({
-            receiverId: selected.contractId,
-            actions,
-          });
-          const hash = result?.transaction_outcome?.id || result?.transaction?.hash;
-          onDone(hash ? `Deposited. tx: ${hash.slice(0, 10)}...` : "Deposited");
+        // POST /wallet/v1/intents/deposit — coordinator deposits from agent wallet to intents.near
+        const resp = await fetch(`${baseUrl}/wallet/v1/intents/deposit`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ token: selected.contractId, amount: amt }),
+        });
+        if (!resp.ok) {
+          const errBody = await resp.text().catch(() => "");
+          throw new Error(errBody || `Deposit failed: HTTP ${resp.status}`);
         }
+        const result = await resp.json().catch(() => null);
+        const hash = result?.transaction_hash || result?.tx_hash;
+        onDone(hash ? `Deposited. tx: ${hash.slice(0, 10)}...` : "Deposit submitted");
       } else {
-        // Withdraw: POST to coordinator /wallet/v1/intents/withdraw
-        const baseUrl = getCoordinatorApiUrl();
-        // For withdraw, "token" is the on-chain contract (not defuse id)
-        const tokenContract = selected.contractId || "wrap.near";
+        // POST /wallet/v1/intents/withdraw — coordinator moves from Intents back to agent wallet
         const resp = await fetch(`${baseUrl}/wallet/v1/intents/withdraw`, {
           method: "POST",
           headers: {
@@ -222,9 +98,9 @@ export function IntentsBridgeSheet({
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            to: userAccountId,
+            to: "",  // empty = back to agent wallet
             amount: amt,
-            token: tokenContract,
+            token: selected.contractId,
             chain: "near",
           }),
         });
@@ -249,6 +125,9 @@ export function IntentsBridgeSheet({
   };
 
   const dirLabel = dir === "deposit" ? "Wallet → Intents" : "Intents → Wallet";
+
+  // Suppress unused warning
+  void tokenCatalog;
 
   return (
     <div
@@ -357,14 +236,12 @@ export function IntentsBridgeSheet({
               >
                 {submitting && <Loader2 size={14} className="animate-spin" />}
                 {submitting
-                  ? dir === "deposit" ? "Signing..." : "Submitting..."
+                  ? "Submitting..."
                   : dir === "deposit" ? "Deposit to Intents" : "Withdraw to Wallet"}
               </button>
 
               <p className="text-[10px] text-muted-foreground text-center">
-                {dir === "deposit"
-                  ? "Signs an on-chain transaction from your NEAR wallet."
-                  : "Withdrawal runs via the coordinator. Usually settles in a few seconds."}
+                Runs via the coordinator. Usually settles in a few seconds.
               </p>
             </>
           )}
@@ -374,18 +251,18 @@ export function IntentsBridgeSheet({
   );
 }
 
-/** Build a TokenRow[] from useWalletBalances output for the bridge sheet. */
+/** Build TokenRow[] from wallet-side data (NEAR balance + base chain FTs). */
 export function buildWalletTokens(
   nearBalance: string | null,
   baseChainTokens: Array<{ defuse_asset_id: string; balance: string; symbol: string; decimals: number }>,
   tokenCatalog: SupportedToken[],
 ): TokenRow[] {
   const rows: TokenRow[] = [];
-  // Native NEAR — synthetic "near" entry
+  // Native NEAR — map to wrap.near contract for intents
   if (nearBalance && BigInt(nearBalance) > 0n) {
     rows.push({
       assetId: "near",
-      contractId: null,
+      contractId: "wrap.near",
       symbol: "NEAR",
       decimals: 24,
       balance: nearBalance,
@@ -394,8 +271,7 @@ export function buildWalletTokens(
   for (const t of baseChainTokens) {
     const contract = t.defuse_asset_id.startsWith("nep141:")
       ? t.defuse_asset_id.slice("nep141:".length)
-      : null;
-    if (!contract) continue;
+      : t.defuse_asset_id;
     rows.push({
       assetId: t.defuse_asset_id,
       contractId: contract,
@@ -404,23 +280,24 @@ export function buildWalletTokens(
       balance: t.balance,
     });
   }
-  // Suppress catalog unused warning
   void tokenCatalog;
   return rows;
 }
 
+/** Build TokenRow[] from Intents-side data. */
 export function buildIntentsTokens(
   intentsTokens: Array<{ defuse_asset_id: string; balance: string; symbol: string; decimals: number }>,
 ): TokenRow[] {
   return intentsTokens.map((t) => {
-    const contract = t.defuse_asset_id.startsWith("nep141:")
-      ? t.defuse_asset_id.slice("nep141:".length)
-      : null;
-    // nep141:wrap.near in Intents represents NEAR — treat as native for withdrawal
     const isNear = t.defuse_asset_id === "nep141:wrap.near";
+    const contract = isNear
+      ? "wrap.near"
+      : t.defuse_asset_id.startsWith("nep141:")
+      ? t.defuse_asset_id.slice("nep141:".length)
+      : t.defuse_asset_id;
     return {
       assetId: isNear ? "near" : t.defuse_asset_id,
-      contractId: isNear ? null : contract,
+      contractId: contract,
       symbol: isNear ? "NEAR" : t.symbol,
       decimals: t.decimals,
       balance: t.balance,
