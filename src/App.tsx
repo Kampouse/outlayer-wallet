@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, type ComponentType } from "react";
 import { Routes, Route, useLocation } from "react-router-dom";
 import BottomNav from "./components/BottomNav";
 import MobileHeader from "./components/MobileHeader";
@@ -7,18 +7,35 @@ import { ToastProvider } from "./components/ToastProvider";
 import PWAInstallPrompt from "./components/PWAInstallPrompt";
 import AnimatedGrid from "./components/AnimatedGrid";
 
+// Wrap lazy() so that if a chunk fails to load (stale cached HTML referencing
+// an old hash after a deploy), we do a full page reload to pick up the new
+// index.html with fresh chunk hashes.
+function lazyReload<T extends ComponentType>(load: () => Promise<{ default: T }>) {
+  return lazy(() =>
+    load().catch((err) => {
+      // Only reload once per session to avoid infinite loops
+      const key = "outlayer_chunk_reload";
+      if (!sessionStorage.getItem(key)) {
+        sessionStorage.setItem(key, "1");
+        window.location.reload();
+      }
+      throw err;
+    }),
+  );
+}
+
 // Code-split less-used pages
-const HomePage = lazy(() => import("./pages/HomePage"));
-const WalletManagePage = lazy(() => import("./pages/WalletManagePage"));
-const WalletApprovalsPage = lazy(() => import("./pages/WalletApprovalsPage"));
-const ApprovalDetailPage = lazy(() => import("./pages/ApprovalDetailPage"));
-const WalletAuditPage = lazy(() => import("./pages/WalletAuditPage"));
-const WalletHistoryPage = lazy(() => import("./pages/WalletHistoryPage"));
-const WalletFundPage = lazy(() => import("./pages/WalletFundPage"));
-const WalletSendPage = lazy(() => import("./pages/WalletSendPage"));
-const WalletSwapPage = lazy(() => import("./pages/WalletSwapPage"));
-const WalletPrivatePage = lazy(() => import("./pages/WalletPrivatePage"));
-const WalletPage = lazy(() => import("./pages/WalletPage"));
+const HomePage = lazyReload(() => import("./pages/HomePage"));
+const WalletManagePage = lazyReload(() => import("./pages/WalletManagePage"));
+const WalletApprovalsPage = lazyReload(() => import("./pages/WalletApprovalsPage"));
+const ApprovalDetailPage = lazyReload(() => import("./pages/ApprovalDetailPage"));
+const WalletAuditPage = lazyReload(() => import("./pages/WalletAuditPage"));
+const WalletHistoryPage = lazyReload(() => import("./pages/WalletHistoryPage"));
+const WalletFundPage = lazyReload(() => import("./pages/WalletFundPage"));
+const WalletSendPage = lazyReload(() => import("./pages/WalletSendPage"));
+const WalletSwapPage = lazyReload(() => import("./pages/WalletSwapPage"));
+const WalletPrivatePage = lazyReload(() => import("./pages/WalletPrivatePage"));
+const WalletPage = lazyReload(() => import("./pages/WalletPage"));
 
 function PageTransition({ children }: { children: React.ReactNode }) {
   return (
