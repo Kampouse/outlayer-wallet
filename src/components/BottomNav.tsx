@@ -1,8 +1,9 @@
 import { NavLink } from 'react-router-dom'
-import { Wallet, Clock, ShieldCheck, Settings } from 'lucide-react'
+import { Wallet, Clock, ShieldCheck, Settings, Shield } from 'lucide-react'
 
 const tabs = [
   { to: '/', label: 'Home', icon: Wallet, end: true },
+  { to: '/wallet/private', label: 'Private', icon: Shield, end: false },
   { to: '/wallet/history', label: 'Activity', icon: Clock, end: false },
   { to: '/wallet/approvals', label: 'Approvals', icon: ShieldCheck, end: false },
   { to: '/wallet/manage', label: 'Settings', icon: Settings, end: false },

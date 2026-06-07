@@ -17,6 +17,7 @@ const WalletHistoryPage = lazy(() => import("./pages/WalletHistoryPage"));
 const WalletFundPage = lazy(() => import("./pages/WalletFundPage"));
 const WalletSendPage = lazy(() => import("./pages/WalletSendPage"));
 const WalletSwapPage = lazy(() => import("./pages/WalletSwapPage"));
+const WalletPrivatePage = lazy(() => import("./pages/WalletPrivatePage"));
 const WalletPage = lazy(() => import("./pages/WalletPage"));
 
 function PageTransition({ children }: { children: React.ReactNode }) {
@@ -55,6 +56,7 @@ export default function App() {
                 <Route path="/wallet/audit" element={<WalletAuditPage />} />
                 <Route path="/wallet/history" element={<WalletHistoryPage />} />
                 <Route path="/wallet/fund" element={<WalletFundPage />} />
+                <Route path="/wallet/private" element={<WalletPrivatePage />} />
                 <Route path="/handoff" element={<WalletPage />} />
               </Routes>
             </PageTransition>

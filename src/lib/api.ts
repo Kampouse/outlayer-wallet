@@ -39,10 +39,12 @@ export function getCoordinatorApiUrl(network?: NetworkType): string {
     return import.meta.env.VITE_MAINNET_COORDINATOR_API_URL || 'https://api.outlayer.fastnear.com';
   }
 
-  return import.meta.env.VITE_TESTNET_COORDINATOR_API_URL || 'https://api.outlayer.fastnear.com';
+  return import.meta.env.VITE_TESTNET_COORDINATOR_API_URL || 'https://testnet-api.outlayer.fastnear.com';
 }
 
-const API_BASE_URL = getCoordinatorApiUrl();
+// Always call getCoordinatorApiUrl() at request time — never cache it.
+// Network can change at runtime via the NetworkSwitcher, and a module-load
+// constant would silently keep hitting the previous network.
 
 export interface WorkerInfo {
   worker_id: string;
@@ -152,7 +154,7 @@ export interface PricingConfig {
  * Fetch list of workers
  */
 export async function fetchWorkers(): Promise<WorkerInfo[]> {
-  const response = await axios.get(`${API_BASE_URL}/public/workers`);
+  const response = await axios.get(`${getCoordinatorApiUrl()}/public/workers`);
   return response.data;
 }
 
@@ -173,7 +175,7 @@ export async function fetchJobs(
   if (source) {
     params.source = source;
   }
-  const response = await axios.get(`${API_BASE_URL}/public/jobs`, { params });
+  const response = await axios.get(`${getCoordinatorApiUrl()}/public/jobs`, { params });
   return response.data;
 }
 
@@ -181,7 +183,7 @@ export async function fetchJobs(
  * Fetch system statistics
  */
 export async function fetchStats(): Promise<ExecutionStats> {
-  const response = await axios.get(`${API_BASE_URL}/public/stats`);
+  const response = await axios.get(`${getCoordinatorApiUrl()}/public/stats`);
   return response.data;
 }
 
@@ -193,7 +195,7 @@ export async function checkWasmExists(
   commitHash: string,
   buildTarget: string = 'wasm32-wasip1'
 ): Promise<WasmInfo> {
-  const response = await axios.get(`${API_BASE_URL}/public/wasm/info`, {
+  const response = await axios.get(`${getCoordinatorApiUrl()}/public/wasm/info`, {
     params: {
       repo_url: repoUrl,
       commit_hash: commitHash,
@@ -210,7 +212,7 @@ export async function checkWasmExistsByChecksum(
   checksum: string
 ): Promise<WasmInfo> {
   try {
-    const response = await axios.get(`${API_BASE_URL}/public/wasm/exists/${checksum}`);
+    const response = await axios.get(`${getCoordinatorApiUrl()}/public/wasm/exists/${checksum}`);
     return {
       exists: response.data.exists,
       checksum: checksum,
@@ -232,7 +234,7 @@ export async function checkWasmExistsByChecksum(
  * Fetch user earnings
  */
 export async function fetchUserEarnings(userAccountId: string): Promise<UserEarnings> {
-  const response = await axios.get(`${API_BASE_URL}/public/users/${userAccountId}/earnings`);
+  const response = await axios.get(`${getCoordinatorApiUrl()}/public/users/${userAccountId}/earnings`);
   return response.data;
 }
 
@@ -240,7 +242,7 @@ export async function fetchUserEarnings(userAccountId: string): Promise<UserEarn
  * Fetch popular repositories
  */
 export async function fetchPopularRepos(): Promise<PopularRepo[]> {
-  const response = await axios.get(`${API_BASE_URL}/public/repos/popular`);
+  const response = await axios.get(`${getCoordinatorApiUrl()}/public/repos/popular`);
   return response.data;
 }
 
@@ -248,7 +250,7 @@ export async function fetchPopularRepos(): Promise<PopularRepo[]> {
  * Fetch pricing configuration
  */
 export async function fetchPricing(): Promise<PricingConfig> {
-  const response = await axios.get(`${API_BASE_URL}/public/pricing`);
+  const response = await axios.get(`${getCoordinatorApiUrl()}/public/pricing`);
   return response.data;
 }
 
@@ -425,7 +427,7 @@ export interface WalletStats {
 }
 
 export async function fetchWalletStats(): Promise<WalletStats> {
-  const response = await axios.get(`${API_BASE_URL}/wallet/v1/stats`);
+  const response = await axios.get(`${getCoordinatorApiUrl()}/wallet/v1/stats`);
   return response.data;
 }
 
@@ -625,7 +627,7 @@ export async function fetchAttestation(
 ): Promise<AttestationResponse | null> {
   try {
     const response = await axios.get(
-      `${API_BASE_URL}/attestations/${taskId}`
+      `${getCoordinatorApiUrl()}/attestations/${taskId}`
     );
     return response.data;
   } catch (error) {
@@ -635,4 +637,235 @@ export async function fetchAttestation(
     throw error;
   }
 }
+
+// ============================================================================
+// Confidential Intents (mainnet-only)
+//
+// Private shard at `intents.far`. On-chain state with no public RPC. Shield,
+// unshield, transfer, swap, withdraw, and read balances. Action routes are
+// async and return a `request_id` to poll via /wallet/v1/requests/{id}.
+// ============================================================================
+
+export interface ConfidentialBalance {
+  /** Map of defuse asset id → raw balance string (atomic units) */
+  balances?: Record<string, string>;
+  /** Some endpoints return a flat array of {asset_id, amount} */
+  items?: Array<{ asset_id: string; amount: string }>;
+}
+
+export interface ConfidentialRequestResponse {
+  request_id: string;
+  status: string;
+  /** Optional fields populated on terminal states */
+  tx_hash?: string;
+  error?: string;
+}
+
+export interface ConfidentialQuoteResponse {
+  /** Quote shape varies; pass through to UI */
+  [key: string]: unknown;
+}
+
+/**
+ * Read confidential balances. Mainnet-only.
+ *
+ * `apiKey` is the wallet key (Bearer wk_...).
+ */
+export async function fetchConfidentialBalance(
+  apiKey: string,
+): Promise<ConfidentialBalance> {
+  const baseUrl = getCoordinatorApiUrl();
+  const resp = await fetch(`${baseUrl}/wallet/v1/confidential/balance`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ error: resp.statusText }));
+    throw new Error(err.error || err.message || `Balance fetch failed: ${resp.status}`);
+  }
+  return resp.json();
+}
+
+/**
+ * Shield funds into the confidential shard. Async — returns request_id.
+ *
+ * The wallet must already hold the token in its public intents balance.
+ * `token` is the defuse asset id (e.g. "nep141:wrap.near" or the ChainDefuser id).
+ * `amount` is atomic units as a string.
+ */
+export async function shieldToConfidential(
+  apiKey: string,
+  token: string,
+  amount: string,
+): Promise<ConfidentialRequestResponse> {
+  const baseUrl = getCoordinatorApiUrl();
+  const resp = await fetch(`${baseUrl}/wallet/v1/confidential/deposit`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ token, amount }),
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ error: resp.statusText }));
+    throw new Error(err.error || err.message || `Shield failed: ${resp.status}`);
+  }
+  return resp.json();
+}
+
+/**
+ * Move funds from the confidential shard back to the wallet's public intents
+ * balance. Async — returns request_id.
+ */
+export async function unshieldFromConfidential(
+  apiKey: string,
+  token: string,
+  amount: string,
+): Promise<ConfidentialRequestResponse> {
+  const baseUrl = getCoordinatorApiUrl();
+  const resp = await fetch(`${baseUrl}/wallet/v1/confidential/unshield`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ token, amount }),
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ error: resp.statusText }));
+    throw new Error(err.error || err.message || `Unshield failed: ${resp.status}`);
+  }
+  return resp.json();
+}
+
+/**
+ * Transfer privately to another confidential wallet. Async.
+ *
+ * `to` is the recipient's wallet address (NEAR implicit). The recipient must
+ * already have a confidential identity on the same shard.
+ */
+export async function confidentialTransfer(
+  apiKey: string,
+  token: string,
+  amount: string,
+  to: string,
+): Promise<ConfidentialRequestResponse> {
+  const baseUrl = getCoordinatorApiUrl();
+  const resp = await fetch(`${baseUrl}/wallet/v1/confidential/transfer`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ token, amount, to }),
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ error: resp.statusText }));
+    throw new Error(err.error || err.message || `Confidential transfer failed: ${resp.status}`);
+  }
+  return resp.json();
+}
+
+/** Get a quote for a confidential swap. Synchronous. */
+export async function confidentialSwapQuote(
+  apiKey: string,
+  inputToken: string,
+  outputToken: string,
+  amount: string,
+): Promise<ConfidentialQuoteResponse> {
+  const baseUrl = getCoordinatorApiUrl();
+  const params = new URLSearchParams({
+    input_token: inputToken,
+    output_token: outputToken,
+    amount,
+  });
+  const resp = await fetch(
+    `${baseUrl}/wallet/v1/confidential/swap/quote?${params}`,
+    {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    },
+  );
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ error: resp.statusText }));
+    throw new Error(err.error || err.message || `Quote failed: ${resp.status}`);
+  }
+  return resp.json();
+}
+
+/** Execute a confidential swap. Async — returns request_id. */
+export async function confidentialSwap(
+  apiKey: string,
+  inputToken: string,
+  outputToken: string,
+  amount: string,
+  minOutputAmount?: string,
+): Promise<ConfidentialRequestResponse> {
+  const baseUrl = getCoordinatorApiUrl();
+  const body: Record<string, unknown> = {
+    input_token: inputToken,
+    output_token: outputToken,
+    amount,
+  };
+  if (minOutputAmount) body.min_output_amount = minOutputAmount;
+  const resp = await fetch(`${baseUrl}/wallet/v1/confidential/swap`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ error: resp.statusText }));
+    throw new Error(err.error || err.message || `Confidential swap failed: ${resp.status}`);
+  }
+  return resp.json();
+}
+
+/** Withdraw from the confidential shard to an external chain address. Async. */
+export async function confidentialWithdraw(
+  apiKey: string,
+  token: string,
+  amount: string,
+  toAddress: string,
+  chain: string,
+): Promise<ConfidentialRequestResponse> {
+  const baseUrl = getCoordinatorApiUrl();
+  const resp = await fetch(`${baseUrl}/wallet/v1/confidential/withdraw`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ token, amount, to: toAddress, chain }),
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ error: resp.statusText }));
+    throw new Error(err.error || err.message || `Confidential withdraw failed: ${resp.status}`);
+  }
+  return resp.json();
+}
+
+/**
+ * Poll a confidential request by id. Same endpoint as public wallet requests.
+ * Returns terminal status (completed / failed) and tx_hash when available.
+ */
+export async function fetchConfidentialRequestStatus(
+  apiKey: string,
+  requestId: string,
+): Promise<ConfidentialRequestResponse> {
+  const baseUrl = getCoordinatorApiUrl();
+  const resp = await fetch(
+    `${baseUrl}/wallet/v1/requests/${encodeURIComponent(requestId)}`,
+    {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    },
+  );
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ error: resp.statusText }));
+    throw new Error(err.error || err.message || `Status fetch failed: ${resp.status}`);
+  }
+  return resp.json();
+}
+
 
