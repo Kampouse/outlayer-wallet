@@ -777,7 +777,7 @@ export async function confidentialSwapQuote(
   const params = new URLSearchParams({
     token_in: inputToken,
     token_out: outputToken,
-    amount,
+    amount_in: amount,
   });
   const resp = await fetch(
     `${baseUrl}/wallet/v1/confidential/swap/quote?${params}`,
@@ -804,7 +804,7 @@ export async function confidentialSwap(
   const body: Record<string, unknown> = {
     token_in: inputToken,
     token_out: outputToken,
-    amount,
+    amount_in: amount,
   };
   if (minOutputAmount) body.min_output_amount = minOutputAmount;
   const resp = await fetch(`${baseUrl}/wallet/v1/confidential/swap`, {
