@@ -92,6 +92,19 @@ export function PrivateActionSheet({
     })
     .filter((t) => t.amount !== "0");
 
+  const emptyMessage =
+    mode === "shield"
+      ? "No public balance to shield. Deposit tokens to your wallet first."
+      : mode === "unshield"
+      ? "No shielded balance."
+      : mode === "send"
+      ? "No shielded balance to send."
+      : mode === "swap"
+      ? "No shielded balance to swap."
+      : mode === "withdraw"
+      ? "No shielded balance to withdraw."
+      : null;
+
   const targetTokenChoices = mode === "swap"
     ? tokenCatalog.filter((t) => t.defuse_asset_id !== assetId)
     : [];
@@ -172,6 +185,18 @@ export function PrivateActionSheet({
         </div>
 
         <div className="space-y-3">
+          {sourceTokens.length === 0 && emptyMessage ? (
+            <>
+              <p className="text-sm text-muted-foreground text-center py-6">{emptyMessage}</p>
+              <button
+                onClick={onClose}
+                className="w-full bg-zinc-800 hover:bg-zinc-700 text-white font-medium rounded-lg py-2.5 transition-colors"
+              >
+                Close
+              </button>
+            </>
+          ) : (
+            <>
           <label className="block">
             <span className="text-xs text-muted-foreground mb-1 block">Token</span>
             <select
@@ -302,6 +327,8 @@ export function PrivateActionSheet({
           <p className="text-[10px] text-muted-foreground text-center">
             Action runs asynchronously. Poll the request_id on Activity to see when it settles.
           </p>
+          </>
+          )}
         </div>
       </div>
     </div>

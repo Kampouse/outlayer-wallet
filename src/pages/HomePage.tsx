@@ -480,7 +480,7 @@ export default function HomePage() {
           apiKey={apiKey}
           onClose={() => setPrivateSheet(null)}
           tokenCatalog={conf.tokenCatalog}
-          publicTokens={conf.publicTokens}
+          publicTokens={tokens.map((t) => ({ assetId: t.defuse_asset_id, amount: t.balance }))}
           shieldedItems={conf.shieldedItems.map(({ assetId, amount }) => ({ assetId, amount }))}
           onSubmit={(msg) => {
             setToast(msg);
