@@ -74,6 +74,7 @@ export function IntentsBridgeSheet({
 
       if (dir === "deposit") {
         // POST /wallet/v1/intents/deposit — coordinator deposits from agent wallet to intents.near
+        // Deposit uses plain contract ID (wrap.near for NEAR)
         const resp = await fetch(`${baseUrl}/wallet/v1/intents/deposit`, {
           method: "POST",
           headers: {
@@ -90,7 +91,11 @@ export function IntentsBridgeSheet({
         const hash = result?.transaction_hash || result?.tx_hash;
         onDone(hash ? `Deposited. tx: ${hash.slice(0, 10)}...` : "Deposit submitted");
       } else {
-        // POST /wallet/v1/intents/withdraw — coordinator moves from Intents back to agent wallet
+        // POST /wallet/v1/intents/withdraw — coordinator moves from Intents back to agent wallet.
+        // For NEAR: token="near" tells intents.near to unwrap wNEAR -> native NEAR (no storage
+        // needed on receiver). Sending "wrap.near" would deliver wNEAR as-is and require storage.
+        // For other tokens: nep141:<contract> or plain contract both accepted.
+        const withdrawToken = selected.assetId === "near" ? "near" : selected.contractId;
         const resp = await fetch(`${baseUrl}/wallet/v1/intents/withdraw`, {
           method: "POST",
           headers: {
@@ -98,9 +103,8 @@ export function IntentsBridgeSheet({
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            to: "",  // empty = back to agent wallet
             amount: amt,
-            token: selected.contractId,
+            token: withdrawToken,
             chain: "near",
           }),
         });
