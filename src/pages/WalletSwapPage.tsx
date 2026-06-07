@@ -89,6 +89,10 @@ export default function WalletSwapPage({ privateMode = false, apiKey: propApiKey
       for (const t of conf.shieldedItems) {
         map[t.assetId] = t.amount;
       }
+      // Map wrap.near shielded balance to "near" so the synthetic NEAR entry picks it up
+      if (map["nep141:wrap.near"] && !map["near"]) {
+        map["near"] = map["nep141:wrap.near"];
+      }
       return map;
     }
     const map: Record<string, string> = {};
