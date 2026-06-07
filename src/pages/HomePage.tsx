@@ -197,10 +197,7 @@ export default function HomePage() {
           if (privateMode) setPrivateSheet("send");
           else setSendOpen(true);
         }}
-        onSwap={() => {
-          if (privateMode) setPrivateSheet("swap");
-          else setSwapOpen(true);
-        }}
+        onSwap={() => setSwapOpen(true)}
         onReceive={() => setReceiveOpen(true)}
         privateMode={privateMode}
         onTogglePrivate={() => setPrivateMode((v) => !v)}
@@ -465,7 +462,7 @@ export default function HomePage() {
       {/* Swap modal */}
       <BottomSheetModal open={swapOpen} onClose={() => setSwapOpen(false)} title="Swap">
         <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="animate-spin text-muted-foreground" size={24} /></div>}>
-          <WalletSwapPage />
+          <WalletSwapPage privateMode={privateMode} />
         </Suspense>
       </BottomSheetModal>
 

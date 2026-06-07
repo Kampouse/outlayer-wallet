@@ -1,14 +1,15 @@
 import { useState, useMemo } from "react";
-import { getCoordinatorApiUrl, fetchSupportedTokens, type SupportedToken } from "@/lib/api";
+import { getCoordinatorApiUrl, fetchSupportedTokens, confidentialSwap, type SupportedToken } from "@/lib/api";
 import { getAllWalletKeys } from "@/lib/wallet-keys";
 import { useWalletBalances, formatTokenBalance } from "@/hooks/useWalletBalances";
+import { useConfidentialData } from "@/hooks/useConfidentialData";
 import { useToast } from "@/components/ToastProvider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowDownUp, Loader2, Wallet } from "lucide-react";
+import { ArrowDownUp, Loader2, Wallet, Shield } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { TokenPickerModal, type TokenOption } from "@/components/TokenPickerModal";
 import TokenIcon from "@/components/TokenIcon";
@@ -36,9 +37,10 @@ function formatPrice(price: number | undefined): string {
   return `$${price.toFixed(6)}`;
 }
 
-export default function WalletSwapPage() {
+export default function WalletSwapPage({ privateMode = false }: { privateMode?: boolean }) {
   const { toast } = useToast();
   const coordinatorUrl = getCoordinatorApiUrl();
+  const conf = useConfidentialData();
 
   // Load all saved wallets from localStorage
   const savedWallets = useMemo(() => {
@@ -72,9 +74,15 @@ export default function WalletSwapPage() {
   const catalog = catalogQuery.data ?? [];
 
   // Build balance lookup: defuse_asset_id -> raw balance string
-  // For swap, use Intents balances only (from mt_batch_balance_of), not base chain.
-  // NEAR in Intents is represented as nep141:wrap.near.
+  // In private mode, use shielded balances instead of public intents.
   const balanceMap = useMemo(() => {
+    if (privateMode) {
+      const map: Record<string, string> = {};
+      for (const t of conf.shieldedItems) {
+        map[t.assetId] = t.amount;
+      }
+      return map;
+    }
     const map: Record<string, string> = {};
     for (const t of tokens) {
       map[t.defuse_asset_id] = t.balance;
@@ -83,7 +91,7 @@ export default function WalletSwapPage() {
     const wnear = tokens.find((t) => t.defuse_asset_id === "nep141:wrap.near");
     if (wnear) map["near"] = wnear.balance;
     return map;
-  }, [tokens]);
+  }, [privateMode, conf.shieldedItems, tokens]);
 
   // Build full token list: all catalog tokens + NEAR, with balances merged in
   const tokenOptions = useMemo((): TokenOption[] => {
@@ -217,30 +225,43 @@ export default function WalletSwapPage() {
       const tokenOutAsset = toDefuseId(tokenOut.id);
       const minimalUnits = toMinimalUnits(amount, tokenIn.decimals);
 
-      const resp = await fetch(`${coordinatorUrl}/wallet/v1/intents/swap`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${activeApiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          token_in: tokenInAsset,
-          token_out: tokenOutAsset,
-          amount_in: minimalUnits,
-        }),
-      });
+      if (privateMode) {
+        // Confidential swap
+        const result = await confidentialSwap(
+          activeApiKey,
+          tokenInAsset,
+          tokenOutAsset,
+          minimalUnits,
+        );
+        setTxHash(result.tx_hash || null);
+        setTxStatus("success");
+        toast(`Private swap submitted. Request: ${result.request_id}`);
+        setAmount("");
+        conf.refetch();
+      } else {
+        // Public swap
+        const resp = await fetch(`${coordinatorUrl}/wallet/v1/intents/swap`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${activeApiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            token_in: tokenInAsset,
+            token_out: tokenOutAsset,
+            amount_in: minimalUnits,
+          }),
+        });
 
-      if (!resp.ok) {
-        const errBody = await resp.text().catch(() => "");
-        throw new Error(errBody || `Swap failed: HTTP ${resp.status}`);
+        if (!resp.ok) {
+          const errBody = await resp.text().catch(() => "");
+          throw new Error(errBody || `Swap failed: HTTP ${resp.status}`);
+        }
+
+        const result = await resp.json();
+        setTxHash(result.transaction_hash || result.tx_hash || null);
+        refetch();
       }
-
-      const result = await resp.json();
-      setTxHash(result.transaction_hash || result.tx_hash || null);
-      setTxStatus("success");
-      toast(`Swapped ${amount} ${tokenIn.symbol} → ${tokenOut.symbol}`);
-      setAmount("");
-      refetch();
 
       // Clear success after 3s
       setTimeout(() => setTxStatus("idle"), 3000);
@@ -288,8 +309,13 @@ export default function WalletSwapPage() {
           <ArrowDownUp className="w-4 h-4 text-lime-400" />
         </div>
         <div>
-          <h1 className="text-lg font-semibold text-foreground">Swap</h1>
-          <p className="text-xs text-muted-foreground">Swap tokens via NEAR Intents</p>
+          <h1 className="text-lg font-semibold text-foreground flex items-center gap-1.5">
+            {privateMode && <Shield size={14} className="text-purple-400" />}
+            Swap
+          </h1>
+          <p className="text-xs text-muted-foreground">
+            {privateMode ? "Private swap via confidential intents" : "Swap tokens via NEAR Intents"}
+          </p>
         </div>
       </div>
 
