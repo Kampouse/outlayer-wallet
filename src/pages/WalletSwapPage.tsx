@@ -38,7 +38,7 @@ function formatPrice(price: number | undefined): string {
   return `$${price.toFixed(6)}`;
 }
 
-export default function WalletSwapPage({ privateMode = false }: { privateMode?: boolean }) {
+export default function WalletSwapPage({ privateMode = false, apiKey: propApiKey }: { privateMode?: boolean; apiKey?: string }) {
   const { toast } = useToast();
   const coordinatorUrl = getCoordinatorApiUrl();
   const conf = useConfidentialData();
@@ -60,7 +60,9 @@ export default function WalletSwapPage({ privateMode = false }: { privateMode?: 
     const idx = savedWallets.findIndex((w) => w.pubkey === `ed25519:${accountId}`);
     return idx >= 0 ? idx : 0;
   });
-  const activeApiKey = savedWallets[selectedIndex]?.apiKey ?? null;
+
+  // In private mode, always use the apiKey passed from parent (active wallet)
+  const activeApiKey = privateMode ? (propApiKey ?? null) : (savedWallets[selectedIndex]?.apiKey ?? null);
   const activePubkey = savedWallets[selectedIndex]?.pubkey ?? null;
   const balanceAccountId = activePubkey?.replace(/^ed25519:/, "") ?? null;
 
@@ -325,7 +327,8 @@ export default function WalletSwapPage({ privateMode = false }: { privateMode?: 
         </div>
       </div>
 
-      {/* Wallet selector */}
+      {/* Wallet selector — hidden in private mode (uses active wallet) */}
+      {!privateMode && (
       <Card className="mb-4">
         <CardContent className="p-3">
           <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5 block">
@@ -354,6 +357,7 @@ export default function WalletSwapPage({ privateMode = false }: { privateMode?: 
           </div>
         </CardContent>
       </Card>
+      )}
 
       {balanceError && (
         <div className="mb-4 bg-red-500/10 border-l-4 border-red-500 rounded-r-lg p-3">
@@ -530,20 +534,26 @@ export default function WalletSwapPage({ privateMode = false }: { privateMode?: 
           <Button
             onClick={handleSwap}
             disabled={!isValid || swapping}
-            className="w-full h-12 text-sm font-semibold"
+            className={`w-full h-12 text-sm font-semibold transition-colors ${privateMode ? "bg-purple-500 hover:bg-purple-400 text-white" : ""}`}
           >
             {swapping ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Swapping...
+                {privateMode ? "Signing..." : "Swapping..."}
               </>
             ) : (
               <>
                 <ArrowDownUp className="w-4 h-4 mr-2" />
-                Swap {tokenIn?.symbol || ""} → {tokenOut?.symbol || ""}
+                {privateMode ? "Private swap" : "Swap"} {tokenIn?.symbol || ""} → {tokenOut?.symbol || ""}
               </>
             )}
           </Button>
+
+          {privateMode && (
+            <p className="text-[10px] text-muted-foreground text-center">
+              Runs asynchronously via confidential intents. Poll the request_id on Activity to see when it settles.
+            </p>
+          )}
         </CardContent>
       </Card>
 

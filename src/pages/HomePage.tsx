@@ -462,7 +462,7 @@ export default function HomePage() {
       {/* Swap modal */}
       <BottomSheetModal open={swapOpen} onClose={() => setSwapOpen(false)} title="Swap">
         <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="animate-spin text-muted-foreground" size={24} /></div>}>
-          <WalletSwapPage privateMode={privateMode} />
+          <WalletSwapPage privateMode={privateMode} apiKey={apiKey ?? undefined} />
         </Suspense>
       </BottomSheetModal>
 
