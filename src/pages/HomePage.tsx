@@ -171,9 +171,7 @@ export default function HomePage() {
                 </span>
                 <span className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
                   <Shield size={10} className="text-purple-400" />
-                  {conf.shieldedItems.length === 0
-                    ? "No shielded assets"
-                    : `${conf.shieldedItems.length} shielded asset${conf.shieldedItems.length === 1 ? "" : "s"}`}
+                  Shielded balance
                 </span>
               </>
             )}
