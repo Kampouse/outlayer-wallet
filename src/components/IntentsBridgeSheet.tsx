@@ -165,11 +165,14 @@ export function IntentsBridgeSheet({
           // status:"success" means tx was submitted; we still need to wait for finalization.
           const wrapHash: string | undefined =
             wrapJson?.tx_hash || wrapJson?.transaction_hash || wrapJson?.result?.transaction_hash;
-          if (!wrapHash) {
-            // Some coordinators return early without a hash. Best-effort: wait a beat.
-            await new Promise((r) => setTimeout(r, 3500));
-          } else if (agentAccountId) {
-            await waitForTx(wrapHash, agentAccountId);
+          if (wrapHash && agentAccountId) {
+            try {
+              await waitForTx(wrapHash, agentAccountId);
+            } catch (e) {
+              // Wrap may have still succeeded — don't abort the deposit.
+              // eslint-disable-next-line no-console
+              console.warn("[bridge] wrap waitForTx failed, continuing to deposit", e);
+            }
           } else {
             await new Promise((r) => setTimeout(r, 3500));
           }
