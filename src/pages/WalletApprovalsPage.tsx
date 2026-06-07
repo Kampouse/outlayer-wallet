@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNearWallet } from "@/contexts/NearWalletContext";
 import { getCoordinatorApiUrl } from "@/lib/api";
+import { getAllWalletKeys } from "@/lib/wallet-keys";
 import { Loader2, CheckCircle2, ShieldCheck, Wallet, ArrowRight, RefreshCw } from "lucide-react";
 
 interface PendingApproval {
@@ -28,7 +29,6 @@ export default function WalletApprovalsPage() {
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [hasPolicies, setHasPolicies] = useState(false);
   const walletPubkeysRef = useRef<string[]>([]);
 
   const fetchPendingApprovals = useCallback(async (pubkeys: string[]) => {
@@ -53,19 +53,33 @@ export default function WalletApprovalsPage() {
   }, [coordinatorUrl]);
 
   const loadApprovals = useCallback(async () => {
-    if (!accountId || !contractId) return;
     setLoading(true);
     setError(null);
     try {
-      const wallets = await viewMethodRef.current({
-        contractId,
-        method: "get_wallet_policies_by_owner",
-        args: { owner: accountId },
-      }).catch(() => []) as Array<{ wallet_pubkey: string }>;
+      const pubkeySet = new Set<string>();
 
-      const pubkeys = wallets.map((w) => w.wallet_pubkey);
+      // Source 1: on-chain policies (needs NEAR wallet connected)
+      if (isConnected && accountId && contractId) {
+        try {
+          const wallets = await viewMethodRef.current({
+            contractId,
+            method: "get_wallet_policies_by_owner",
+            args: { owner: accountId },
+          }).catch(() => []) as Array<{ wallet_pubkey: string }>;
+          for (const w of wallets) pubkeySet.add(w.wallet_pubkey);
+        } catch {
+          // skip
+        }
+      }
+
+      // Source 2: local wallet keys (coordinator wallets via Google auth)
+      const localKeys = getAllWalletKeys();
+      for (const pubkey of Object.keys(localKeys)) {
+        pubkeySet.add(pubkey);
+      }
+
+      const pubkeys = Array.from(pubkeySet);
       walletPubkeysRef.current = pubkeys;
-      setHasPolicies(pubkeys.length > 0);
 
       if (pubkeys.length === 0) {
         setApprovals([]);
@@ -77,24 +91,24 @@ export default function WalletApprovalsPage() {
     } finally {
       setLoading(false);
     }
-  }, [accountId, contractId, fetchPendingApprovals]);
+  }, [isConnected, accountId, contractId, fetchPendingApprovals]);
 
   useEffect(() => {
-    if (isConnected && accountId) loadApprovals();
-  }, [isConnected, accountId, loadApprovals]);
+    loadApprovals();
+  }, [loadApprovals]);
 
   // Auto-refresh every 30s
   useEffect(() => {
-    if (!hasPolicies || !isConnected) return;
+    if (walletPubkeysRef.current.length === 0) return;
     const id = setInterval(() => {
       fetchPendingApprovals(walletPubkeysRef.current);
     }, 30_000);
     return () => clearInterval(id);
-  }, [hasPolicies, isConnected, fetchPendingApprovals]);
+  }, [fetchPendingApprovals]);
 
   const handleApprove = async (approval: PendingApproval) => {
     if (!isConnected || !signMessage) {
-      setError("Connect your NEAR wallet first.");
+      setError("Connect your NEAR wallet to sign approvals.");
       return;
     }
     setApprovingId(approval.id);
@@ -151,27 +165,6 @@ export default function WalletApprovalsPage() {
 
   const isExpired = (a: PendingApproval) => new Date(a.expires_at) < new Date();
 
-  // Not connected
-  if (!isConnected) {
-    return (
-      <div className="max-w-lg mx-auto px-4 pt-20 text-center">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-lime-500/15 mb-4">
-          <Wallet size={28} className="text-lime-400" />
-        </div>
-        <h2 className="text-lg font-semibold text-zinc-100 mb-2">Connect NEAR Wallet</h2>
-        <p className="text-sm text-zinc-500 mb-6">
-          Connect to view and sign pending multisig approvals.
-        </p>
-        <button
-          onClick={requestNearLogin}
-          className="px-6 py-2.5 rounded-xl bg-lime-500 text-black text-sm font-medium hover:bg-lime-400 transition-colors"
-        >
-          Connect Wallet
-        </button>
-      </div>
-    );
-  }
-
   return (
     <div className="max-w-lg mx-auto px-4 pt-4 pb-24">
       {/* Header */}
@@ -202,25 +195,43 @@ export default function WalletApprovalsPage() {
         </div>
       )}
 
+      {/* Connect wallet prompt for signing (not blocking view) */}
+      {!isConnected && approvals.length > 0 && (
+        <div className="mb-3 bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 flex items-center gap-3">
+          <Wallet size={14} className="text-amber-400 shrink-0" />
+          <p className="text-xs text-amber-400 flex-1">
+            Connect NEAR wallet to sign approvals.
+          </p>
+          <button
+            onClick={requestNearLogin}
+            className="text-xs text-amber-300 underline shrink-0"
+          >
+            Connect
+          </button>
+        </div>
+      )}
+
       {loading ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 size={18} className="animate-spin text-zinc-400" />
         </div>
-      ) : !hasPolicies ? (
+      ) : walletPubkeysRef.current.length === 0 ? (
         <div className="text-center py-16">
           <ShieldCheck size={32} className="text-zinc-700 mx-auto mb-3" />
-          <p className="text-sm text-zinc-500">No wallet policies found</p>
+          <p className="text-sm text-zinc-500">No wallets found</p>
           <p className="text-xs text-zinc-600 mt-1">
-            Set up multisig on /wallet/manage first.
+            Create a wallet or add an API key to see approvals.
           </p>
         </div>
       ) : approvals.length === 0 ? (
         <div className="text-center py-16">
           <CheckCircle2 size={32} className="text-zinc-700 mx-auto mb-3" />
           <p className="text-sm text-zinc-500">No pending approvals</p>
-          <p className="text-xs text-zinc-600 mt-1">
-            {accountId ? `Connected: ${accountId.slice(0, 16)}...` : ""}
-          </p>
+          {isConnected && accountId && (
+            <p className="text-xs text-zinc-600 mt-1 font-mono">
+              {accountId.slice(0, 20)}...
+            </p>
+          )}
         </div>
       ) : (
         approvals.map((a) => {
@@ -229,6 +240,7 @@ export default function WalletApprovalsPage() {
           const token = (a.request_data.token || a.request_data.token_in || "") as string;
           const recipient = (a.request_data.to || a.request_data.recipient || "") as string;
           const isPending = approvingId === a.id;
+          const canSign = isConnected && !!signMessage;
 
           return (
             <div
@@ -279,7 +291,7 @@ export default function WalletApprovalsPage() {
               {!expired && (
                 <button
                   onClick={() => handleApprove(a)}
-                  disabled={isPending}
+                  disabled={isPending || !canSign}
                   className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-lime-500 text-black text-sm font-medium hover:bg-lime-400 disabled:opacity-50 transition-colors"
                 >
                   {isPending ? (
@@ -287,6 +299,8 @@ export default function WalletApprovalsPage() {
                       <Loader2 size={14} className="animate-spin" />
                       Signing...
                     </>
+                  ) : !canSign ? (
+                    "Connect wallet to sign"
                   ) : (
                     <>
                       Approve
