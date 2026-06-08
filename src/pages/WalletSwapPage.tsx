@@ -315,12 +315,12 @@ export default function WalletSwapPage({ privateMode = false, apiKey: propApiKey
   if (savedWallets.length === 0) {
     return (
       <div className="max-w-lg mx-auto px-4 pt-4 pb-24">
-        <div className="bg-white/[0.04] border border-white/[0.08] backdrop-blur-sm rounded-lg p-8 text-center">
-          <div className="w-14 h-14 rounded-2xl bg-white/[0.06] flex items-center justify-center mx-auto mb-4">
-            <ArrowDownUp className="w-7 h-7 text-white/30" />
+        <div className="bg-card/50 border border-border rounded-lg p-8 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-4">
+            <ArrowDownUp className="w-7 h-7 text-muted-foreground" />
           </div>
-          <h2 className="text-lg font-semibold text-white mb-2">Swap Tokens</h2>
-          <p className="text-white/40 text-sm max-w-xs mx-auto">
+          <h2 className="text-lg font-semibold text-foreground mb-2">Swap Tokens</h2>
+          <p className="text-muted-foreground text-sm max-w-xs mx-auto">
             Save an API key from the Wallets page to swap tokens via NEAR Intents.
           </p>
         </div>
@@ -346,7 +346,7 @@ export default function WalletSwapPage({ privateMode = false, apiKey: propApiKey
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             {privateMode && <Shield size={14} className="text-purple-400" />}
-            <span className="text-sm text-white/40">Swap</span>
+            <span className="text-sm text-muted-foreground">Swap</span>
           </div>
           <div className="relative">
             <select
@@ -356,7 +356,7 @@ export default function WalletSwapPage({ privateMode = false, apiKey: propApiKey
                 setAmount("");
                 setError(null);
               }}
-              className="h-8 appearance-none bg-white/[0.06] border border-white/[0.08] rounded-lg px-2 pr-7 text-xs font-medium text-white/70 focus:outline-none focus:ring-1 focus:ring-white/20"
+              className="h-8 appearance-none bg-muted border border-border rounded-lg px-2 pr-7 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
             >
               {savedWallets.map((w, i) => (
                 <option key={w.pubkey} value={i} className="bg-zinc-900 text-white">
@@ -364,7 +364,7 @@ export default function WalletSwapPage({ privateMode = false, apiKey: propApiKey
                 </option>
               ))}
             </select>
-            <Wallet className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-white/30 pointer-events-none" />
+            <Wallet className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground pointer-events-none" />
           </div>
         </div>
       )}
@@ -396,9 +396,9 @@ export default function WalletSwapPage({ privateMode = false, apiKey: propApiKey
       <div className="flex flex-col items-center">
         {/* SELL card */}
         <div
-          className="flex flex-col bg-white/[0.04] border border-transparent hover:border-white/[0.06] rounded-lg w-full p-3.5"
+          className="flex flex-col bg-card/50 border border-border/50 rounded-lg w-full p-3.5"
         >
-          <div className="text-sm text-white/40 w-full mb-1.5">Sell</div>
+          <div className="text-sm text-muted-foreground w-full mb-1.5">Sell</div>
           <div className="flex items-center justify-between w-full gap-2">
             <button
               type="button"
@@ -408,12 +408,12 @@ export default function WalletSwapPage({ privateMode = false, apiKey: propApiKey
               {tokenIn ? (
                 <>
                   <TokenIcon symbol={tokenIn.symbol} size={26} />
-                  <span className="text-white font-bold text-base ml-1.5 mr-2">{tokenIn.symbol}</span>
+                  <span className="text-foreground font-bold text-base ml-1.5 mr-2">{tokenIn.symbol}</span>
                 </>
               ) : (
-                <span className="text-white/40 text-sm mr-2">Select</span>
+                <span className="text-muted-foreground text-sm mr-2">Select</span>
               )}
-              <ChevronDown className="w-3 h-3 text-white/30" />
+              <ChevronDown className="w-3 h-3 text-muted-foreground" />
             </button>
             <input
               type="text"
@@ -421,16 +421,16 @@ export default function WalletSwapPage({ privateMode = false, apiKey: propApiKey
               placeholder="0.0"
               value={amount}
               onChange={(e) => { setAmount(e.target.value); setError(null); }}
-              className="flex-grow w-1 bg-transparent outline-none font-bold text-white text-2xl text-right min-w-0"
+              className="flex-grow w-1 bg-transparent outline-none font-bold text-foreground text-2xl text-right min-w-0 placeholder:text-muted-foreground"
             />
           </div>
-          <div className="flex items-center justify-between w-full text-sm text-white/30 mt-3">
+          <div className="flex items-center justify-between w-full text-sm text-muted-foreground mt-3">
             <div className="flex items-center gap-1">
               Balance:
               <button
                 type="button"
                 onClick={handleMax}
-                className="underline cursor-pointer hover:text-white/50"
+                className="underline cursor-pointer hover:text-foreground"
               >
                 {tokenIn ? displayBalanceIn : "0"}
               </button>
@@ -443,16 +443,16 @@ export default function WalletSwapPage({ privateMode = false, apiKey: propApiKey
         <button
           type="button"
           onClick={handleSwapTokens}
-          className="flex items-center justify-center rounded-lg w-7 h-7 cursor-pointer text-white/30 hover:text-white hover:bg-white/[0.08] bg-white/[0.04] -my-3.5 relative z-[4] border-2 border-black"
+          className="flex items-center justify-center rounded-lg w-7 h-7 cursor-pointer text-muted-foreground hover:text-foreground hover:bg-muted bg-card/50 -my-3.5 relative z-[4] border-2 border-background"
         >
           <ArrowDownUp className="w-3 h-3" />
         </button>
 
         {/* BUY card */}
         <div
-          className="flex flex-col bg-white/[0.04] border border-transparent hover:border-white/[0.06] rounded-lg w-full p-3.5 mt-[3px]"
+          className="flex flex-col bg-card/50 border border-border/50 rounded-lg w-full p-3.5 mt-[3px]"
         >
-          <div className="text-sm text-white/40 w-full mb-1.5">Buy</div>
+          <div className="text-sm text-muted-foreground w-full mb-1.5">Buy</div>
           <div className="flex items-center justify-between w-full gap-2">
             <button
               type="button"
@@ -462,18 +462,18 @@ export default function WalletSwapPage({ privateMode = false, apiKey: propApiKey
               {tokenOut ? (
                 <>
                   <TokenIcon symbol={tokenOut.symbol} size={26} />
-                  <span className="text-white font-bold text-base ml-1.5 mr-2">{tokenOut.symbol}</span>
+                  <span className="text-foreground font-bold text-base ml-1.5 mr-2">{tokenOut.symbol}</span>
                 </>
               ) : (
-                <span className="text-white/40 text-sm mr-2">Select</span>
+                <span className="text-muted-foreground text-sm mr-2">Select</span>
               )}
-              <ChevronDown className="w-3 h-3 text-white/30" />
+              <ChevronDown className="w-3 h-3 text-muted-foreground" />
             </button>
-            <div className="flex-grow text-right font-bold text-white text-2xl min-w-0">
-              {estimatedOut ?? <span className="text-white/20">0.0</span>}
+            <div className="flex-grow text-right font-bold text-foreground text-2xl min-w-0">
+              {estimatedOut ?? <span className="text-muted-foreground">0.0</span>}
             </div>
           </div>
-          <div className="flex items-center justify-between w-full text-sm text-white/30 mt-3">
+          <div className="flex items-center justify-between w-full text-sm text-muted-foreground mt-3">
             <div className="flex items-center gap-1">
               Balance:
               <span>{tokenOut ? displayBalanceOut : "0"}</span>
@@ -496,10 +496,10 @@ export default function WalletSwapPage({ privateMode = false, apiKey: propApiKey
         disabled={buttonDisabled}
         className={`mt-4 flex items-center justify-center w-full font-bold text-base transition-all rounded-lg ${
           buttonDisabled
-            ? "bg-white/[0.08] text-white/30 cursor-not-allowed"
+            ? "bg-muted text-muted-foreground cursor-not-allowed"
             : privateMode
               ? "bg-purple-500 hover:bg-purple-400 text-white cursor-pointer"
-              : "bg-white hover:bg-white/90 text-black cursor-pointer"
+              : "bg-foreground hover:bg-foreground/90 text-background cursor-pointer"
         }`}
         style={{ height: 46 }}
       >
@@ -511,7 +511,7 @@ export default function WalletSwapPage({ privateMode = false, apiKey: propApiKey
       </button>
 
       {privateMode && (
-        <p className="text-[10px] text-white/20 text-center mt-2">
+        <p className="text-[10px] text-muted-foreground text-center mt-2">
           Runs asynchronously via confidential intents.
         </p>
       )}
