@@ -519,7 +519,7 @@ export default function WalletSwapPage({ privateMode = false, apiKey: propApiKey
             ? "bg-muted text-muted-foreground cursor-not-allowed"
             : privateMode
               ? "bg-purple-500 hover:bg-purple-400 text-white cursor-pointer"
-              : "bg-foreground hover:bg-foreground/90 text-background cursor-pointer"
+              : "bg-lime-500 hover:bg-lime-400 text-black cursor-pointer"
         }`}
         style={{ height: 46 }}
       >
