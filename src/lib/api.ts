@@ -4,7 +4,6 @@
 
 import axios from 'axios';
 import { rpcQuery } from './rpc-pool';
-import { getOutlayerClient, getOutlayerUnauthenticated } from './outlayer';
 
 /** Wallet API base URL (CF Worker backend) */
 export const WALLET_API_URL = import.meta.env.VITE_WALLET_API_URL || 'https://wallet-api.kj95hgdgnn.workers.dev';
@@ -468,8 +467,12 @@ export interface RegisterWalletResponse {
 }
 
 export async function registerWallet(network?: NetworkType): Promise<RegisterWalletResponse> {
-  const client = getOutlayerUnauthenticated(network);
-  return client.register() as Promise<RegisterWalletResponse>;
+  const baseUrl = getCoordinatorApiUrl(network);
+  const serverKey = import.meta.env.VITE_OUTLAYER_SERVER_KEY;
+  const response = await axios.post(`${baseUrl}/register`, {}, {
+    headers: serverKey ? { Authorization: `Bearer ${serverKey}` } : {},
+  });
+  return response.data;
 }
 
 /**
@@ -665,8 +668,15 @@ export interface ConfidentialQuoteResponse {
 export async function fetchConfidentialBalance(
   apiKey: string,
 ): Promise<ConfidentialBalance> {
-  const client = getOutlayerClient(apiKey);
-  return client.confidentialBalance() as Promise<ConfidentialBalance>;
+  const baseUrl = getCoordinatorApiUrl();
+  const resp = await fetch(`${baseUrl}/wallet/v1/confidential/balance`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ error: resp.statusText }));
+    throw new Error(err.error || err.message || `Balance fetch failed: ${resp.status}`);
+  }
+  return resp.json();
 }
 
 /**
@@ -681,8 +691,20 @@ export async function shieldToConfidential(
   token: string,
   amount: string,
 ): Promise<ConfidentialRequestResponse> {
-  const client = getOutlayerClient(apiKey);
-  return client.confidentialDeposit({ token, amount }) as Promise<ConfidentialRequestResponse>;
+  const baseUrl = getCoordinatorApiUrl();
+  const resp = await fetch(`${baseUrl}/wallet/v1/confidential/deposit`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ token, amount }),
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ error: resp.statusText }));
+    throw new Error(err.error || err.message || `Shield failed: ${resp.status}`);
+  }
+  return resp.json();
 }
 
 /**
@@ -694,8 +716,20 @@ export async function unshieldFromConfidential(
   token: string,
   amount: string,
 ): Promise<ConfidentialRequestResponse> {
-  const client = getOutlayerClient(apiKey);
-  return client.confidentialUnshield({ token, amount }) as Promise<ConfidentialRequestResponse>;
+  const baseUrl = getCoordinatorApiUrl();
+  const resp = await fetch(`${baseUrl}/wallet/v1/confidential/unshield`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ token, amount }),
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ error: resp.statusText }));
+    throw new Error(err.error || err.message || `Unshield failed: ${resp.status}`);
+  }
+  return resp.json();
 }
 
 /**
@@ -710,8 +744,20 @@ export async function confidentialTransfer(
   amount: string,
   to: string,
 ): Promise<ConfidentialRequestResponse> {
-  const client = getOutlayerClient(apiKey);
-  return client.confidentialTransfer({ token, amount, to }) as Promise<ConfidentialRequestResponse>;
+  const baseUrl = getCoordinatorApiUrl();
+  const resp = await fetch(`${baseUrl}/wallet/v1/confidential/transfer`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ token, amount, to }),
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ error: resp.statusText }));
+    throw new Error(err.error || err.message || `Confidential transfer failed: ${resp.status}`);
+  }
+  return resp.json();
 }
 
 /** Get a quote for a confidential swap. Synchronous. */
@@ -721,8 +767,23 @@ export async function confidentialSwapQuote(
   outputToken: string,
   amount: string,
 ): Promise<ConfidentialQuoteResponse> {
-  const client = getOutlayerClient(apiKey);
-  return client.confidentialSwapQuote({ tokenIn: inputToken, tokenOut: outputToken, amountIn: amount }) as Promise<ConfidentialQuoteResponse>;
+  const baseUrl = getCoordinatorApiUrl();
+  const params = new URLSearchParams({
+    token_in: inputToken,
+    token_out: outputToken,
+    amount_in: amount,
+  });
+  const resp = await fetch(
+    `${baseUrl}/wallet/v1/confidential/swap/quote?${params}`,
+    {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    },
+  );
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ error: resp.statusText }));
+    throw new Error(err.error || err.message || `Quote failed: ${resp.status}`);
+  }
+  return resp.json();
 }
 
 /** Execute a confidential swap. Async — returns request_id. */
@@ -733,13 +794,26 @@ export async function confidentialSwap(
   amount: string,
   minOutputAmount?: string,
 ): Promise<ConfidentialRequestResponse> {
-  const client = getOutlayerClient(apiKey);
-  return client.confidentialSwap({
-    tokenIn: inputToken,
-    tokenOut: outputToken,
-    amountIn: amount,
-    ...(minOutputAmount ? { minOutputAmount } : {}),
-  }) as Promise<ConfidentialRequestResponse>;
+  const baseUrl = getCoordinatorApiUrl();
+  const body: Record<string, unknown> = {
+    token_in: inputToken,
+    token_out: outputToken,
+    amount_in: amount,
+  };
+  if (minOutputAmount) body.min_output_amount = minOutputAmount;
+  const resp = await fetch(`${baseUrl}/wallet/v1/confidential/swap`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ error: resp.statusText }));
+    throw new Error(err.error || err.message || `Confidential swap failed: ${resp.status}`);
+  }
+  return resp.json();
 }
 
 /** Withdraw from the confidential shard to an external chain address. Async. */
@@ -750,8 +824,20 @@ export async function confidentialWithdraw(
   toAddress: string,
   chain: string,
 ): Promise<ConfidentialRequestResponse> {
-  const client = getOutlayerClient(apiKey);
-  return client.confidentialWithdraw({ token, amount, to: toAddress, chain }) as Promise<ConfidentialRequestResponse>;
+  const baseUrl = getCoordinatorApiUrl();
+  const resp = await fetch(`${baseUrl}/wallet/v1/confidential/withdraw`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ token, amount, to: toAddress, chain }),
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ error: resp.statusText }));
+    throw new Error(err.error || err.message || `Confidential withdraw failed: ${resp.status}`);
+  }
+  return resp.json();
 }
 
 /**
@@ -762,9 +848,18 @@ export async function fetchConfidentialRequestStatus(
   apiKey: string,
   requestId: string,
 ): Promise<ConfidentialRequestResponse> {
-  const client = getOutlayerClient(apiKey);
-  return client.getRequest(requestId) as Promise<ConfidentialRequestResponse>;
+  const baseUrl = getCoordinatorApiUrl();
+  const resp = await fetch(
+    `${baseUrl}/wallet/v1/requests/${encodeURIComponent(requestId)}`,
+    {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    },
+  );
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ error: resp.statusText }));
+    throw new Error(err.error || err.message || `Status fetch failed: ${resp.status}`);
+  }
+  return resp.json();
 }
-
 
 

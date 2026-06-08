@@ -7,7 +7,6 @@ import WalletConnectionModal from "@/components/WalletConnectionModal";
 import WalletBalancesSection from "@/components/wallet/WalletBalancesSection";
 import CopyableAddress from "@/components/CopyableAddress";
 import { getCoordinatorApiUrl, registerWallet, setWalletLabel, WALLET_API_URL, fetchSupportedTokens, fetchIntentsBalancesBatch } from "@/lib/api";
-import { getOutlayerClient } from "@/lib/outlayer";
 import { fetchNearAccountBalance } from "@/lib/near-rpc";
 import type { WalletLabel } from "@/lib/api";
 import { actionCreators } from "@near-js/transactions";
@@ -188,11 +187,13 @@ export default function WalletManagePage() {
   useEffect(() => {
     const keyParam = searchParams.get("key");
     if (keyParam?.startsWith("wk_")) {
-      const client = getOutlayerClient(keyParam, network);
-      client.getAddress('near')
+      fetch(`${coordinatorUrl}/wallet/v1/address?chain=near`, {
+        headers: { Authorization: `Bearer ${keyParam}` },
+      })
+        .then((r) => r.json())
         .then((data) => {
           if (data.address) {
-            setApiKeyWallet({ wallet_id: data.address, address: data.address });
+            setApiKeyWallet({ wallet_id: data.wallet_id, address: data.address });
             saveWalletKey(`ed25519:${data.address}`, keyParam!, "handoff");
             setSavedEntries(getAllWalletKeys());
           }
@@ -429,8 +430,11 @@ export default function WalletManagePage() {
     if (!key) return;
     setSubmitting(true); setError(null);
     try {
-      const client = getOutlayerClient(key, network);
-      const data = await client.getAddress('near');
+      const resp = await fetch(`${coordinatorUrl}/wallet/v1/address?chain=near`, {
+        headers: { Authorization: `Bearer ${key}` },
+      });
+      if (!resp.ok) { setError(`Invalid API key: HTTP ${resp.status}`); return; }
+      const data = await resp.json();
       const pk = `ed25519:${data.address}`;
       saveWalletKey(pk, key, "imported");
       setSavedEntries(getAllWalletKeys());

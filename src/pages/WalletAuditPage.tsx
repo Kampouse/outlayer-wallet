@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useNearWallet } from '@/contexts/NearWalletContext';
-import { getOutlayerClient } from '@/lib/outlayer';
 import { getCoordinatorApiUrl } from '@/lib/api';
 import { getAllWalletKeys } from '@/lib/wallet-keys';
 import { Button } from '@/components/ui/button';
@@ -102,12 +101,29 @@ export default function WalletAuditPage() {
 
       const results = await Promise.allSettled(
         allKeys.map(async (entry) => {
-           const client = getOutlayerClient(entry.apiKey, network);
-           const addrData = await client.getAddress('near');
-           const walletId = addrData.address as string;
+          const addrResp = await fetch(`${coordinatorUrl}/wallet/v1/address?chain=near`, {
+            headers: { 'Authorization': `Bearer ${entry.apiKey}` },
+          });
+          if (!addrResp.ok) {
+            const err = await addrResp.json().catch(() => ({ error: addrResp.statusText }));
+            throw new Error(err.error || err.message || `API error: ${addrResp.status}`);
+          }
+          const addrData = await addrResp.json();
+          const walletId = addrData.wallet_id as string;
 
-           const auditData = await client.audit.list({ limit: PAGE_SIZE, offset: 0 });
-           const events: AuditEvent[] = auditData.events || [];
+          const params = new URLSearchParams({
+            limit: PAGE_SIZE.toString(),
+            offset: '0',
+          });
+          const auditResp = await fetch(`${coordinatorUrl}/wallet/v1/audit?${params}`, {
+            headers: { 'Authorization': `Bearer ${entry.apiKey}` },
+          });
+          if (!auditResp.ok) {
+            const err = await auditResp.json().catch(() => ({ error: auditResp.statusText }));
+            throw new Error(err.error || err.message || `API error: ${auditResp.status}`);
+          }
+          const auditData = await auditResp.json();
+          const events: AuditEvent[] = auditData.events || [];
 
           return {
             pubkey: entry.pubkey,
@@ -146,15 +162,24 @@ export default function WalletAuditPage() {
     queryFn: async () => {
       if (!pageFetch) return null;
 
-      const client = getOutlayerClient(pageFetch.apiKey, network);
-      const addrData = await client.getAddress('near');
+      const addrResp = await fetch(`${coordinatorUrl}/wallet/v1/address?chain=near`, {
+        headers: { 'Authorization': `Bearer ${pageFetch.apiKey}` },
+      });
+      const addrData = await addrResp.json();
 
-      const auditData = await client.audit.list({ limit: PAGE_SIZE, offset: pageFetch.page * PAGE_SIZE });
+      const params = new URLSearchParams({
+        limit: PAGE_SIZE.toString(),
+        offset: (pageFetch.page * PAGE_SIZE).toString(),
+      });
+      const auditResp = await fetch(`${coordinatorUrl}/wallet/v1/audit?${params}`, {
+        headers: { 'Authorization': `Bearer ${pageFetch.apiKey}` },
+      });
+      const auditData = await auditResp.json();
 
       return {
         pubkey: pageFetch.pubkey,
         apiKey: pageFetch.apiKey,
-        walletId: addrData.address,
+        walletId: addrData.wallet_id,
         label: pageFetch.label,
         events: auditData.events || [],
         hasMore: (auditData.events || []).length === PAGE_SIZE,
