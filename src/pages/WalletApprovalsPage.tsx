@@ -200,14 +200,14 @@ export default function WalletApprovalsPage() {
     <div className="max-w-lg mx-auto px-4 pt-4 pb-24">
       {/* Header */}
       <div className="flex items-center gap-2 mb-4">
-        <ShieldCheck size={16} className="text-zinc-400" />
-        <h2 className="text-sm font-medium text-zinc-200">Pending Approvals</h2>
+        <ShieldCheck size={16} className="text-muted-foreground" />
+        <h2 className="text-sm font-medium text-foreground">Pending Approvals</h2>
         {approvals.length > 0 && (
-          <span className="text-[10px] text-zinc-500 ml-auto">{approvals.length}</span>
+          <span className="text-[10px] text-muted-foreground ml-auto">{approvals.length}</span>
         )}
         <button
           onClick={loadApprovals}
-          className="text-zinc-500 hover:text-zinc-300 ml-1"
+          className="text-muted-foreground hover:text-foreground ml-1"
           disabled={loading}
         >
           <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
@@ -244,22 +244,22 @@ export default function WalletApprovalsPage() {
 
       {loading ? (
         <div className="flex items-center justify-center py-12">
-          <Loader2 size={18} className="animate-spin text-zinc-400" />
+          <Loader2 size={18} className="animate-spin text-muted-foreground" />
         </div>
       ) : walletPubkeysRef.current.length === 0 ? (
         <div className="text-center py-16">
-          <ShieldCheck size={32} className="text-zinc-700 mx-auto mb-3" />
-          <p className="text-sm text-zinc-500">No wallets found</p>
-          <p className="text-xs text-zinc-600 mt-1">
+          <ShieldCheck size={32} className="text-muted-foreground/30 mx-auto mb-3" />
+          <p className="text-sm text-muted-foreground">No wallets found</p>
+          <p className="text-xs text-muted-foreground/60 mt-1">
             Create a wallet or add an API key to see approvals.
           </p>
         </div>
       ) : approvals.length === 0 ? (
         <div className="text-center py-16">
-          <CheckCircle2 size={32} className="text-zinc-700 mx-auto mb-3" />
-          <p className="text-sm text-zinc-500">No pending approvals</p>
+          <CheckCircle2 size={32} className="text-muted-foreground/30 mx-auto mb-3" />
+          <p className="text-sm text-muted-foreground">No pending approvals</p>
           {isConnected && accountId && (
-            <p className="text-xs text-zinc-600 mt-1 font-mono">
+            <p className="text-xs text-muted-foreground/60 mt-1 font-mono">
               {accountId.slice(0, 20)}...
             </p>
           )}
@@ -276,15 +276,15 @@ export default function WalletApprovalsPage() {
           return (
             <div
               key={a.id}
-              className={`mb-3 bg-white/[0.04] border rounded-xl p-4 backdrop-blur-sm ${
-                expired ? "border-white/[0.04] opacity-50" : "border-white/[0.08]"
+              className={`mb-3 bg-card/50 border rounded-xl p-4 ${
+                expired ? "border-border/30 opacity-50" : "border-border/50"
               }`}
             >
               <div className="flex items-start justify-between mb-3">
                 <div>
-                  <p className="text-sm font-medium text-zinc-100">{formatType(a.request_type)}</p>
+                  <p className="text-sm font-medium text-foreground">{formatType(a.request_type)}</p>
                   {amount && token && (
-                    <p className="text-lg font-semibold text-zinc-200 mt-1">
+                    <p className="text-lg font-semibold text-foreground mt-1">
                       {(Number(amount) / 1e6).toLocaleString(undefined, { maximumFractionDigits: 2 })}
                       {" "}
                       {token.includes("usdc") || token.includes("172086") ? "USDC" : token.includes("usdt") ? "USDT" : token.includes("near") ? "NEAR" : token.slice(0, 8)}
@@ -301,19 +301,19 @@ export default function WalletApprovalsPage() {
               <div className="space-y-1.5 mb-4">
                 {recipient && (
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-zinc-500 w-12">To</span>
-                    <span className="text-xs font-mono text-zinc-300 truncate">{recipient}</span>
+                    <span className="text-[10px] text-muted-foreground w-12">To</span>
+                    <span className="text-xs font-mono text-foreground/70 truncate">{recipient}</span>
                   </div>
                 )}
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-zinc-500 w-12">Wallet</span>
-                  <span className="text-xs font-mono text-zinc-400 truncate">
+                  <span className="text-[10px] text-muted-foreground w-12">Wallet</span>
+                  <span className="text-xs font-mono text-muted-foreground truncate">
                     {a.wallet_pubkey?.slice(0, 20) ?? a.wallet_id.slice(0, 20)}...
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-zinc-500 w-12">Signs</span>
-                  <span className="text-xs text-zinc-400">
+                  <span className="text-[10px] text-muted-foreground w-12">Signs</span>
+                  <span className="text-xs text-muted-foreground">
                     {a.approved_count} / {a.required_approvals}
                   </span>
                 </div>
@@ -324,7 +324,7 @@ export default function WalletApprovalsPage() {
                   <button
                     onClick={() => handleReject(a)}
                     disabled={isPending}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg bg-white/[0.04] border border-white/[0.08] text-zinc-400 text-sm font-medium hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20 disabled:opacity-50 transition-colors"
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg bg-muted border border-border text-muted-foreground text-sm font-medium hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20 disabled:opacity-50 transition-colors"
                   >
                     <Loader2 size={14} className={isPending ? "animate-spin" : "hidden"} />
                     <span className={isPending ? "hidden" : ""}>Reject</span>
