@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { getCoordinatorApiUrl, fetchSupportedTokens, confidentialSwap } from "@/lib/api";
 import { getAllWalletKeys } from "@/lib/wallet-keys";
 import { useWalletBalances, formatTokenBalance } from "@/hooks/useWalletBalances";
@@ -140,6 +140,25 @@ export default function WalletSwapPage({ privateMode = false, apiKey: propApiKey
   const [error, setError] = useState<string | null>(null);
   const [txStatus, setTxStatus] = useState<"idle" | "pending" | "success" | "error">("idle");
   const [txHash, setTxHash] = useState<string | null>(null);
+
+  // Auto-select defaults: first token with balance for "from", BTC-like for "to"
+  const defaultsApplied = useRef(false);
+  useEffect(() => {
+    if (defaultsApplied.current || tokenOptions.length === 0) return;
+    const withBalance = tokenOptions.filter((t) => t.balance !== "0" && BigInt(t.balance) > 0n);
+    const btcLike = tokenOptions.find((t) => /btc/i.test(t.symbol) && (!withBalance.length || t.id !== withBalance[0].id));
+    if (withBalance.length > 0 && !tokenInId) {
+      setTokenInId(withBalance[0].id);
+      defaultsApplied.current = true;
+    }
+    if (btcLike && !tokenOutId) {
+      setTokenOutId(btcLike.id);
+    } else if (!tokenOutId && tokenOptions.length > 1) {
+      // fallback: second token
+      const fallback = tokenOptions.find((t) => t.id !== (withBalance[0]?.id ?? ""));
+      if (fallback) setTokenOutId(fallback.id);
+    }
+  }, [tokenOptions]);
 
   const tokenIn = tokenOptions.find((t) => t.id === tokenInId);
   const tokenOut = tokenOptions.find((t) => t.id === tokenOutId);
