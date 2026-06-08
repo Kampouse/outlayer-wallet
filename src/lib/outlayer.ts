@@ -54,6 +54,20 @@ export function getCoordinatorApiUrl(network?: 'testnet' | 'mainnet'): string {
  * The client is pre-configured with the correct base URL for the requested
  * network (env overrides respected).
  */
+/**
+ * Custom fetch that strips headers not allowed by the coordinator's CORS policy.
+ * The SDK adds `Idempotency-Key` to every write call, but the coordinator
+ * doesn't include it in Access-Control-Allow-Headers → preflight fails.
+ */
+function corsSafeFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  if (init?.headers) {
+    const h = new Headers(init.headers);
+    h.delete('Idempotency-Key');
+    init = { ...init, headers: h };
+  }
+  return globalThis.fetch(input, init);
+}
+
 export function getOutlayerClient(
   apiKey: string,
   network?: 'testnet' | 'mainnet',
@@ -63,6 +77,7 @@ export function getOutlayerClient(
   return new OutlayerClient({
     apiKey,
     baseUrl,
+    fetch: corsSafeFetch,
     network: network ?? (
       typeof window !== 'undefined'
         ? (localStorage.getItem('near-wallet-selector:selectedNetworkId') as 'testnet' | 'mainnet' | null) ??
