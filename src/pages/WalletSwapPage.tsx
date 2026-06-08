@@ -146,7 +146,8 @@ export default function WalletSwapPage({ privateMode = false, apiKey: propApiKey
   useEffect(() => {
     if (defaultsApplied.current || tokenOptions.length === 0) return;
     const withBalance = tokenOptions.filter((t) => t.balance !== "0" && BigInt(t.balance) > 0n);
-    const btcLike = tokenOptions.find((t) => /btc/i.test(t.symbol) && (!withBalance.length || t.id !== withBalance[0].id));
+    const btcLike = tokenOptions.find((t) => /^BTC$/i.test(t.symbol) && (!withBalance.length || t.id !== withBalance[0].id))
+      ?? tokenOptions.find((t) => /btc/i.test(t.symbol) && (!withBalance.length || t.id !== withBalance[0].id));
     if (withBalance.length > 0 && !tokenInId) {
       setTokenInId(withBalance[0].id);
       defaultsApplied.current = true;
