@@ -1,11 +1,10 @@
 import { useState, useMemo } from "react";
-import { getCoordinatorApiUrl, fetchSupportedTokens, confidentialSwap, type SupportedToken } from "@/lib/api";
+import { getCoordinatorApiUrl, fetchSupportedTokens, confidentialSwap } from "@/lib/api";
 import { getAllWalletKeys } from "@/lib/wallet-keys";
 import { useWalletBalances, formatTokenBalance } from "@/hooks/useWalletBalances";
 import { useConfidentialData } from "@/hooks/useConfidentialData";
 import { useToast } from "@/components/ToastProvider";
 import { useNearWallet } from "@/contexts/NearWalletContext";
-import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowDownUp, Loader2, Wallet, Shield, ChevronDown } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { TokenPickerModal, type TokenOption } from "@/components/TokenPickerModal";
@@ -341,7 +340,7 @@ export default function WalletSwapPage({ privateMode = false, apiKey: propApiKey
   const buttonDisabled = !isValid || swapping || hasInsufficientBalance;
 
   return (
-    <div className="max-w-lg mx-auto px-4 pt-4 pb-24">
+    <div className="pb-2">
       {/* Header — wallet selector inline */}
       {!privateMode && savedWallets.length > 1 && (
         <div className="flex items-center justify-between mb-3">
