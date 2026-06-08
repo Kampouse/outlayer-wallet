@@ -340,7 +340,7 @@ export default function WalletSwapPage({ privateMode = false, apiKey: propApiKey
   const buttonDisabled = !isValid || swapping || hasInsufficientBalance;
 
   return (
-    <div className="pb-2">
+    <div className="max-w-lg mx-auto pb-2">
       {/* Header — wallet selector inline */}
       {!privateMode && savedWallets.length > 1 && (
         <div className="flex items-center justify-between mb-3">
