@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
-import { getCoordinatorApiUrl, fetchSupportedTokens, confidentialSwap, type SupportedToken } from "@/lib/api";
+import { fetchSupportedTokens, confidentialSwap, type SupportedToken } from "@/lib/api";
+import { getOutlayerClient } from "@/lib/outlayer";
 import { getAllWalletKeys } from "@/lib/wallet-keys";
 import { useWalletBalances, formatTokenBalance } from "@/hooks/useWalletBalances";
 import { useConfidentialData } from "@/hooks/useConfidentialData";
@@ -40,7 +41,6 @@ function formatPrice(price: number | undefined): string {
 
 export default function WalletSwapPage({ privateMode = false, apiKey: propApiKey }: { privateMode?: boolean; apiKey?: string }) {
   const { toast } = useToast();
-  const coordinatorUrl = getCoordinatorApiUrl();
   const conf = useConfidentialData();
   const { accountId } = useNearWallet();
 
@@ -252,26 +252,13 @@ export default function WalletSwapPage({ privateMode = false, apiKey: propApiKey
         conf.refetch();
       } else {
         // Public swap
-        const resp = await fetch(`${coordinatorUrl}/wallet/v1/intents/swap`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${activeApiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            token_in: tokenInAsset,
-            token_out: tokenOutAsset,
-            amount_in: minimalUnits,
-          }),
-        });
-
-        if (!resp.ok) {
-          const errBody = await resp.text().catch(() => "");
-          throw new Error(errBody || `Swap failed: HTTP ${resp.status}`);
-        }
-
-        const result = await resp.json();
-        setTxHash(result.transaction_hash || result.tx_hash || null);
+         const client = getOutlayerClient(activeApiKey);
+         const result = await client.swap({
+           token_in: tokenInAsset,
+           token_out: tokenOutAsset,
+           amount_in: minimalUnits,
+         });
+         setTxHash(result.intent_hash ?? result.request_id ?? null);
         refetch();
       }
 

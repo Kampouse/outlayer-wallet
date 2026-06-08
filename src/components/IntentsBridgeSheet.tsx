@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Loader2, ArrowLeftRight, CheckCircle2 } from "lucide-react";
 import { getCoordinatorApiUrl, type SupportedToken } from "@/lib/api";
 import { formatAmount, toAtomic } from "@/components/PrivateActionSheet";
+import { getOutlayerClient } from "@/lib/outlayer";
 
 export type BridgeDirection = "deposit" | "withdraw";
 
@@ -92,41 +93,19 @@ export function IntentsBridgeSheet({
           }
 
           setPhase("Wrapping NEAR...");
-          const wrapResp = await fetch(`${baseUrl}/wallet/v1/call`, {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${apiKey}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              receiver_id: "wrap.near",
-              method_name: "near_deposit",
-              args: {},
-              deposit: amt,
-              gas: "30000000000000",
-            }),
-          });
-          if (!wrapResp.ok) {
-            const errBody = await wrapResp.text().catch(() => "");
-            throw new Error(errBody || `Wrap failed: HTTP ${wrapResp.status}`);
-          }
+           const client = getOutlayerClient(apiKey);
+           await client.call({
+             receiver_id: "wrap.near",
+             method_name: "near_deposit",
+             args: {},
+             deposit: amt,
+             gas: "30000000000000",
+           });
 
           // 2. Now deposit wNEAR into Intents
           setPhase("Depositing to Intents...");
-          const resp = await fetch(`${baseUrl}/wallet/v1/intents/deposit`, {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${apiKey}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ token: "wrap.near", amount: amt }),
-          });
-          if (!resp.ok) {
-            const errBody = await resp.text().catch(() => "");
-            throw new Error(errBody || `Deposit failed: HTTP ${resp.status}`);
-          }
-          const result = await resp.json().catch(() => null);
-          const hash = result?.transaction_hash || result?.tx_hash;
+           const result = await client.intentsDeposit({ token: "wrap.near", amount: amt });
+           const hash = result.tx_hash ?? null;
 
           setSuccessHash(hash ?? null);
           setPhase("Done");
@@ -146,20 +125,9 @@ export function IntentsBridgeSheet({
           }
 
           setPhase("Depositing to Intents...");
-          const resp = await fetch(`${baseUrl}/wallet/v1/intents/deposit`, {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${apiKey}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ token: selected.contractId, amount: amt }),
-          });
-          if (!resp.ok) {
-            const errBody = await resp.text().catch(() => "");
-            throw new Error(errBody || `Deposit failed: HTTP ${resp.status}`);
-          }
-          const result = await resp.json().catch(() => null);
-          const hash = result?.transaction_hash || result?.tx_hash;
+           const client = getOutlayerClient(apiKey);
+           const result = await client.intentsDeposit({ token: selected.contractId, amount: amt });
+           const hash = result.tx_hash ?? null;
 
           setSuccessHash(hash ?? null);
           setPhase("Done");
@@ -168,24 +136,13 @@ export function IntentsBridgeSheet({
       } else {
         setPhase("Withdrawing from Intents...");
         const withdrawToken = selected.assetId === "near" ? "near" : selected.contractId;
-        const resp = await fetch(`${baseUrl}/wallet/v1/intents/withdraw`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            amount: amt,
-            token: withdrawToken,
-            chain: "near",
-          }),
-        });
-        if (!resp.ok) {
-          const errBody = await resp.text().catch(() => "");
-          throw new Error(errBody || `Withdraw failed: HTTP ${resp.status}`);
-        }
-        const result = await resp.json().catch(() => null);
-        const hash = result?.transaction_hash || result?.tx_hash;
+         const client = getOutlayerClient(apiKey);
+         const result = await client.withdraw({
+           amount: amt,
+           token: withdrawToken,
+           chain: "near",
+         });
+         const hash = result.request_id;
 
         setSuccessHash(hash ?? null);
         setPhase("Done");

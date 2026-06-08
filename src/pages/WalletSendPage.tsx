@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useLocation } from "react-router-dom";
-import { getCoordinatorApiUrl } from "@/lib/api";
+import { getOutlayerClient } from "@/lib/outlayer";
 import { getAllWalletKeys } from "@/lib/wallet-keys";
 import { useWalletBalances, formatTokenBalance } from "@/hooks/useWalletBalances";
 import { useToast } from "@/components/ToastProvider";
@@ -64,7 +64,6 @@ export default function WalletSendPage() {
   const location = useLocation();
   const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const { toast } = useToast();
-  const coordinatorUrl = getCoordinatorApiUrl();
 
   // Load all saved wallets from localStorage
   const savedWallets = useMemo(() => {
@@ -211,20 +210,8 @@ export default function WalletSendPage() {
         // ── Simple NEAR transfer ──
         setStep("Sending NEAR...");
         const yoctoAmount = nearToYocto(amount);
-        const resp = await fetch(`${coordinatorUrl}/wallet/v1/transfer`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${activeApiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ receiver_id: recipient.trim(), amount: yoctoAmount }),
-        });
-
-        if (!resp.ok) {
-          const errBody = await resp.text().catch(() => "");
-          throw new Error(errBody || `Transfer failed: HTTP ${resp.status}`);
-        }
-        result = await resp.json().catch(() => null);
+         const client = getOutlayerClient(activeApiKey);
+         result = await client.transfer({ to: recipient.trim(), amount: yoctoAmount });
       } else {
         // ── Token send: auto-deposit if needed, then withdraw ──
         const assetId = selected.id;
@@ -239,46 +226,22 @@ export default function WalletSendPage() {
 
         // Step 1: Dry-run the withdraw to validate
         setStep("Preparing...");
-        const withdrawBody = {
+        const client = getOutlayerClient(activeApiKey);
+        const dryResult = await client.withdrawDryRun({
           to: recipient.trim(),
           amount: minimalUnits,
           token: contractName,
-          chain: chain,
-        };
-
-        const dryRun = await fetch(
-          `${coordinatorUrl}/wallet/v1/intents/withdraw/dry-run`,
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${activeApiKey}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify(withdrawBody),
-          },
-        );
-        const dryResult = await dryRun.json();
+          chain: chain as "near" | "ethereum" | "solana" | "bitcoin",
+        });
 
         // Step 2: Auto-deposit if Intents balance is insufficient
-        if (!dryRun.ok || dryResult.would_succeed === false) {
-          const msg = dryResult.message || dryResult.error || "";
+        if (dryResult.would_succeed === false) {
+          const msg = dryResult.message || dryResult.reason || "";
           // If it's an insufficient balance error, try depositing first
-          if (msg.toLowerCase().includes("balance") || msg.toLowerCase().includes("insufficient") || dryRun.status === 400) {
+          if (msg.toLowerCase().includes("balance") || msg.toLowerCase().includes("insufficient")) {
             setStep("Funding transfer...");
-            const depositResp = await fetch(`${coordinatorUrl}/wallet/v1/intents/deposit`, {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${activeApiKey}`,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({ token: contractName, amount: minimalUnits }),
-            });
-            if (!depositResp.ok) {
-              const errBody = await depositResp.text().catch(() => "");
-              throw new Error(errBody || `Failed to fund transfer: HTTP ${depositResp.status}`);
-            }
-            const depositResult = await depositResp.json().catch(() => null);
-            if (depositResult?.status === "failed") {
+            const depositResult = await client.intentsDeposit({ token: contractName, amount: minimalUnits });
+            if (depositResult.status === "failed") {
               throw new Error("Funding transaction failed on-chain");
             }
             // Small delay for settlement
@@ -290,20 +253,13 @@ export default function WalletSendPage() {
 
         // Step 3: Execute the withdraw
         setStep("Sending...");
-        const resp = await fetch(`${coordinatorUrl}/wallet/v1/intents/withdraw`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${activeApiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(withdrawBody),
+        const withdrawResult = await client.withdraw({
+          to: recipient.trim(),
+          amount: minimalUnits,
+          token: contractName,
+          chain: chain as "near" | "ethereum" | "solana" | "bitcoin",
         });
-
-        if (!resp.ok) {
-          const errBody = await resp.text().catch(() => "");
-          throw new Error(errBody || `Send failed: HTTP ${resp.status}`);
-        }
-        result = await resp.json().catch(() => null);
+        result = { tx_hash: withdrawResult.request_id } as Record<string, unknown>;
       }
 
       // Success

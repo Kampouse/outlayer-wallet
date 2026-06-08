@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useNearWallet } from '@/contexts/NearWalletContext';
+import { getOutlayerClient } from '@/lib/outlayer';
 import { getCoordinatorApiUrl } from '@/lib/api';
 import { Link } from 'react-router-dom';
 import { saveWalletKey, computeKeyHash } from '@/lib/wallet-keys';
@@ -129,20 +130,12 @@ function WalletHandoffContent() {
     setError(null);
 
     try {
-      const resp = await fetch(`${coordinatorUrl}/wallet/v1/address?chain=near`, {
-        headers: { 'Authorization': `Bearer ${apiKey}` },
-      });
-
-      if (!resp.ok) {
-        const data = await resp.json().catch(() => ({}));
-        throw new Error(data.message || `Failed to fetch wallet info (HTTP ${resp.status})`);
-      }
-
-      const data = await resp.json();
+      const client = getOutlayerClient(apiKey, network);
+      const data = await client.getAddress('near');
       setWalletInfo({
-        wallet_id: data.wallet_id,
+        wallet_id: data.address,
         address: data.address,
-        chain: 'near',
+        chain: data.chain || 'near',
       });
     } catch (err) {
       console.error('[handoff] loadWalletInfo error:', err);
@@ -172,32 +165,28 @@ function WalletHandoffContent() {
       // Load current policy from coordinator and pre-fill the form
       if (exists) {
         try {
-          const resp = await fetch(`${coordinatorUrl}/wallet/v1/policy`, {
-            headers: { 'Authorization': `Bearer ${apiKey}` },
-          });
-          if (resp.ok) {
-            const data = await resp.json();
-            const parsed = parsePolicyResponse(data, apiKeyHash || undefined);
-            setPolicyForm(parsed.form);
+          const policyClient = getOutlayerClient(apiKey, network);
+          const data = await policyClient.policy.get();
+          const parsed = parsePolicyResponse(data, apiKeyHash || undefined);
+          setPolicyForm(parsed.form);
 
-            if (parsed.approval) {
-              const req = parseInt(parsed.approval.required, 10);
-              setRequireApproval(req > 0);
-              setApprovalRequired(parsed.approval.required);
-              setAdditionalApprovers(
-                // Remove owner since it's auto-added — match by account_id, not role
-                parsed.approval.approvers
-                  .split('\n')
-                  .filter((line) => {
-                    const id = line.split(',').map((s) => s.trim())[0] || '';
-                    return id !== effectiveOwner;
-                  })
-                  .join('\n')
-              );
-              // Restore approvalTypes from excluded_types
-              const excluded = (data.approval?.excluded_types || []) as string[];
-              setApprovalTypes(new Set(allTxTypes.filter((t) => !excluded.includes(t))));
-            }
+          if (parsed.approval) {
+            const req = parseInt(parsed.approval.required, 10);
+            setRequireApproval(req > 0);
+            setApprovalRequired(parsed.approval.required);
+            setAdditionalApprovers(
+              // Remove owner since it's auto-added — match by account_id, not role
+              parsed.approval.approvers
+                .split('\n')
+                .filter((line) => {
+                  const id = line.split(',').map((s) => s.trim())[0] || '';
+                  return id !== effectiveOwner;
+                })
+                .join('\n')
+            );
+            // Restore approvalTypes from excluded_types
+            const excluded = (data.approval?.excluded_types || []) as string[];
+            setApprovalTypes(new Set(allTxTypes.filter((t) => !excluded.includes(t))));
           }
         } catch {
           // Failed to load — form stays default

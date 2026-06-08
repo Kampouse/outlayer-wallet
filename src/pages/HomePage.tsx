@@ -5,7 +5,7 @@ import { useNearWallet } from "@/contexts/NearWalletContext";
 import { useWalletBalances } from "@/hooks/useWalletBalances";
 import { formatTokenBalance } from "@/hooks/useWalletBalances";
 import { getAllWalletKeys, saveWalletKey } from "@/lib/wallet-keys";
-import { getCoordinatorApiUrl } from "@/lib/api";
+import { getOutlayerClient } from "@/lib/outlayer";
 import ActionRing from "@/components/ActionRing";
 import TokenIcon from "@/components/TokenIcon";
 import { BottomSheetModal } from "@/components/BottomSheetModal";
@@ -100,15 +100,8 @@ export default function HomePage() {
     setImporting(true);
     setImportError(null);
     try {
-      const coordinatorUrl = getCoordinatorApiUrl();
-      const resp = await fetch(`${coordinatorUrl}/wallet/v1/address?chain=near`, {
-        headers: { Authorization: `Bearer ${key}` },
-      });
-      if (!resp.ok) {
-        setImportError(`Invalid API key: HTTP ${resp.status}`);
-        return;
-      }
-      const data = await resp.json();
+      const client = getOutlayerClient(key);
+      const data = await client.getAddress('near');
       saveWalletKey(`ed25519:${data.address}`, key, "imported");
       setImportKeyValue("");
       // Switch to the imported wallet so balances show immediately

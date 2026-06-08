@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useNearWallet } from "@/contexts/NearWalletContext";
 import { getCoordinatorApiUrl } from "@/lib/api";
 import { getAllWalletKeys, getWalletKey } from "@/lib/wallet-keys";
+import { getOutlayerClient } from "@/lib/outlayer";
 import { Loader2, CheckCircle2, ShieldCheck, Wallet, ArrowRight, RefreshCw } from "lucide-react";
 
 interface PendingApproval {
@@ -130,23 +131,17 @@ export default function WalletApprovalsPage() {
 
       if (!signed) throw new Error("Signature cancelled");
 
-      const resp = await fetch(`${coordinatorUrl}/wallet/v1/approve/${approval.id}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          signature: signed.signature,
-          public_key: signed.publicKey,
-          account_id: signed.accountId,
-          nonce: nonceBase64,
-        }),
-      });
+      const auth = {
+        signature: signed.signature,
+        public_key: signed.publicKey,
+        account_id: signed.accountId,
+        nonce: nonceBase64,
+      };
 
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({}));
-        throw new Error(err.error || err.message || `Approval failed: ${resp.status}`);
-      }
+      const apiKey = getWalletKey(approval.wallet_pubkey) || "";
+      const client = getOutlayerClient(apiKey, network);
+      const result = await client.approvals.approve(approval.id, auth);
 
-      const result = await resp.json();
       if (result.request_id) {
         setSuccess("Threshold met. Transaction executed.");
       } else {
@@ -161,27 +156,39 @@ export default function WalletApprovalsPage() {
   };
 
   const handleReject = async (approval: PendingApproval) => {
-    const apiKey = getWalletKey(approval.wallet_pubkey);
-    if (!apiKey) {
-      setError("No API key found for this wallet. Cannot reject.");
+    if (!isConnected || !signMessage) {
+      setError("Connect your NEAR wallet to reject approvals.");
       return;
     }
     setApprovingId(approval.id);
     setError(null);
     setSuccess(null);
     try {
-      const resp = await fetch(`${coordinatorUrl}/wallet/v1/reject/${approval.id}`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ approver_account: accountId }),
+      const nonceBytes = crypto.getRandomValues(new Uint8Array(32));
+      const nonceBase64 = btoa(String.fromCharCode(...nonceBytes));
+
+      // NEP-413 message: reject:{id}:{request_hash}
+      const message = `reject:${approval.id}:${approval.request_hash}`;
+
+      const signed = await signMessage({
+        message,
+        recipient: contractId,
+        nonce: nonceBase64,
       });
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({}));
-        throw new Error(err.error || err.message || `Reject failed: ${resp.status}`);
-      }
+
+      if (!signed) throw new Error("Signature cancelled");
+
+      const auth = {
+        signature: signed.signature,
+        public_key: signed.publicKey,
+        account_id: signed.accountId,
+        nonce: nonceBase64,
+      };
+
+      const apiKey = getWalletKey(approval.wallet_pubkey) || "";
+      const client = getOutlayerClient(apiKey, network);
+      await client.approvals.reject(approval.id, auth);
+
       setSuccess("Request rejected.");
       loadApprovals();
     } catch (err) {
@@ -323,7 +330,7 @@ export default function WalletApprovalsPage() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => handleReject(a)}
-                    disabled={isPending}
+                    disabled={isPending || !canSign}
                     className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg bg-white/[0.04] border border-white/[0.08] text-zinc-400 text-sm font-medium hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20 disabled:opacity-50 transition-colors"
                   >
                     <Loader2 size={14} className={isPending ? "animate-spin" : "hidden"} />

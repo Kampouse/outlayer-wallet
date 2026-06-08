@@ -227,6 +227,7 @@ export function parsePolicyResponse(
 
 import type { SignAndSendTransactionParams } from '@hot-labs/near-connect';
 import type { FinalExecutionOutcome } from '@near-js/types';
+import { OutlayerClient } from '@outlayer/sdk';
 
 export interface SubmitPolicyParams {
   coordinatorUrl: string;
@@ -254,33 +255,13 @@ export async function submitPolicy(params: SubmitPolicyParams): Promise<SubmitPo
     throw new Error('Invalid JSON in policy editor');
   }
 
+  const client = new OutlayerClient({ apiKey, baseUrl: coordinatorUrl });
+
   // Step 1: Encrypt policy via coordinator
-  const encryptResp = await fetch(`${coordinatorUrl}/wallet/v1/encrypt-policy`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-    body: JSON.stringify({ wallet_id: walletId, ...policyData }),
-  });
-
-  if (!encryptResp.ok) {
-    const errorData = await encryptResp.json().catch(() => ({}));
-    throw new Error(errorData.message || `Policy encryption failed (HTTP ${encryptResp.status})`);
-  }
-
-  const encrypted = await encryptResp.json();
+  const encrypted = await client.policy.encrypt({ wallet_id: walletId, ...policyData } as Parameters<typeof client.policy.encrypt>[0]);
 
   // Step 2: Sign encrypted policy with agent's ed25519 key
-  const signResp = await fetch(`${coordinatorUrl}/wallet/v1/sign-policy`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-    body: JSON.stringify({ encrypted_data: encrypted.encrypted_base64 }),
-  });
-
-  if (!signResp.ok) {
-    const signErr = await signResp.json().catch(() => ({}));
-    throw new Error(signErr.message || `Policy signing failed (HTTP ${signResp.status})`);
-  }
-
-  const signed = await signResp.json();
+  const signed = await client.policy.sign(encrypted.encrypted_base64);
   const walletPubkey = `ed25519:${signed.public_key_hex}`;
 
   // Step 3: Estimate storage cost + store on-chain
@@ -311,11 +292,7 @@ export async function submitPolicy(params: SubmitPolicyParams): Promise<SubmitPo
 
   // Step 4: Invalidate coordinator cache + save plaintext policy to DB
   // (so dashboard can read it immediately without waiting for worker sync)
-  await fetch(`${coordinatorUrl}/wallet/v1/invalidate-cache`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-    body: JSON.stringify({ wallet_id: walletId, policy_json: policyData }),
-  }).catch((e) => { console.warn('Failed to invalidate cache:', e); });
+  await client.policy.invalidateCache(walletId).catch((e) => { console.warn('Failed to invalidate cache:', e); });
 
   return { walletPubkey };
 }
