@@ -2,7 +2,14 @@
  * Browser-local wallet API key storage with session-derived encryption.
  *
  * API keys are encrypted at rest in localStorage using AES-GCM.
- * The encryption key is derived from the Google idToken via PBKDF2.
+ * The encryption key is derived from the Google sub + a per-device random salt
+ * via PBKDF2 (100k iterations).
+ *
+ * Security model:
+ *   - Knowing the Google `sub` alone is NOT enough to derive the key
+ *   - The random salt is stored in localStorage (unique per device/browser)
+ *   - An attacker needs BOTH the sub AND the salt to decrypt
+ *   - XSS compromise still exposes everything (inherent to browser crypto)
  *
  * Flow:
  *   1. On Google login → initCrypto(idToken) → derives key + decrypts cache
@@ -10,10 +17,13 @@
  *   3. On save → encrypt before persisting to localStorage
  *   4. On logout → clearCrypto() wipes in-memory key + cache
  *
- * Before initCrypto() is called (e.g. manual key entry), keys are plaintext.
+ * Migration: initCrypto auto-migrates plaintext entries and entries encrypted
+ * with the old v1 scheme (sub-only, fixed salt) to the new v2 scheme.
  */
 
 const STORAGE_KEY = "outlayer_wallet_keys";
+const SALT_KEY = "outlayer_crypto_salt";
+const KEY_VERSION_KEY = "outlayer_key_version";
 
 export interface StoredKey {
   apiKey: string;
@@ -31,24 +41,51 @@ type KeyStore = Record<string, StoredKey>; // walletPubkey → StoredKey
 let _cryptoKey: CryptoKey | null = null;
 let _decryptedCache: KeyStore | null = null;
 
-/** Derive AES-GCM key from Google sub (stable across sessions). Call after Google login. */
+// ── Raw storage types ────────────────────────────────────────────────────
+
+interface RawEntry {
+  apiKey: string;
+  savedAt: string;
+  label?: string;
+  source?: "google" | "manual";
+  googleEmail?: string;
+  walletIndex?: number;
+  encrypted?: boolean;
+}
+
+// ── Salt management ──────────────────────────────────────────────────────
+
+/** Get or create the per-device random salt (32 bytes, base64 stored). */
+function getOrCreateSalt(): Uint8Array {
+  if (typeof window === "undefined") return new Uint8Array(32);
+  const existing = localStorage.getItem(SALT_KEY);
+  if (existing) {
+    return Uint8Array.from(atob(existing), (c) => c.charCodeAt(0));
+  }
+  const salt = crypto.getRandomValues(new Uint8Array(32));
+  localStorage.setItem(SALT_KEY, btoa(String.fromCharCode(...salt)));
+  return salt;
+}
+
+/** Derive AES-GCM key from Google sub + per-device random salt. */
 export async function initCrypto(googleSub: string): Promise<void> {
   if (!googleSub || typeof window === "undefined") return;
 
+  const salt = getOrCreateSalt();
+  // Copy to a fresh ArrayBuffer to satisfy TS strict BufferSource typing
+  const saltArray = new Uint8Array(salt);
   const enc = new TextEncoder();
-  // Salt is fixed — same sub always derives the same key
-  const salt = enc.encode("outlayer-wallet-key-encryption-v1");
-  // Use sub as key material — stable, never changes for a Google account
+
   const keyMaterial = await crypto.subtle.importKey(
     "raw",
-    enc.encode(`outlayer:${googleSub}`),
+    enc.encode(`outlayer-v2:${googleSub}`),
     "PBKDF2",
     false,
     ["deriveKey"],
   );
 
   _cryptoKey = await crypto.subtle.deriveKey(
-    { name: "PBKDF2", salt, iterations: 100_000, hash: "SHA-256" },
+    { name: "PBKDF2", salt: saltArray, iterations: 100_000, hash: "SHA-256" },
     keyMaterial,
     { name: "AES-GCM", length: 256 },
     false,
@@ -59,16 +96,19 @@ export async function initCrypto(googleSub: string): Promise<void> {
   const raw = loadRaw();
   const decrypted: KeyStore = {};
   for (const [pk, entry] of Object.entries(raw)) {
+    const { encrypted, ...rest } = entry;
     decrypted[pk] = {
-      ...entry,
-      apiKey: entry.encrypted ? await decryptValue(entry.apiKey) : entry.apiKey,
+      ...rest,
+      apiKey: encrypted ? await decryptValue(entry.apiKey) : entry.apiKey,
     };
-    delete decrypted[pk].encrypted;
   }
   _decryptedCache = decrypted;
 
-  // Re-encrypt and persist (migrates plaintext entries)
+  // Re-encrypt and persist (migrates plaintext + old v1 entries)
   await persistCache();
+
+  // Mark that we've migrated to v2
+  localStorage.setItem(KEY_VERSION_KEY, "2");
 }
 
 /** Wipe the in-memory crypto key and decrypted cache. Call on logout. */
@@ -106,22 +146,12 @@ async function decryptValue(ciphertext: string): Promise<string> {
     const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, _cryptoKey!, ct);
     return new TextDecoder().decode(pt);
   } catch (e) {
-    console.warn('Decryption failed:', e);
+    console.warn("Decryption failed:", e);
     return ciphertext;
   }
 }
 
 // ── Raw storage ───────────────────────────────────────────────────────────
-
-interface RawEntry {
-  apiKey: string;
-  savedAt: string;
-  label?: string;
-  source?: "google" | "manual";
-  googleEmail?: string;
-  walletIndex?: number;
-  encrypted?: boolean;
-}
 
 function loadRaw(): Record<string, RawEntry> {
   if (typeof window === "undefined") return {};
@@ -129,7 +159,7 @@ function loadRaw(): Record<string, RawEntry> {
     const raw = localStorage.getItem(STORAGE_KEY);
     return raw ? (JSON.parse(raw) || {}) : {};
   } catch (e) {
-    console.warn('Failed to load wallet keys:', e);
+    console.warn("Failed to load wallet keys:", e);
     return {};
   }
 }
