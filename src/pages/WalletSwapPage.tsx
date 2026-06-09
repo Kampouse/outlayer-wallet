@@ -379,7 +379,7 @@ export default function WalletSwapPage({ privateMode = false, apiKey: propApiKey
               className="h-8 appearance-none bg-muted border border-border rounded-lg px-2 pr-7 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
             >
               {savedWallets.map((w, i) => (
-                <option key={w.pubkey} value={i} className="bg-zinc-900 text-white">
+                <option key={w.pubkey} value={i} className="bg-muted text-white">
                   {w.label || shortAddr(w.pubkey.replace(/^ed25519:/, ""))}
                 </option>
               ))}

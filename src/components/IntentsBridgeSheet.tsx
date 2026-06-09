@@ -252,7 +252,7 @@ export function IntentsBridgeSheet({
               </p>
               <button
                 onClick={onClose}
-                className="w-full bg-zinc-800 hover:bg-zinc-700 text-white font-medium rounded-lg py-2.5 transition-colors"
+                className="w-full bg-muted hover:bg-muted text-white font-medium rounded-lg py-2.5 transition-colors"
               >
                 Close
               </button>

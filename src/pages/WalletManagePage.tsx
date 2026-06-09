@@ -542,17 +542,17 @@ export default function WalletManagePage() {
         ) : (
           <Card>
             <CardContent className="py-12 text-center">
-              <div className="w-16 h-16 rounded-2xl bg-zinc-100 flex items-center justify-center mx-auto mb-5">
-                <Key size={28} className="text-zinc-400" />
+              <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-5">
+                <Key size={28} className="text-muted-foreground" />
               </div>
-              <h2 className="text-lg font-semibold text-zinc-900 mb-1">No wallets yet</h2>
-              <p className="text-zinc-500 text-sm mb-8 max-w-xs mx-auto">
+              <h2 className="text-lg font-semibold text-foreground mb-1">No wallets yet</h2>
+              <p className="text-muted-foreground text-sm mb-8 max-w-xs mx-auto">
                 Sign in with Google or connect a NEAR wallet to get started.
               </p>
               <div className="flex flex-col items-center gap-3">
                 <Button onClick={requestLogin} size="lg" className="w-full max-w-xs">Sign in with Google</Button>
                 <Button onClick={requestLogin} size="lg" variant="outline" className="w-full max-w-xs">Connect NEAR Wallet</Button>
-                <button onClick={() => setImportModalOpen(true)} className="text-sm text-zinc-500 hover:text-zinc-900 mt-2">
+                <button onClick={() => setImportModalOpen(true)} className="text-sm text-muted-foreground hover:text-foreground mt-2">
                   or import an API key
                 </button>
               </div>
@@ -724,7 +724,7 @@ function SingleWalletView({
                       if (e.key === "Escape") setEditing(false);
                     }}
                     autoFocus
-                    className="text-sm font-semibold bg-transparent border-b border-zinc-300 outline-none flex-1 min-w-0"
+                    className="text-sm font-semibold bg-transparent border-b border-border outline-none flex-1 min-w-0"
                   />
                   <button
                     type="button"
@@ -741,7 +741,7 @@ function SingleWalletView({
                     type="button"
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => setEditing(false)}
-                    className="text-xs text-zinc-400 font-medium px-2 py-1.5 shrink-0"
+                    className="text-xs text-muted-foreground font-medium px-2 py-1.5 shrink-0"
                   >
                     ✕
                   </button>
@@ -749,19 +749,19 @@ function SingleWalletView({
               ) : (
                 <button
                   onClick={() => { setEditVal(w.label); setEditing(true); }}
-                  className="text-sm font-semibold text-zinc-900 hover:text-zinc-600 flex items-center gap-1"
+                  className="text-sm font-semibold text-foreground hover:text-muted-foreground flex items-center gap-1"
                 >
                   {w.label}
-                  <Pencil size={11} className="text-zinc-400" />
+                  <Pencil size={11} className="text-muted-foreground" />
                 </button>
               )}
-              <div className={`w-2 h-2 rounded-full shrink-0 ${w.frozen ? "bg-zinc-400" : "bg-lime-500"}`} />
-              <span className="text-xs text-zinc-500 shrink-0">{w.frozen ? "Frozen" : "Active"}</span>
+              <div className={`w-2 h-2 rounded-full shrink-0 ${w.frozen ? "bg-muted" : "bg-lime-500"}`} />
+              <span className="text-xs text-muted-foreground shrink-0">{w.frozen ? "Frozen" : "Active"}</span>
               {w.isGoogle && <Badge variant="outline" className="text-[10px] shrink-0">Google</Badge>}
               {!w.hasPolicy && <Badge variant="outline" className="text-[10px] shrink-0">No Policy</Badge>}
             </div>
             {w.updatedAt && (
-              <span className="text-[10px] text-zinc-400 shrink-0">
+              <span className="text-[10px] text-muted-foreground shrink-0">
                 {new Date(w.updatedAt / 1_000_000).toLocaleDateString()}
               </span>
             )}
@@ -781,25 +781,25 @@ function SingleWalletView({
 
           {/* API Key row */}
           {w.apiKey && (
-            <div className="mt-4 pt-3 border-t border-zinc-100 flex items-center gap-2">
-              <Key size={12} className="text-zinc-400 shrink-0" />
-              <code className="text-[11px] font-mono bg-zinc-100 px-2 py-0.5 rounded text-zinc-500 select-all flex-1 min-w-0 truncate">
+            <div className="mt-4 pt-3 border-t border-border flex items-center gap-2">
+              <Key size={12} className="text-muted-foreground shrink-0" />
+              <code className="text-[11px] font-mono bg-muted px-2 py-0.5 rounded text-muted-foreground select-all flex-1 min-w-0 truncate">
                 {revealed ? w.apiKey : w.apiKey.substring(0, 6) + "..." + w.apiKey.slice(-4)}
               </code>
-              <button onClick={() => onToggleReveal(w.pubkey)} className="text-zinc-400 hover:text-zinc-600 p-1 shrink-0">
+              <button onClick={() => onToggleReveal(w.pubkey)} className="text-muted-foreground hover:text-muted-foreground p-1 shrink-0">
                 {revealed ? <EyeOff size={14} /> : <Eye size={14} />}
               </button>
-              <button onClick={() => onCopyKey(w.apiKey!)} className="text-zinc-400 hover:text-zinc-600 p-1 shrink-0">
+              <button onClick={() => onCopyKey(w.apiKey!)} className="text-muted-foreground hover:text-muted-foreground p-1 shrink-0">
                 <Copy size={14} />
               </button>
-              <button onClick={() => onRemoveKey(w.pubkey)} className="text-zinc-400 hover:text-red-500 p-1 shrink-0">
+              <button onClick={() => onRemoveKey(w.pubkey)} className="text-muted-foreground hover:text-red-500 p-1 shrink-0">
                 <Trash2 size={14} />
               </button>
             </div>
           )}
 
           {/* Action buttons */}
-          <div className="flex items-center gap-2 mt-4 pt-3 border-t border-zinc-100 flex-wrap">
+          <div className="flex items-center gap-2 mt-4 pt-3 border-t border-border flex-wrap">
             {w.apiKey ? (
               <Link to={`/handoff?key=${w.apiKey}`}>
                 <Button variant="outline" size="sm"><ShieldCheck size={14} /> Policy</Button>
@@ -832,7 +832,7 @@ function SingleWalletView({
               </Button>
             )}
             {!w.apiKey && (
-              <span className="text-[11px] text-zinc-400">Save an API key to manage this wallet</span>
+              <span className="text-[11px] text-muted-foreground">Save an API key to manage this wallet</span>
             )}
           </div>
         </CardContent>
@@ -844,17 +844,17 @@ function SingleWalletView({
           <button
             onClick={() => onSelect(Math.max(0, selectedIdx - 1))}
             disabled={selectedIdx === 0}
-            className="text-zinc-400 hover:text-zinc-600 disabled:opacity-20 p-1"
+            className="text-muted-foreground hover:text-muted-foreground disabled:opacity-20 p-1"
           >
             <ChevronLeft size={20} />
           </button>
-          <span className="text-xs text-zinc-400">
+          <span className="text-xs text-muted-foreground">
             {selectedIdx + 1} / {wallets.length}
           </span>
           <button
             onClick={() => onSelect(Math.min(wallets.length - 1, selectedIdx + 1))}
             disabled={selectedIdx === wallets.length - 1}
-            className="text-zinc-400 hover:text-zinc-600 disabled:opacity-20 p-1"
+            className="text-muted-foreground hover:text-muted-foreground disabled:opacity-20 p-1"
           >
             <ChevronRight size={20} />
           </button>

@@ -41,7 +41,7 @@ export default function ReceiveSheet({ address }: { address: string }) {
         </div>
       ) : (
         <div className="w-[200px] h-[200px] bg-white rounded-2xl flex items-center justify-center shadow-sm">
-          <QrCode size={64} className="text-zinc-300" />
+          <QrCode size={64} className="text-muted-foreground" />
         </div>
       )}
 

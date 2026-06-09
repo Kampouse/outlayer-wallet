@@ -70,7 +70,7 @@ export function TokenPickerModal({
       >
         {/* Drag handle (mobile only) */}
         <div className="flex justify-center pt-3 pb-1 shrink-0 sm:hidden">
-          <div className="w-10 h-1 rounded-full bg-zinc-300 dark:bg-zinc-600" />
+          <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
         </div>
 
         {/* Title */}

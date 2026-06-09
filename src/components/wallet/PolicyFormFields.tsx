@@ -24,11 +24,11 @@ export function PolicyFormFields({ policyForm, onChange, apiKeyHash, knownKeyHas
     <div className="space-y-4">
       {/* Spending Limits */}
       <div>
-        <h3 className="text-sm font-semibold text-zinc-800 mb-1">Spending Limits</h3>
-        <p className="text-xs text-zinc-400 mb-3">Native NEAR only. Leave empty for no limit. For token-specific limits, use the JSON editor.</p>
+        <h3 className="text-sm font-semibold text-foreground mb-1">Spending Limits</h3>
+        <p className="text-xs text-muted-foreground mb-3">Native NEAR only. Leave empty for no limit. For token-specific limits, use the JSON editor.</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div>
-            <label className="block text-xs font-medium text-zinc-500 mb-1">Per-Transaction</label>
+            <label className="block text-xs font-medium text-muted-foreground mb-1">Per-Transaction</label>
             <Input
               type="text"
               value={policyForm.per_transaction_limit}
@@ -37,7 +37,7 @@ export function PolicyFormFields({ policyForm, onChange, apiKeyHash, knownKeyHas
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-zinc-500 mb-1">Hourly</label>
+            <label className="block text-xs font-medium text-muted-foreground mb-1">Hourly</label>
             <Input
               type="text"
               value={policyForm.hourly_limit}
@@ -46,7 +46,7 @@ export function PolicyFormFields({ policyForm, onChange, apiKeyHash, knownKeyHas
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-zinc-500 mb-1">Daily</label>
+            <label className="block text-xs font-medium text-muted-foreground mb-1">Daily</label>
             <Input
               type="text"
               value={policyForm.daily_limit}
@@ -55,7 +55,7 @@ export function PolicyFormFields({ policyForm, onChange, apiKeyHash, knownKeyHas
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-zinc-500 mb-1">Monthly</label>
+            <label className="block text-xs font-medium text-muted-foreground mb-1">Monthly</label>
             <Input
               type="text"
               value={policyForm.monthly_limit}
@@ -67,13 +67,13 @@ export function PolicyFormFields({ policyForm, onChange, apiKeyHash, knownKeyHas
       </div>
 
       {/* Address Restrictions */}
-      <div className="rounded-lg border border-zinc-200">
-        <div className="px-4 py-3 border-b border-zinc-100">
-          <h3 className="text-sm font-semibold text-zinc-800">Address Restrictions</h3>
-          <p className="text-xs text-zinc-400 mt-0.5">Restrict which accounts the wallet can interact with.</p>
+      <div className="rounded-lg border border-border">
+        <div className="px-4 py-3 border-b border-border">
+          <h3 className="text-sm font-semibold text-foreground">Address Restrictions</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">Restrict which accounts the wallet can interact with.</p>
         </div>
         <div className="p-4">
-          <div className="flex rounded-lg border border-zinc-200 p-0.5 bg-zinc-50 mb-3">
+          <div className="flex rounded-lg border border-border p-0.5 bg-muted mb-3">
             {([
               { mode: 'none' as const, label: 'None' },
               { mode: 'whitelist' as const, label: 'Whitelist' },
@@ -85,8 +85,8 @@ export function PolicyFormFields({ policyForm, onChange, apiKeyHash, knownKeyHas
                 onClick={() => update({ address_mode: mode })}
                 className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-colors ${
                   policyForm.address_mode === mode
-                    ? 'bg-white text-zinc-900 shadow-sm'
-                    : 'text-zinc-500 hover:text-zinc-700'
+                    ? 'bg-white text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-muted-foreground'
                 }`}
               >
                 {label}
@@ -105,13 +105,13 @@ export function PolicyFormFields({ policyForm, onChange, apiKeyHash, knownKeyHas
       </div>
 
       {/* Allowed Tokens & Transaction Types */}
-      <div className="rounded-lg border border-zinc-200">
-        <div className="px-4 py-3 border-b border-zinc-100">
-          <h3 className="text-sm font-semibold text-zinc-800">Allowed Tokens &amp; Types</h3>
+      <div className="rounded-lg border border-border">
+        <div className="px-4 py-3 border-b border-border">
+          <h3 className="text-sm font-semibold text-foreground">Allowed Tokens &amp; Types</h3>
         </div>
         <div className="p-4 space-y-4">
           <div>
-            <label className="block text-xs font-medium text-zinc-500 mb-1.5">Allowed Tokens</label>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Allowed Tokens</label>
             <Input
               type="text"
               value={policyForm.allowed_tokens}
@@ -120,7 +120,7 @@ export function PolicyFormFields({ policyForm, onChange, apiKeyHash, knownKeyHas
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-zinc-500 mb-2">Allowed Transaction Types</label>
+            <label className="block text-xs font-medium text-muted-foreground mb-2">Allowed Transaction Types</label>
             {(() => {
               const txTypeLabels: Record<string, { label: string; desc: string }> = {
                 transfer: { label: 'Transfer', desc: 'Send native token' },
@@ -137,8 +137,8 @@ export function PolicyFormFields({ policyForm, onChange, apiKeyHash, knownKeyHas
                 return (
                   <div
                     key={txType}
-                    className={`flex items-center justify-between px-4 py-2.5 transition-colors hover:bg-zinc-50 ${
-                      txType === 'intents_withdraw' ? 'border-t border-zinc-100' : ''
+                    className={`flex items-center justify-between px-4 py-2.5 transition-colors hover:bg-muted ${
+                      txType === 'intents_withdraw' ? 'border-t border-border' : ''
                     }`}
                   >
                     <div
@@ -148,8 +148,8 @@ export function PolicyFormFields({ policyForm, onChange, apiKeyHash, knownKeyHas
                         update({ transaction_types: next.join(',') });
                       }}
                     >
-                      <p className={`text-sm font-medium ${checked ? 'text-zinc-900' : 'text-zinc-500'}`}>{info.label}</p>
-                      <p className="text-xs text-zinc-400 truncate">{info.desc}</p>
+                      <p className={`text-sm font-medium ${checked ? 'text-foreground' : 'text-muted-foreground'}`}>{info.label}</p>
+                      <p className="text-xs text-muted-foreground truncate">{info.desc}</p>
                     </div>
                     <Checkbox
                       checked={checked}
@@ -162,10 +162,10 @@ export function PolicyFormFields({ policyForm, onChange, apiKeyHash, knownKeyHas
                 );
               };
               return (
-                <div className="rounded-lg border border-zinc-200 divide-y divide-zinc-100">
+                <div className="rounded-lg border border-border divide-y divide-border">
                   {['transfer', 'call', 'delete'].map(renderToggle)}
-                  <div className="px-4 py-1.5 bg-zinc-50/50">
-                    <span className="text-[10px] font-medium text-zinc-400 uppercase tracking-wider">NEAR Intents</span>
+                  <div className="px-4 py-1.5 bg-muted/50">
+                    <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">NEAR Intents</span>
                   </div>
                   {['intents_withdraw', 'intents_swap', 'intents_deposit'].map(renderToggle)}
                 </div>
@@ -176,14 +176,14 @@ export function PolicyFormFields({ policyForm, onChange, apiKeyHash, knownKeyHas
       </div>
 
       {/* Time Restrictions */}
-      <div className="rounded-lg border border-zinc-200">
-        <div className="px-4 py-3 border-b border-zinc-100">
-          <h3 className="text-sm font-semibold text-zinc-800">Time Restrictions <span className="text-zinc-400 font-normal">(UTC)</span></h3>
+      <div className="rounded-lg border border-border">
+        <div className="px-4 py-3 border-b border-border">
+          <h3 className="text-sm font-semibold text-foreground">Time Restrictions <span className="text-muted-foreground font-normal">(UTC)</span></h3>
         </div>
         <div className="p-4">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
-            <label className="block text-xs font-medium text-zinc-500 mb-1">Allowed Hours Start</label>
+            <label className="block text-xs font-medium text-muted-foreground mb-1">Allowed Hours Start</label>
             <Input
               type="number"
               min="0"
@@ -194,7 +194,7 @@ export function PolicyFormFields({ policyForm, onChange, apiKeyHash, knownKeyHas
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-zinc-500 mb-1">Allowed Hours End</label>
+            <label className="block text-xs font-medium text-muted-foreground mb-1">Allowed Hours End</label>
             <Input
               type="number"
               min="0"
@@ -205,44 +205,44 @@ export function PolicyFormFields({ policyForm, onChange, apiKeyHash, knownKeyHas
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-zinc-500 mb-1">Allowed Days</label>
+            <label className="block text-xs font-medium text-muted-foreground mb-1">Allowed Days</label>
             <Input
               type="text"
               value={policyForm.allowed_days}
               onChange={(e) => update({ allowed_days: e.target.value })}
               placeholder="1,2,3,4,5 (Mon-Fri)"
             />
-            <p className="text-xs text-zinc-400 mt-1">1=Mon ... 7=Sun</p>
+            <p className="text-xs text-muted-foreground mt-1">1=Mon ... 7=Sun</p>
           </div>
           </div>
         </div>
       </div>
 
       {/* Rate Limit & Webhook */}
-      <div className="rounded-lg border border-zinc-200">
-        <div className="px-4 py-3 border-b border-zinc-100">
-          <h3 className="text-sm font-semibold text-zinc-800">Rate Limit &amp; Webhook</h3>
+      <div className="rounded-lg border border-border">
+        <div className="px-4 py-3 border-b border-border">
+          <h3 className="text-sm font-semibold text-foreground">Rate Limit &amp; Webhook</h3>
         </div>
         <div className="p-4 space-y-4">
         <div>
-          <label className="block text-sm font-medium text-zinc-700 mb-1">Max Transactions per Hour</label>
+          <label className="block text-sm font-medium text-muted-foreground mb-1">Max Transactions per Hour</label>
           <Input
             type="number"
             value={policyForm.max_per_hour}
             onChange={(e) => update({ max_per_hour: e.target.value })}
             placeholder="e.g. 10"
           />
-          <p className="text-xs text-zinc-400 mt-1">Counts all operation types including intents deposit and swap.</p>
+          <p className="text-xs text-muted-foreground mt-1">Counts all operation types including intents deposit and swap.</p>
         </div>
         <div>
-          <label className="block text-sm font-medium text-zinc-700 mb-1">
+          <label className="block text-sm font-medium text-muted-foreground mb-1">
             Webhook URL
             <Info
-              className="ml-1.5 inline w-3.5 h-3.5 text-zinc-400 cursor-pointer hover:text-zinc-600 align-middle"
+              className="ml-1.5 inline w-3.5 h-3.5 text-muted-foreground cursor-pointer hover:text-muted-foreground align-middle"
               onClick={() => setShowWebhookInfo((v) => !v)}
             />
             {showWebhookInfo && (
-              <span className="block mt-1 text-xs font-normal text-zinc-500">
+              <span className="block mt-1 text-xs font-normal text-muted-foreground">
                 Receive POST notifications on transaction events (approval_needed, approval_received, request_completed).
                 Must be HTTPS. Requests include HMAC-SHA256 signature for verification. Failed deliveries are retried up to 3 times.
               </span>

@@ -89,10 +89,10 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 function getStatusStyle(status: string | null): string {
-  if (!status) return 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20';
+  if (!status) return 'bg-muted0/10 text-muted-foreground border-border/30';
   return (
     STATUS_STYLES[status.toLowerCase()] ||
-    'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'
+    'bg-muted0/10 text-muted-foreground border-border/30'
   );
 }
 
@@ -142,7 +142,7 @@ const ICON_BG: Record<DecodedTransaction['icon'], string> = {
   freeze: 'bg-blue-500/10 text-blue-400',
   unfreeze: 'bg-teal-500/10 text-teal-400',
   approval: 'bg-blue-500/10 text-blue-400',
-  unknown: 'bg-zinc-500/10 text-zinc-400',
+  unknown: 'bg-muted0/10 text-muted-foreground',
 };
 
 // ---------------------------------------------------------------------------
@@ -489,7 +489,7 @@ export default function WalletHistoryPage() {
       <div className="max-w-6xl mx-auto px-4 pt-4">
         <Card>
           <CardContent className="p-8">
-            <p className="text-zinc-600 mb-4">
+            <p className="text-muted-foreground mb-4">
               No saved wallet keys found. Enter an API key to view
               activity.
             </p>
@@ -551,7 +551,7 @@ export default function WalletHistoryPage() {
             onClick={() => setSelectedWallet('all')}
             className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
               selectedWallet === 'all'
-                ? 'bg-zinc-900 text-white border-zinc-900'
+                ? 'bg-muted text-white border-border'
                 : 'bg-background text-muted-foreground border-border hover:border-muted-foreground'
             }`}
           >
@@ -563,7 +563,7 @@ export default function WalletHistoryPage() {
               onClick={() => setSelectedWallet(w.walletId)}
               className={`px-3 py-1.5 text-sm rounded-lg border transition-colors font-mono ${
                 selectedWallet === w.walletId
-                  ? 'bg-zinc-900 text-white border-zinc-900'
+                  ? 'bg-muted text-white border-border'
                   : 'bg-background text-muted-foreground border-border hover:border-muted-foreground'
               }`}
             >
@@ -593,9 +593,9 @@ export default function WalletHistoryPage() {
       ) : timeline.length === 0 ? (
         <Card>
           <CardContent className="p-8 text-center">
-            <Activity className="h-8 w-8 text-zinc-300 mx-auto mb-3" />
-            <p className="text-zinc-500">No activity found.</p>
-            <p className="text-xs text-zinc-400 mt-1">
+            <Activity className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
+            <p className="text-muted-foreground">No activity found.</p>
+            <p className="text-xs text-muted-foreground mt-1">
               Transactions will appear here once you send, receive, or
               modify your wallet.
             </p>
@@ -605,24 +605,24 @@ export default function WalletHistoryPage() {
         <>
           {/* Desktop table */}
           <div className="hidden sm:block bg-background rounded-lg border border-border overflow-hidden">
-            <table className="min-w-full divide-y divide-zinc-200">
-              <thead className="bg-zinc-50">
+            <table className="min-w-full divide-y divide-border">
+              <thead className="bg-muted">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                     Time
                   </th>
                   {multiWallet && selectedWallet === 'all' && (
-                    <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                       Wallet
                     </th>
                   )}
-                  <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                     Activity
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                     Amount
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                     Status
                   </th>
                 </tr>
@@ -631,16 +631,16 @@ export default function WalletHistoryPage() {
                 {timeline.map((item) => (
                   <tr
                     key={item.id}
-                    className="hover:bg-zinc-50/50"
+                    className="hover:bg-muted/50"
                   >
-                    <td className="px-4 py-3 whitespace-nowrap text-xs text-zinc-500">
+                    <td className="px-4 py-3 whitespace-nowrap text-xs text-muted-foreground">
                       <span className="flex items-center gap-1">
                         <Clock className="h-3 w-3" />
                         {formatRelativeTime(item.at)}
                       </span>
                     </td>
                     {multiWallet && selectedWallet === 'all' && (
-                      <td className="px-4 py-3 whitespace-nowrap text-xs text-zinc-400 font-mono">
+                      <td className="px-4 py-3 whitespace-nowrap text-xs text-muted-foreground font-mono">
                         {item.walletLabel}
                       </td>
                     )}
@@ -683,7 +683,7 @@ export default function WalletHistoryPage() {
             {timeline.map((item) => (
               <Card
                 key={item.id}
-                className="border-zinc-200"
+                className="border-border"
               >
                 <CardContent className="p-3">
                   <div className="flex items-start gap-3">
@@ -721,13 +721,13 @@ export default function WalletHistoryPage() {
                       )}
 
                       <div className="flex items-center gap-2 mt-1">
-                        <span className="text-xs text-zinc-400 flex items-center gap-1">
+                        <span className="text-xs text-muted-foreground flex items-center gap-1">
                           <Clock className="h-3 w-3" />
                           {formatRelativeTime(item.at)}
                         </span>
                         {multiWallet &&
                           selectedWallet === 'all' && (
-                            <span className="text-xs text-zinc-400 font-mono truncate">
+                            <span className="text-xs text-muted-foreground font-mono truncate">
                               {item.walletLabel}
                             </span>
                           )}
@@ -754,7 +754,7 @@ export default function WalletHistoryPage() {
               >
                 Previous
               </Button>
-              <span className="text-sm text-zinc-500">
+              <span className="text-sm text-muted-foreground">
                 Page {singleWallet.page + 1}
               </span>
               <Button
@@ -793,7 +793,7 @@ function LoadingSkeleton() {
       {/* Mobile skeletons */}
       <div className="sm:hidden space-y-3">
         {Array.from({ length: 5 }).map((_, i) => (
-          <Card key={i} className="border-zinc-200">
+          <Card key={i} className="border-border">
             <CardContent className="p-3">
               <div className="flex items-start gap-3">
                 <Skeleton className="h-8 w-8 rounded-full shrink-0" />
@@ -811,7 +811,7 @@ function LoadingSkeleton() {
       {/* Desktop skeletons */}
       <div className="hidden sm:block bg-background rounded-lg border border-border overflow-hidden">
         <table className="min-w-full">
-          <thead className="bg-zinc-50">
+          <thead className="bg-muted">
             <tr>
               <th className="px-4 py-3 w-32" />
               <th className="px-4 py-3" />

@@ -46,7 +46,7 @@ export function BottomSheetModal({
       <div className="sheet-enter fixed bottom-0 left-0 right-0 z-50 max-h-[85vh] rounded-t-2xl bg-background shadow-lg">
         {/* Drag handle */}
         <div className="flex justify-center p-3">
-          <div className="h-1 w-10 rounded-full bg-zinc-300 dark:bg-zinc-600" />
+          <div className="h-1 w-10 rounded-full bg-muted-foreground/30" />
         </div>
 
         {/* Title */}

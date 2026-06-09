@@ -117,16 +117,16 @@ export default function WalletConnectionModal({ isOpen, onClose }: WalletConnect
         <div className="space-y-6">
           {/* Network Selector */}
           <div>
-            <label className="block text-sm font-medium text-zinc-700 mb-2">
+            <label className="block text-sm font-medium text-muted-foreground mb-2">
               Network
             </label>
-            <div className="flex items-center bg-zinc-100 rounded-lg p-1">
+            <div className="flex items-center bg-muted rounded-lg p-1">
               <button
                 onClick={() => handleNetworkChange('testnet')}
                 className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                   pendingNetwork === 'testnet'
-                    ? 'bg-white text-zinc-900 shadow-sm'
-                    : 'text-zinc-500 hover:text-zinc-700'
+                    ? 'bg-white text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-muted-foreground'
                 }`}
               >
                 Testnet
@@ -135,8 +135,8 @@ export default function WalletConnectionModal({ isOpen, onClose }: WalletConnect
                 onClick={() => handleNetworkChange('mainnet')}
                 className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                   pendingNetwork === 'mainnet'
-                    ? 'bg-white text-zinc-900 shadow-sm'
-                    : 'text-zinc-500 hover:text-zinc-700'
+                    ? 'bg-white text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-muted-foreground'
                 }`}
               >
                 Mainnet
@@ -154,7 +154,7 @@ export default function WalletConnectionModal({ isOpen, onClose }: WalletConnect
           </Button>
 
           {(!isWalletReady || pendingNetwork !== network) && (
-            <p className="text-xs text-zinc-400 text-center">
+            <p className="text-xs text-muted-foreground text-center">
               Please wait while we switch to {pendingNetwork}...
             </p>
           )}
@@ -164,20 +164,20 @@ export default function WalletConnectionModal({ isOpen, onClose }: WalletConnect
             <>
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-zinc-200" />
+                  <div className="w-full border-t border-border" />
                 </div>
                 <div className="relative flex justify-center text-xs">
-                  <span className="bg-white dark:bg-zinc-900 px-3 text-zinc-400">or</span>
+                  <span className="bg-white dark:bg-muted px-3 text-muted-foreground">or</span>
                 </div>
               </div>
 
               <button
                 onClick={handleGoogleSignIn}
                 disabled={googleAuthLoading}
-                className="w-full flex items-center justify-center gap-3 h-12 px-4 bg-white border border-zinc-200 rounded-lg text-zinc-700 font-medium text-sm hover:bg-zinc-50 active:bg-zinc-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full flex items-center justify-center gap-3 h-12 px-4 bg-white border border-border rounded-lg text-muted-foreground font-medium text-sm hover:bg-muted active:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {googleAuthLoading ? (
-                  <svg className="animate-spin h-5 w-5 text-zinc-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <svg className="animate-spin h-5 w-5 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                   </svg>
@@ -191,7 +191,7 @@ export default function WalletConnectionModal({ isOpen, onClose }: WalletConnect
 
           {/* Already Google-connected notice */}
           {authMethod === 'google' && (
-            <p className="text-xs text-zinc-400 text-center">
+            <p className="text-xs text-muted-foreground text-center">
               Already signed in with Google. This only adds a NEAR wallet for signing.
             </p>
           )}

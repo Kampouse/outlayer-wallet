@@ -51,8 +51,8 @@ export default function PWAInstallPrompt() {
   if (!show) return null;
 
   return (
-    <div className="fixed bottom-16 left-3 right-3 z-50 bg-zinc-900 text-zinc-100 rounded-lg p-3 flex items-center justify-between gap-3 shadow-lg border border-zinc-800">
-      <span className="text-sm text-zinc-300">
+    <div className="fixed bottom-16 left-3 right-3 z-50 bg-muted text-foreground rounded-lg p-3 flex items-center justify-between gap-3 shadow-lg border border-border">
+      <span className="text-sm text-muted-foreground">
         Install OutLayer Wallet for quick access
       </span>
       <div className="flex items-center gap-2 shrink-0">
@@ -64,7 +64,7 @@ export default function PWAInstallPrompt() {
         </button>
         <button
           onClick={handleDismiss}
-          className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors px-1"
+          className="text-xs text-muted-foreground hover:text-muted-foreground transition-colors px-1"
           aria-label="Dismiss"
         >
           ✕

@@ -35,13 +35,13 @@ export default function CopyableAddress({
     <div className="flex items-baseline gap-1.5">
       <Tag
         {...(Tag === "a" ? { href, target: "_blank", rel: "noopener noreferrer" } : {})}
-        className={`text-xs text-zinc-500 font-mono break-all hover:text-zinc-700 hover:underline min-w-0 ${className}`}
+        className={`text-xs text-muted-foreground font-mono break-all hover:text-muted-foreground hover:underline min-w-0 ${className}`}
       >
         {address}
       </Tag>
       <button
         onClick={copy}
-        className="shrink-0 text-zinc-300 hover:text-zinc-500 transition-colors min-h-0 min-w-0"
+        className="shrink-0 text-muted-foreground hover:text-muted-foreground transition-colors min-h-0 min-w-0"
         title="Copy address"
       >
         {copied ? (

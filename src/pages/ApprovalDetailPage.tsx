@@ -23,7 +23,7 @@ interface ApprovalDetail {
 
 export default function ApprovalDetailPage() {
   return (
-    <Suspense fallback={<div className="max-w-4xl mx-auto py-8 text-zinc-400">Loading...</div>}>
+    <Suspense fallback={<div className="max-w-4xl mx-auto py-8 text-muted-foreground">Loading...</div>}>
       <ApprovalDetailContent />
     </Suspense>
   );
@@ -142,13 +142,13 @@ function ApprovalDetailContent() {
   return (
     <div className="max-w-4xl mx-auto px-4">
       <div className="flex items-center space-x-3 mb-6">
-        <Link to={backUrl} className="inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-900 transition-colors font-medium">
+        <Link to={backUrl} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors font-medium">
           <ArrowLeft className="w-4 h-4" />
           Back to Approvals
         </Link>
       </div>
 
-      <h1 className="text-2xl sm:text-3xl font-bold text-zinc-900 mb-6">Approval Details</h1>
+      <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-6">Approval Details</h1>
 
       {error && (
         <div className="mb-4 bg-red-500/10 border-l-4 border-red-500 rounded-r-lg p-4">
@@ -164,19 +164,19 @@ function ApprovalDetailContent() {
 
       {loading ? (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-zinc-400" />
-          <span className="ml-3 text-zinc-400">Loading...</span>
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <span className="ml-3 text-muted-foreground">Loading...</span>
         </div>
       ) : !approval ? (
         <Card>
           <CardContent className="p-8 text-center">
-            <p className="text-zinc-500">Approval not found.</p>
+            <p className="text-muted-foreground">Approval not found.</p>
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-6">
           {/* Status card */}
-          <Card className="border-zinc-200">
+          <Card>
             <CardContent className="p-6">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center space-x-3">
@@ -186,29 +186,29 @@ function ApprovalDetailContent() {
                   >
                     {approval.status.toUpperCase()}
                   </Badge>
-                  <span className="text-sm text-zinc-500">{approval.request_type}</span>
+                  <span className="text-sm text-muted-foreground">{approval.request_type}</span>
                 </div>
-                <span className="text-sm text-zinc-400">
+                <span className="text-sm text-muted-foreground">
                   {approval.approvers?.length || 0} / {approval.required_approvals} approved
                 </span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                 <div>
-                  <p className="text-zinc-400 text-xs uppercase tracking-wide">Wallet</p>
-                  <p className="font-mono text-zinc-900 text-xs break-all mt-1">{approval.wallet_id}</p>
+                  <p className="text-muted-foreground text-xs uppercase tracking-wide">Wallet</p>
+                  <p className="font-mono text-foreground text-xs break-all mt-1">{approval.wallet_id}</p>
                 </div>
                 <div>
-                  <p className="text-zinc-400 text-xs uppercase tracking-wide">Request Hash</p>
-                  <p className="font-mono text-zinc-900 text-xs break-all mt-1">{approval.request_hash}</p>
+                  <p className="text-muted-foreground text-xs uppercase tracking-wide">Request Hash</p>
+                  <p className="font-mono text-foreground text-xs break-all mt-1">{approval.request_hash}</p>
                 </div>
                 <div>
-                  <p className="text-zinc-400 text-xs uppercase tracking-wide">Created</p>
-                  <p className="text-zinc-900 mt-1">{formatDate(approval.created_at)}</p>
+                  <p className="text-muted-foreground text-xs uppercase tracking-wide">Created</p>
+                  <p className="text-foreground mt-1">{formatDate(approval.created_at)}</p>
                 </div>
                 <div>
-                  <p className="text-zinc-400 text-xs uppercase tracking-wide">Expires</p>
-                  <p className={`${isExpired ? 'text-red-400' : 'text-zinc-900'} mt-1`}>
+                  <p className="text-muted-foreground text-xs uppercase tracking-wide">Expires</p>
+                  <p className={`${isExpired ? 'text-red-400' : 'text-foreground'} mt-1`}>
                     {formatDate(approval.expires_at)}
                     {isExpired && ' (EXPIRED)'}
                   </p>
@@ -218,10 +218,10 @@ function ApprovalDetailContent() {
           </Card>
 
           {/* Request data */}
-          <Card className="border-zinc-200">
+          <Card>
             <CardContent className="p-6">
-              <h2 className="text-lg font-semibold text-zinc-900 mb-3">Request Data</h2>
-              <pre className="bg-zinc-50 border border-zinc-200 rounded-lg p-4 text-sm text-zinc-700 overflow-x-auto">
+              <h2 className="text-lg font-semibold text-foreground mb-3">Request Data</h2>
+              <pre className="bg-muted border border-border rounded-lg p-4 text-sm text-foreground overflow-x-auto">
                 {JSON.stringify(approval.request_data, null, 2)}
               </pre>
             </CardContent>
@@ -229,17 +229,17 @@ function ApprovalDetailContent() {
 
           {/* Existing approvers */}
           {approval.approvers && approval.approvers.length > 0 && (
-            <Card className="border-zinc-200">
+            <Card>
               <CardContent className="p-6">
-                <h2 className="text-lg font-semibold text-zinc-900 mb-3">Approvers</h2>
+                <h2 className="text-lg font-semibold text-foreground mb-3">Approvers</h2>
                 <div className="space-y-2">
                   {approval.approvers.map((a, i) => (
                     <div key={i} className="flex items-center justify-between bg-lime-50 border border-lime-100 rounded-lg p-3">
                       <div>
-                        <p className="text-sm font-mono text-zinc-800">{a.approver_id}</p>
-                        <p className="text-xs text-zinc-500">Role: {a.approver_role}</p>
+                        <p className="text-sm font-mono text-foreground">{a.approver_id}</p>
+                        <p className="text-xs text-muted-foreground">Role: {a.approver_role}</p>
                       </div>
-                      <p className="text-xs text-zinc-400">{formatDate(a.created_at)}</p>
+                      <p className="text-xs text-muted-foreground">{formatDate(a.created_at)}</p>
                     </div>
                   ))}
                 </div>

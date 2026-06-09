@@ -22,7 +22,7 @@ interface WalletInfo {
 
 export default function WalletHandoffPage() {
   return (
-    <Suspense fallback={<div className="max-w-4xl mx-auto py-8 text-zinc-400">Loading...</div>}>
+    <Suspense fallback={<div className="max-w-4xl mx-auto py-8 text-muted-foreground">Loading...</div>}>
       <WalletHandoffContent />
     </Suspense>
   );
@@ -264,13 +264,13 @@ function WalletHandoffContent() {
         </p>
         <Card>
           <CardContent className="p-8 text-center">
-            <div className="w-14 h-14 rounded-2xl bg-zinc-100 flex items-center justify-center mx-auto mb-4">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-zinc-400">
+            <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-4">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-muted-foreground">
                 <rect x="2" y="5" width="20" height="14" rx="3" />
                 <path d="M2 10h20" />
               </svg>
             </div>
-            <h2 className="text-sm font-semibold text-zinc-900 mb-1">No wallet key provided</h2>
+            <h2 className="text-sm font-semibold text-foreground mb-1">No wallet key provided</h2>
             <p className="text-sm text-muted-foreground mb-4">
               Create a new wallet or paste an existing API key.
             </p>
@@ -301,7 +301,7 @@ function WalletHandoffContent() {
               >
                 {submitting ? 'Creating...' : 'Create New Wallet'}
               </Button>
-              <span className="text-xs text-zinc-400">or</span>
+              <span className="text-xs text-muted-foreground">or</span>
               <Button
                 size="lg"
                 variant="outline"
@@ -367,12 +367,12 @@ function WalletHandoffContent() {
           ) : walletInfo ? (
             <div className="space-y-2">
               <div>
-                <span className="text-xs text-zinc-400 uppercase tracking-wide">Wallet ID</span>
-                <p className="text-sm font-mono text-zinc-900 break-all">{walletInfo.wallet_id}</p>
+                <span className="text-xs text-muted-foreground uppercase tracking-wide">Wallet ID</span>
+                <p className="text-sm font-mono text-foreground break-all">{walletInfo.wallet_id}</p>
               </div>
               <div>
-                <span className="text-xs text-zinc-400 uppercase tracking-wide">NEAR Address (implicit)</span>
-                <p className="text-sm font-mono text-zinc-900 break-all">{walletInfo.address}</p>
+                <span className="text-xs text-muted-foreground uppercase tracking-wide">NEAR Address (implicit)</span>
+                <p className="text-sm font-mono text-foreground break-all">{walletInfo.address}</p>
               </div>
               {existingPolicy === true && (
                 <div className="mt-2 bg-blue-500/10 border-l-4 border-blue-500 rounded-r-lg p-2">
@@ -436,7 +436,7 @@ function WalletHandoffContent() {
                 onClick={() => setOwnerMode('wallet')}
                 className={`px-4 py-2 text-sm rounded-lg border transition-colors ${
                   ownerMode === 'wallet'
-                    ? 'bg-zinc-900 text-white border-zinc-900'
+                    ? 'bg-muted text-white border-border'
                     : 'bg-background text-muted-foreground border-border hover:border-muted-foreground'
                 }`}
               >
@@ -447,7 +447,7 @@ function WalletHandoffContent() {
                 onClick={() => setOwnerMode('manual')}
                 className={`px-4 py-2 text-sm rounded-lg border transition-colors ${
                   ownerMode === 'manual'
-                    ? 'bg-zinc-900 text-white border-zinc-900'
+                    ? 'bg-muted text-white border-border'
                     : 'bg-background text-muted-foreground border-border hover:border-muted-foreground'
                 }`}
               >
@@ -476,7 +476,7 @@ function WalletHandoffContent() {
                   placeholder="e.g. alice.near"
                   className="font-mono"
                 />
-                <p className="text-xs text-zinc-400 mt-1">
+                <p className="text-xs text-muted-foreground mt-1">
                   This NEAR account will be the policy owner. You still need to connect a wallet to sign the transaction.
                 </p>
                 {manualOwner.trim() && !isNearConnected && (
@@ -524,7 +524,7 @@ function WalletHandoffContent() {
                   className={`flex items-center justify-between rounded-lg border p-4 transition-colors ${
                     requireApproval
                       ? 'border-lime-500/25 bg-lime-500/10'
-                      : 'border-zinc-200 hover:border-zinc-300'
+                      : 'border-border hover:border-border'
                   }`}
                 >
                   <div
@@ -547,10 +547,10 @@ function WalletHandoffContent() {
                 {requireApproval && (
                   <div className="space-y-4 pl-0" onClick={(e) => e.stopPropagation()}>
                     {/* Approvers section */}
-                    <div className="rounded-lg border border-zinc-200 divide-y divide-zinc-100">
+                    <div className="rounded-lg border border-border divide-y divide-border">
                       {/* Primary approver */}
                       <div className="p-4">
-                        <label className="block text-xs font-medium text-zinc-500 mb-2">Required Approvals</label>
+                        <label className="block text-xs font-medium text-muted-foreground mb-2">Required Approvals</label>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <Input
                             type="text"
@@ -563,17 +563,17 @@ function WalletHandoffContent() {
                             }}
                             placeholder="e.g. 1"
                           />
-                          <div className="flex items-center gap-2 px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg min-h-[38px]">
+                          <div className="flex items-center gap-2 px-3 py-2 bg-muted border border-border rounded-lg min-h-[38px]">
                             <div className="w-2 h-2 rounded-full bg-lime-500 shrink-0" />
-                            <span className="text-sm font-mono text-zinc-700 truncate">{effectiveOwner}</span>
-                            <span className="text-xs text-zinc-400 shrink-0 ml-auto">admin</span>
+                            <span className="text-sm font-mono text-muted-foreground truncate">{effectiveOwner}</span>
+                            <span className="text-xs text-muted-foreground shrink-0 ml-auto">admin</span>
                           </div>
                         </div>
                       </div>
 
                       {/* Additional approvers */}
                       <div className="p-4">
-                        <label className="block text-xs font-medium text-zinc-500 mb-2">
+                        <label className="block text-xs font-medium text-muted-foreground mb-2">
                           Additional Approvers
                         </label>
                         <textarea
@@ -581,16 +581,16 @@ function WalletHandoffContent() {
                           onChange={(e) => setAdditionalApprovers(e.target.value)}
                           placeholder={"alice.near, signer\nbob.near, signer"}
                           rows={2}
-                          className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-zinc-300 resize-none"
+                          className="w-full border border-border rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-zinc-300 resize-none"
                         />
-                        <p className="text-xs text-zinc-400 mt-1.5">One per line — format: account_id, role. Roles: admin or signer.</p>
+                        <p className="text-xs text-muted-foreground mt-1.5">One per line — format: account_id, role. Roles: admin or signer.</p>
                       </div>
                     </div>
 
                     {/* Transaction types */}
-                    <div className="rounded-lg border border-zinc-200">
-                      <div className="px-4 py-3 border-b border-zinc-100">
-                        <label className="block text-xs font-medium text-zinc-500">Require approval for</label>
+                    <div className="rounded-lg border border-border">
+                      <div className="px-4 py-3 border-b border-border">
+                        <label className="block text-xs font-medium text-muted-foreground">Require approval for</label>
                       </div>
                       {(() => {
                         const txTypeLabels: Record<string, { label: string; desc: string }> = {
@@ -609,8 +609,8 @@ function WalletHandoffContent() {
                           return (
                             <div
                               key={txType}
-                              className={`flex items-center justify-between px-4 py-3 transition-colors hover:bg-zinc-50 ${
-                                txType === 'intents_withdraw' ? 'border-t border-zinc-100' : ''
+                              className={`flex items-center justify-between px-4 py-3 transition-colors hover:bg-muted ${
+                                txType === 'intents_withdraw' ? 'border-t border-border' : ''
                               }`}
                             >
                               <div
@@ -623,8 +623,8 @@ function WalletHandoffContent() {
                                   });
                                 }}
                               >
-                                <p className={`text-sm font-medium ${checked ? 'text-zinc-900' : 'text-zinc-500'}`}>{info.label}</p>
-                                <p className="text-xs text-zinc-400 truncate">{info.desc}</p>
+                                <p className={`text-sm font-medium ${checked ? 'text-foreground' : 'text-muted-foreground'}`}>{info.label}</p>
+                                <p className="text-xs text-muted-foreground truncate">{info.desc}</p>
                               </div>
                               <Checkbox
                                 checked={checked}
@@ -642,16 +642,16 @@ function WalletHandoffContent() {
                         return (
                           <div>
                             {directTypes.map(renderToggle)}
-                            <div className="mx-4 my-2 py-1.5 border-t border-zinc-100" />
-                            <div className="px-4 py-2 bg-zinc-50/50">
-                              <span className="text-[10px] font-medium text-zinc-400 uppercase tracking-wider">NEAR Intents</span>
+                            <div className="mx-4 my-2 py-1.5 border-t border-border" />
+                            <div className="px-4 py-2 bg-muted/50">
+                              <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">NEAR Intents</span>
                             </div>
                             {intentsTypes.map(renderToggle)}
                           </div>
                         );
                       })()}
-                      <div className="px-4 py-2.5 border-t border-zinc-100 bg-zinc-50/50">
-                        <p className="text-[11px] text-zinc-400">Unchecked types execute immediately without approval.</p>
+                      <div className="px-4 py-2.5 border-t border-border bg-muted/50">
+                        <p className="text-[11px] text-muted-foreground">Unchecked types execute immediately without approval.</p>
                         {(approvalTypes.has('intents_swap') || approvalTypes.has('intents_deposit')) && (
                           <p className="text-[11px] text-amber-600 font-medium mt-1">
                             Intents deposit &amp; swap use expiring quotes — approval delays may cause failures.
@@ -676,7 +676,7 @@ function WalletHandoffContent() {
             />
 
             <div className="mt-4 pt-4 border-t flex items-center justify-between">
-              <p className="text-xs text-zinc-400">
+              <p className="text-xs text-muted-foreground">
                 Policy will be encrypted in TEE and stored on-chain with <span className="font-mono">{effectiveOwner}</span> as owner.
               </p>
               <Button

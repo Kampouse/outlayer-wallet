@@ -43,19 +43,19 @@ export function AuthorizedKeysSection({
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-1 text-sm text-zinc-900 hover:text-zinc-600 font-medium"
+        className="flex items-center gap-1 text-sm text-foreground hover:text-muted-foreground font-medium"
       >
         <span className={`transition-transform duration-200 ${expanded ? 'rotate-90' : ''}`}>&#9654;</span>
         Authorized API Keys
         {apiKeyHash && (
-          <span className="ml-1.5 text-xs bg-zinc-100 text-zinc-500 px-1.5 py-0.5 rounded">
+          <span className="ml-1.5 text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
             {additionalKeyHashes.length + 1} total
           </span>
         )}
       </button>
 
       {!expanded ? (
-        <p className="text-xs text-zinc-400 mt-1 ml-5">
+        <p className="text-xs text-muted-foreground mt-1 ml-5">
           {apiKeyHash
             ? '1 key auto-included (current handoff key)'
             : 'No keys configured'}
@@ -84,17 +84,17 @@ export function AuthorizedKeysSection({
           {/* Additional keys */}
           {additionalKeyHashes.length > 0 && (
             <div className="space-y-2">
-              <p className="text-xs text-zinc-500 font-medium">Additional authorized keys:</p>
+              <p className="text-xs text-muted-foreground font-medium">Additional authorized keys:</p>
               {additionalKeyHashes.map((hash, i) => {
                 const label = labelForHash(hash);
                 return (
-                  <div key={i} className="bg-zinc-50 border border-zinc-200 rounded-lg p-3">
+                  <div key={i} className="bg-muted border border-border rounded-lg p-3">
                     <div className="flex items-center justify-between">
                       <div>
                         {label && (
-                          <p className="text-xs text-zinc-500">{label}</p>
+                          <p className="text-xs text-muted-foreground">{label}</p>
                         )}
-                        <p className="text-xs font-mono text-zinc-700 break-all">{hash}</p>
+                        <p className="text-xs font-mono text-muted-foreground break-all">{hash}</p>
                       </div>
                       <button
                         type="button"
@@ -112,7 +112,7 @@ export function AuthorizedKeysSection({
 
           {/* Add new hash */}
           <div>
-            <p className="text-xs text-zinc-500 mb-1">Add an API key hash:</p>
+            <p className="text-xs text-muted-foreground mb-1">Add an API key hash:</p>
             <div className="flex gap-2">
               <Input
                 type="text"
@@ -135,8 +135,8 @@ export function AuthorizedKeysSection({
             </div>
           </div>
 
-          <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-3">
-            <p className="text-xs text-zinc-500">
+          <div className="bg-muted border border-border rounded-lg p-3">
+            <p className="text-xs text-muted-foreground">
               Only API keys whose SHA-256 hash is listed here will be accepted by the wallet.
               The coordinator stores your key and sends it with requests; it never appears on-chain.
             </p>

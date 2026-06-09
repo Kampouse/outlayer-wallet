@@ -112,7 +112,7 @@ function ConfidentialBalanceCard({
   }, 0);
 
   return (
-    <div className="bg-card/50 border border-white/[0.08] rounded-2xl p-5 mb-4">
+    <div className="bg-card/50 border border-border rounded-2xl p-5 mb-4">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <div className="relative w-9 h-9 flex items-center justify-center">
@@ -202,7 +202,7 @@ function ActionButton({
     <button
       onClick={onClick}
       disabled={disabled}
-      className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-card/40 border border-white/[0.06] hover:bg-card/60 hover:border-white/[0.12] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+      className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-card/40 border border-border/50 hover:bg-card/60 hover:border-border disabled:opacity-40 disabled:cursor-not-allowed transition-all"
     >
       <div className="relative w-10 h-10 flex items-center justify-center">
         <div className="absolute inset-0 rounded-full bg-purple-500/15" />
@@ -237,7 +237,7 @@ function PrivacyDisclosure() {
           <p>
             <strong>Shield/unshield link your wallet on the public chain.</strong> Entry and exit
             reveal your NEAR wallet. Cross-chain deposit/withdraw keep your NEAR wallet off the
-            public chain — only the external-chain sender/receiver is visible on that chain.
+            public chain, only the external-chain sender/receiver is visible on that chain.
           </p>
           <p>
             <strong>Not hidden from:</strong> the Defuse/1Click solver layer (sees plaintext
@@ -246,7 +246,7 @@ function PrivacyDisclosure() {
           </p>
           <p>
             <strong>For unlinkability:</strong> fund via cross-chain deposit, exit via cross-chain
-            withdraw. One confidential identity per wallet — multi-op unlinkability is not
+            withdraw. One confidential identity per wallet, multi-op unlinkability is not
             achievable today.
           </p>
         </div>
@@ -653,7 +653,7 @@ export default function WalletPrivatePage() {
           </Link>
           <h1 className="text-lg font-semibold">Private</h1>
         </div>
-        <div className="bg-card/40 border border-white/[0.06] rounded-2xl p-6">
+        <div className="bg-card/40 border border-border/50 rounded-2xl p-6">
           <p className="text-sm text-muted-foreground">
             Connect a custody wallet key to view shielded balances. Keys are saved
             locally when you register or import a wallet on the{" "}

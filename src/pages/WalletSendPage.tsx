@@ -13,7 +13,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   SendHorizontal,
   Loader2,
-  ArrowDownLeft,
   Wallet,
   Info,
 } from "lucide-react";
@@ -356,11 +355,11 @@ export default function WalletSendPage() {
       <div className="max-w-lg mx-auto px-4 pt-4 pb-24">
         <Card>
           <CardContent className="p-8 text-center">
-            <div className="w-14 h-14 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center mx-auto mb-4">
-              <SendHorizontal className="w-7 h-7 text-zinc-400" />
+            <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-4">
+              <SendHorizontal className="w-7 h-7 text-muted-foreground" />
             </div>
             <h2 className="text-lg font-semibold mb-2">Send Tokens</h2>
-            <p className="text-zinc-500 text-sm max-w-xs mx-auto">
+            <p className="text-muted-foreground text-sm max-w-xs mx-auto">
               Save an API key from the Wallets page to send NEAR and tokens.
             </p>
           </CardContent>

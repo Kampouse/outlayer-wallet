@@ -37,13 +37,13 @@ export default class ErrorBoundary extends Component<Props, State> {
               <line x1="12" y1="16" x2="12.01" y2="16" />
             </svg>
           </div>
-          <h2 className="text-lg font-semibold text-zinc-900 mb-1">Something went wrong</h2>
-          <p className="text-sm text-zinc-500 mb-4 max-w-sm">
+          <h2 className="text-lg font-semibold text-foreground mb-1">Something went wrong</h2>
+          <p className="text-sm text-muted-foreground mb-4 max-w-sm">
             {this.state.error?.message || "An unexpected error occurred"}
           </p>
           <button
             onClick={() => this.setState({ hasError: false, error: null })}
-            className="text-sm font-medium text-zinc-900 hover:underline"
+            className="text-sm font-medium text-foreground hover:underline"
           >
             Try again
           </button>

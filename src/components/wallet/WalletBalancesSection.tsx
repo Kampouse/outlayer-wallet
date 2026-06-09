@@ -9,7 +9,7 @@ interface WalletBalancesSectionProps {
 
 function BalanceSkeleton() {
   return (
-    <div className="mt-3 pt-3 border-t border-zinc-100">
+    <div className="mt-3 pt-3 border-t border-border">
       <div className="flex items-center justify-between mb-2">
         <Skeleton className="h-3 w-14" />
       </div>
@@ -76,8 +76,8 @@ export default function WalletBalancesSection({
 
   if (!apiKey) {
     return (
-      <div className="mt-3 pt-3 border-t border-zinc-100">
-        <p className="text-xs text-zinc-400">
+      <div className="mt-3 pt-3 border-t border-border">
+        <p className="text-xs text-muted-foreground">
           Save an API key to view balances.
         </p>
       </div>
@@ -104,15 +104,15 @@ export default function WalletBalancesSection({
   };
 
   return (
-    <div className="mt-3 pt-3 border-t border-zinc-100">
+    <div className="mt-3 pt-3 border-t border-border">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-semibold text-zinc-600 flex items-center gap-1.5">
+        <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
           <Wallet className="w-3 h-3" />
           Balances
         </span>
         <button
           onClick={() => refetch()}
-          className="text-xs text-zinc-400 hover:text-zinc-600 p-0.5"
+          className="text-xs text-muted-foreground hover:text-muted-foreground p-0.5"
           title="Refresh balances"
           disabled={isRefreshing}
         >
@@ -124,35 +124,35 @@ export default function WalletBalancesSection({
 
       {/* Total USD value */}
       {totalUsd > 0 && (
-        <div className="flex items-center gap-1.5 mb-2 pb-2 border-b border-zinc-100">
+        <div className="flex items-center gap-1.5 mb-2 pb-2 border-b border-border">
           <DollarSign className="w-3.5 h-3.5 text-lime-600" />
-          <span className="text-sm font-semibold text-zinc-900">
+          <span className="text-sm font-semibold text-foreground">
             ${totalUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
-          <span className="text-[10px] text-zinc-400">USD</span>
+          <span className="text-[10px] text-muted-foreground">USD</span>
         </div>
       )}
 
       {near ? (
         <div className="flex items-center justify-between py-1">
-          <span className="text-xs text-zinc-500">NEAR</span>
-          <span className="text-xs font-mono font-medium text-zinc-800">
+          <span className="text-xs text-muted-foreground">NEAR</span>
+          <span className="text-xs font-mono font-medium text-foreground">
             {formatNear(near.balance)}
           </span>
         </div>
       ) : (
         <div className="flex items-center justify-between py-1">
-          <span className="text-xs text-zinc-500">NEAR</span>
-          <span className="text-xs font-mono font-medium text-zinc-800">0</span>
+          <span className="text-xs text-muted-foreground">NEAR</span>
+          <span className="text-xs font-mono font-medium text-foreground">0</span>
         </div>
       )}
 
       {/* Intents balances */}
-      <div className="mt-1.5 pt-1.5 border-t border-zinc-100">
+      <div className="mt-1.5 pt-1.5 border-t border-border">
         {intentsLoading && tokens.length === 0 && (
           <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 border border-zinc-300 border-t-zinc-500 rounded-full animate-spin" />
-            <span className="text-xs text-zinc-400">Loading...</span>
+            <div className="w-3 h-3 border border-border border-t-zinc-500 rounded-full animate-spin" />
+            <span className="text-xs text-muted-foreground">Loading...</span>
           </div>
         )}
 
@@ -163,8 +163,8 @@ export default function WalletBalancesSection({
                 key={t.defuse_asset_id}
                 className="flex items-center justify-between py-0.5"
               >
-                <span className="text-xs text-zinc-500">{t.symbol}</span>
-                <span className="text-xs font-mono font-medium text-zinc-800">
+                <span className="text-xs text-muted-foreground">{t.symbol}</span>
+                <span className="text-xs font-mono font-medium text-foreground">
                   {formatTokenBalance(t.balance, t.decimals)}
                 </span>
               </div>
@@ -174,8 +174,8 @@ export default function WalletBalancesSection({
 
         {!intentsLoading && tokens.length === 0 && (
           <div className="flex items-center justify-between py-0.5">
-            <span className="text-xs text-zinc-500">USDC</span>
-            <span className="text-xs font-mono font-medium text-zinc-800">0</span>
+            <span className="text-xs text-muted-foreground">USDC</span>
+            <span className="text-xs font-mono font-medium text-foreground">0</span>
           </div>
         )}
       </div>

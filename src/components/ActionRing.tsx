@@ -80,7 +80,7 @@ export default function ActionRing({
           className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
           privateMode
             ? "bg-purple-500 text-white shadow-[0_0_16px_-2px] shadow-purple-500/60"
-            : "bg-zinc-500/95 text-zinc-600 dark:text-zinc-400"
+            : "bg-muted0/95 text-muted-foreground dark:text-muted-foreground"
         }`}
         >
           <Shield size={20} />

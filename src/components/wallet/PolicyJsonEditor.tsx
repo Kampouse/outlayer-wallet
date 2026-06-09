@@ -55,7 +55,7 @@ export function PolicyJsonEditor({ policyJsonText, onChangeText, jsonEdited, onR
         <button
           type="button"
           onClick={() => setExpanded(!expanded)}
-          className="flex items-center gap-1 text-sm text-zinc-900 hover:text-zinc-600 font-medium"
+          className="flex items-center gap-1 text-sm text-foreground hover:text-muted-foreground font-medium"
         >
           <span className={`transition-transform duration-200 ${expanded ? 'rotate-90' : ''}`}>&#9654;</span>
           Policy JSON
@@ -64,7 +64,7 @@ export function PolicyJsonEditor({ policyJsonText, onChangeText, jsonEdited, onR
           <button
             type="button"
             onClick={onReset}
-            className="text-xs text-zinc-500 hover:text-zinc-900 font-medium"
+            className="text-xs text-muted-foreground hover:text-foreground font-medium"
           >
             Reset to form defaults
           </button>
@@ -72,8 +72,8 @@ export function PolicyJsonEditor({ policyJsonText, onChangeText, jsonEdited, onR
       </div>
 
       {!expanded ? (
-        <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-3 max-h-48 overflow-auto">
-          <pre className="text-xs text-zinc-600 whitespace-pre-wrap break-all font-mono">
+        <div className="bg-muted border border-border rounded-lg p-3 max-h-48 overflow-auto">
+          <pre className="text-xs text-muted-foreground whitespace-pre-wrap break-all font-mono">
             {(() => {
               try {
                 const parsed = JSON.parse(policyJsonText);
@@ -92,16 +92,16 @@ export function PolicyJsonEditor({ policyJsonText, onChangeText, jsonEdited, onR
               <p className="text-xs text-red-700">Invalid JSON: {jsonError}</p>
             </div>
           )}
-          <div className="border border-zinc-200 rounded-lg overflow-hidden bg-zinc-50">
+          <div className="border border-border rounded-lg overflow-hidden bg-muted">
             <div className="flex">
               {/* Line numbers */}
               <div
                 ref={lineNumbersRef}
-                className="bg-zinc-100 border-r border-zinc-200 px-3 py-3 text-right select-none overflow-hidden flex-shrink-0"
+                className="bg-muted border-r border-border px-3 py-3 text-right select-none overflow-hidden flex-shrink-0"
                 style={{ minWidth: '3rem' }}
               >
                 {Array.from({ length: lineCount }, (_, i) => (
-                  <div key={i} className="text-xs text-zinc-400 font-mono leading-5">
+                  <div key={i} className="text-xs text-muted-foreground font-mono leading-5">
                     {i + 1}
                   </div>
                 ))}
@@ -112,12 +112,12 @@ export function PolicyJsonEditor({ policyJsonText, onChangeText, jsonEdited, onR
                 value={expandedJson}
                 onChange={(e) => handleTextChange(e.target.value)}
                 onScroll={handleScroll}
-                className="flex-1 bg-transparent p-3 text-xs text-zinc-800 font-mono leading-5 resize-none focus:outline-none min-h-[300px]"
+                className="flex-1 bg-transparent p-3 text-xs text-foreground font-mono leading-5 resize-none focus:outline-none min-h-[300px]"
                 spellCheck={false}
               />
             </div>
           </div>
-          <p className="text-xs text-zinc-400 mt-1">
+          <p className="text-xs text-muted-foreground mt-1">
             Edit the JSON directly. Changes here override the form fields above.
           </p>
         </div>
