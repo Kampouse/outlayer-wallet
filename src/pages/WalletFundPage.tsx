@@ -9,28 +9,12 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2, Check, DollarSign } from 'lucide-react';
 import { rpcQuery } from '@/lib/rpc-pool';
+import { nearToYocto, toMinimalUnits } from '@/lib/amounts';
 
 interface TokenMeta {
   symbol: string;
   decimals: number;
   icon: string | null;
-}
-
-/** Convert human-readable amount to yoctoNEAR string */
-function nearToYocto(amount: string): string {
-  const parsed = parseFloat(amount);
-  if (isNaN(parsed) || parsed <= 0) throw new Error('Invalid amount');
-  const yocto = BigInt(Math.round(parsed * 1e6)) * BigInt(1e18);
-  return yocto.toString();
-}
-
-/** Convert human-readable amount to FT minimal units using decimals */
-function toMinimalUnits(amount: string, decimals: number): string {
-  const parts = amount.split('.');
-  const whole = parts[0] || '0';
-  const frac = (parts[1] || '').padEnd(decimals, '0').slice(0, decimals);
-  const result = BigInt(whole) * BigInt(10 ** decimals) + BigInt(frac);
-  return result.toString();
 }
 
 /** Format yoctoNEAR to human-readable */

@@ -9,15 +9,7 @@ import { ArrowDownUp, Loader2, Wallet, Shield, ChevronDown } from "lucide-react"
 import { useQuery } from "@tanstack/react-query";
 import { TokenPickerModal, type TokenOption } from "@/components/TokenPickerModal";
 import TokenIcon from "@/components/TokenIcon";
-
-/** Convert human-readable amount to FT minimal units using decimals */
-function toMinimalUnits(amount: string, decimals: number): string {
-  const parts = amount.split(".");
-  const whole = parts[0] || "0";
-  const frac = (parts[1] || "").padEnd(decimals, "0").slice(0, decimals);
-  const result = BigInt(whole) * BigInt(10 ** decimals) + BigInt(frac);
-  return result.toString();
-}
+import { toMinimalUnits } from "@/lib/amounts";
 
 /** Shorten hex address for display */
 function shortAddr(hex: string): string {
