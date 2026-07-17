@@ -266,6 +266,118 @@ export function PolicyFormFields({ policyForm, onChange, apiKeyHash, knownKeyHas
         knownKeyHashes={knownKeyHashes}
         onSaveKey={onSaveKey}
       />
+
+      {/* Signing Capabilities */}
+      <div className="rounded-lg border border-border">
+        <div className="px-4 py-3 border-b border-border">
+          <h3 className="text-sm font-semibold text-foreground">Signing Capabilities</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">Control which chains and signing primitives the wallet can use. Default-DENY under a policy.</p>
+        </div>
+        <div className="divide-y divide-border">
+          {/* Solana */}
+          <div className="px-4 py-2.5">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Solana</p>
+          </div>
+          <div className="flex items-center justify-between px-4 py-2.5">
+            <div className="cursor-pointer" onClick={() => update({ cap_solana_sign_allowed: !policyForm.cap_solana_sign_allowed })}>
+              <p className={`text-sm font-medium ${policyForm.cap_solana_sign_allowed ? 'text-foreground' : 'text-muted-foreground'}`}>Sign Transactions</p>
+              <p className="text-xs text-muted-foreground">Solana tx message signing (max 1232 bytes)</p>
+            </div>
+            <Checkbox
+              checked={policyForm.cap_solana_sign_allowed}
+              onCheckedChange={(v) => update({ cap_solana_sign_allowed: !!v })}
+            />
+          </div>
+          {policyForm.cap_solana_sign_allowed && (
+            <div className="flex items-center justify-between px-4 py-2.5 bg-muted/30">
+              <div className="cursor-pointer" onClick={() => update({ cap_solana_sign_raw_tx: !policyForm.cap_solana_sign_raw_tx })}>
+                <p className={`text-sm font-medium ${policyForm.cap_solana_sign_raw_tx ? 'text-foreground' : 'text-muted-foreground'}`}>Raw TX Mode</p>
+                <p className="text-xs text-muted-foreground">Sign arbitrary message bytes (not parsed txs)</p>
+              </div>
+              <Checkbox
+                checked={policyForm.cap_solana_sign_raw_tx}
+                onCheckedChange={(v) => update({ cap_solana_sign_raw_tx: !!v })}
+              />
+            </div>
+          )}
+
+          {/* EVM */}
+          <div className="px-4 py-2.5">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">EVM <span className="font-normal">(ETH, Polygon, Base, Arb, OP, BSC, AVAX)</span></p>
+          </div>
+          <div className="flex items-center justify-between px-4 py-2.5">
+            <div className="cursor-pointer" onClick={() => update({ cap_evm_sign_allowed: !policyForm.cap_evm_sign_allowed })}>
+              <p className={`text-sm font-medium ${policyForm.cap_evm_sign_allowed ? 'text-foreground' : 'text-muted-foreground'}`}>EVM Signing</p>
+              <p className="text-xs text-muted-foreground">EIP-712 typed-data, personal_sign, raw tx</p>
+            </div>
+            <Checkbox
+              checked={policyForm.cap_evm_sign_allowed}
+              onCheckedChange={(v) => update({ cap_evm_sign_allowed: !!v })}
+            />
+          </div>
+
+          {/* Raw Sign */}
+          <div className="px-4 py-2.5">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Raw Signing</p>
+          </div>
+          <div className="flex items-center justify-between px-4 py-2.5">
+            <div className="cursor-pointer" onClick={() => update({ cap_raw_sign_allowed: !policyForm.cap_raw_sign_allowed })}>
+              <p className={`text-sm font-medium ${policyForm.cap_raw_sign_allowed ? 'text-foreground' : 'text-muted-foreground'}`}>Raw Sign</p>
+              <p className="text-xs text-muted-foreground">Sign arbitrary bytes (dangerous)</p>
+            </div>
+            <Checkbox
+              checked={policyForm.cap_raw_sign_allowed}
+              onCheckedChange={(v) => update({ cap_raw_sign_allowed: !!v })}
+            />
+          </div>
+          {policyForm.cap_raw_sign_allowed && (
+            <div className="px-4 py-2.5 bg-muted/30">
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Chain Allowlist (empty = all)</label>
+              <Input
+                type="text"
+                value={policyForm.cap_raw_sign_chains}
+                onChange={(e) => update({ cap_raw_sign_chains: e.target.value })}
+                placeholder="solana, ethereum, near"
+              />
+            </div>
+          )}
+
+          {/* Other */}
+          <div className="px-4 py-2.5">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Other</p>
+          </div>
+          <div className="flex items-center justify-between px-4 py-2.5">
+            <div className="cursor-pointer" onClick={() => update({ cap_sign_message_allowed: !policyForm.cap_sign_message_allowed })}>
+              <p className={`text-sm font-medium ${policyForm.cap_sign_message_allowed ? 'text-foreground' : 'text-muted-foreground'}`}>Sign Message</p>
+              <p className="text-xs text-muted-foreground">NEP-413 dApp login (default: allowed)</p>
+            </div>
+            <Checkbox
+              checked={policyForm.cap_sign_message_allowed}
+              onCheckedChange={(v) => update({ cap_sign_message_allowed: !!v })}
+            />
+          </div>
+          <div className="flex items-center justify-between px-4 py-2.5">
+            <div className="cursor-pointer" onClick={() => update({ cap_confidential_allowed: !policyForm.cap_confidential_allowed })}>
+              <p className={`text-sm font-medium ${policyForm.cap_confidential_allowed ? 'text-foreground' : 'text-muted-foreground'}`}>Confidential</p>
+              <p className="text-xs text-muted-foreground">Confidential / unlockable transfers</p>
+            </div>
+            <Checkbox
+              checked={policyForm.cap_confidential_allowed}
+              onCheckedChange={(v) => update({ cap_confidential_allowed: !!v })}
+            />
+          </div>
+          <div className="flex items-center justify-between px-4 py-2.5">
+            <div className="cursor-pointer" onClick={() => update({ cap_swap_allowed: !policyForm.cap_swap_allowed })}>
+              <p className={`text-sm font-medium ${policyForm.cap_swap_allowed ? 'text-foreground' : 'text-muted-foreground'}`}>Swap</p>
+              <p className="text-xs text-muted-foreground">Token swap capability</p>
+            </div>
+            <Checkbox
+              checked={policyForm.cap_swap_allowed}
+              onCheckedChange={(v) => update({ cap_swap_allowed: !!v })}
+            />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

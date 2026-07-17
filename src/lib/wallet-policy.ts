@@ -20,6 +20,15 @@ export interface PolicyForm {
   webhook_url: string;
   /** Additional authorized API key hashes (one per line, hex SHA256) */
   additional_key_hashes: string;
+  // ── Capabilities (signing primitives, default-DENY under a policy) ──
+  cap_raw_sign_allowed: boolean;
+  cap_raw_sign_chains: string; // comma-separated chain IDs, empty = all
+  cap_evm_sign_allowed: boolean;
+  cap_solana_sign_allowed: boolean;
+  cap_solana_sign_raw_tx: boolean;
+  cap_sign_message_allowed: boolean;
+  cap_confidential_allowed: boolean;
+  cap_swap_allowed: boolean;
 }
 
 export const DEFAULT_POLICY: PolicyForm = {
@@ -37,6 +46,15 @@ export const DEFAULT_POLICY: PolicyForm = {
   max_per_hour: '',
   webhook_url: '',
   additional_key_hashes: '',
+  // ── Capabilities ──
+  cap_raw_sign_allowed: false,
+  cap_raw_sign_chains: '',
+  cap_evm_sign_allowed: false,
+  cap_solana_sign_allowed: false,
+  cap_solana_sign_raw_tx: false,
+  cap_sign_message_allowed: true, // default-ALLOW per spec
+  cap_confidential_allowed: false,
+  cap_swap_allowed: false,
 };
 
 // ============================================================================
@@ -123,6 +141,26 @@ export function buildPolicyRules(
   }
   if (keyHashes.length > 0) policy.authorized_key_hashes = keyHashes;
 
+  // ── Capabilities ──
+  const caps: Record<string, unknown> = {};
+  if (form.cap_raw_sign_allowed) {
+    const rs: Record<string, unknown> = { allowed: true };
+    if (form.cap_raw_sign_chains.trim()) {
+      rs.chains = form.cap_raw_sign_chains.split(',').map((c) => c.trim()).filter(Boolean);
+    }
+    caps.raw_sign = rs;
+  }
+  if (form.cap_evm_sign_allowed) caps.evm_sign = { allowed: true };
+  if (form.cap_solana_sign_allowed) {
+    const ss: Record<string, unknown> = { allowed: true };
+    if (form.cap_solana_sign_raw_tx) ss.raw_tx = true;
+    caps.solana_sign = ss;
+  }
+  if (form.cap_sign_message_allowed) caps.sign_message = { allowed: true };
+  if (form.cap_confidential_allowed) caps.confidential = { allowed: true };
+  if (form.cap_swap_allowed) caps.swap = { allowed: true };
+  if (Object.keys(caps).length > 0) policy.capabilities = caps;
+
   return policy;
 }
 
@@ -152,6 +190,14 @@ interface PolicyResponseData {
   };
   authorized_key_hashes?: string[];
   webhook_url?: string;
+  capabilities?: {
+    raw_sign?: { allowed?: boolean; chains?: string[] };
+    evm_sign?: { allowed?: boolean };
+    solana_sign?: { allowed?: boolean; raw_tx?: boolean };
+    sign_message?: { allowed?: boolean };
+    confidential?: { allowed?: boolean };
+    swap?: { allowed?: boolean };
+  };
 }
 
 export interface ParsedPolicy {
@@ -179,6 +225,8 @@ export function parsePolicyResponse(
   const addr = rules.addresses || {};
   const tr = rules.time_restrictions || {};
 
+  const caps = data.capabilities || {};
+
   const form: PolicyForm = {
     per_transaction_limit: yoctoToNear(limits.per_transaction?.native || limits.per_transaction?.['*'] || ''),
     daily_limit: yoctoToNear(limits.daily?.native || limits.daily?.['*'] || ''),
@@ -196,6 +244,15 @@ export function parsePolicyResponse(
     additional_key_hashes: (data.authorized_key_hashes || [])
       .filter((h) => h !== currentApiKeyHash)
       .join('\n'),
+    // ── Capabilities ──
+    cap_raw_sign_allowed: caps.raw_sign?.allowed || false,
+    cap_raw_sign_chains: (caps.raw_sign?.chains || []).join(', '),
+    cap_evm_sign_allowed: caps.evm_sign?.allowed || false,
+    cap_solana_sign_allowed: caps.solana_sign?.allowed || false,
+    cap_solana_sign_raw_tx: caps.solana_sign?.raw_tx || false,
+    cap_sign_message_allowed: caps.sign_message?.allowed !== false, // default-ALLOW
+    cap_confidential_allowed: caps.confidential?.allowed || false,
+    cap_swap_allowed: caps.swap?.allowed || false,
   };
 
   let approval: ParsedPolicy['approval'] = null;
@@ -217,6 +274,7 @@ export function parsePolicyResponse(
   if (data.approval) fullJson.approval = data.approval;
   if (data.webhook_url) fullJson.webhook_url = data.webhook_url;
   if (data.authorized_key_hashes?.length) fullJson.authorized_key_hashes = data.authorized_key_hashes;
+  if (data.capabilities) fullJson.capabilities = data.capabilities;
 
   return { form, approval, fullJson };
 }
